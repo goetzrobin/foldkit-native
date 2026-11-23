@@ -11,6 +11,7 @@ import { Runtime } from 'foldkit'
 import type { BackSource, Phone } from '../../src/index.js'
 import { makeNotes } from '../notes.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
+import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
@@ -43,6 +44,12 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
           ...(resources.backSource === undefined ? {} : { backSource: resources.backSource }),
         }),
       ),
+  },
+  {
+    id: 'lists',
+    title: 'Lists and motion',
+    blurb: '5,000 rows with about 40 drawn, pull to refresh, fades, and a card you can drag.',
+    start: (container, env) => Runtime.embed(makeLists(container, env)),
   },
   {
     id: 'styling',

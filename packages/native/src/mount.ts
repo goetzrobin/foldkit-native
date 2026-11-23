@@ -20,6 +20,7 @@ import {
 } from 'foldkit/renderTarget'
 
 import { makeModules } from './modules.js'
+import { stopMotion } from './motion/clock.js'
 import { makeNodeApi } from './nodeApi.js'
 
 export type NativeSurface = Readonly<{
@@ -145,6 +146,8 @@ export const createNativeSurface = (
     engine,
     dispose: () => {
       for (const nudge of nudges) clearTimeout(nudge)
+      // A queued animation frame must not commit on an engine that is gone.
+      stopMotion({ engine })
       unregister()
       // Newer engines have a `dispose`. The published 0.25.0 does not.
       ;(engine as { dispose?: () => void }).dispose?.()

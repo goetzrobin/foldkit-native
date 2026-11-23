@@ -26,8 +26,9 @@ import type { Engine } from '@ng-native/fabric'
 import { registerViewName } from '@ng-native/fabric'
 import { Option } from 'effect'
 import type { Attribute, ChildAttribute, Html } from 'foldkit/html'
-import { type Module, OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
+import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 
+import { prop } from '../attributes'
 import { registerModule } from '../extend'
 import { nodeOf } from '../modules'
 
@@ -136,15 +137,8 @@ export const modalScreen = el(MODAL_SCREEN)
 /** A screen's navigation bar. A direct child of its `screen`. */
 export const header = el('native-header')
 
-/** A native prop with any value, where `h.Attribute` takes only text. */
-export const prop = (key: string, value: unknown) => Prop({ key, value })
-
-/**
- * Native styles, as React Native names them: `style({ paddingVertical: 12 })`.
- * `h.Style` accepts web CSS names only, so native-only ones go through here.
- */
-export const style = (value: Readonly<Record<string, string | number>>) =>
-  prop('style', value)
+// `prop` and `style` live with the other native attributes.
+export { prop, style } from '../attributes'
 
 /** The navigation bar's title. Also a tab's title, on a `tab`. */
 export const title = (value: string) => prop('title', value)

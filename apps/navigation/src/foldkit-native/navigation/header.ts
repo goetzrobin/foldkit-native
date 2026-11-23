@@ -24,7 +24,8 @@ import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
-import { type Attributes, type Device, header, prop, style, title } from './stack'
+import { prop, style } from '../attributes'
+import { type Attributes, type Device, header, title } from './stack'
 
 const el = element<any>()
 

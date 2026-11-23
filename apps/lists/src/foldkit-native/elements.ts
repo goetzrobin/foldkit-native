@@ -10,6 +10,8 @@ const el = element<any>()
 
 /** A box. `UIView` on iOS, `android.view.View` on Android. */
 export const view = el('view')
+/** A box meant to be pressed. The same view as `view`: the name is for the reader. */
+export const pressable = el('view')
 /** Text. Words must sit inside one of these. */
 export const text = el('text')
 /**

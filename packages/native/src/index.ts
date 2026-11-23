@@ -30,3 +30,26 @@ export * as Phone from './device/index.js'
 // fuller crash screen: import that one from './devLoop/index.js' directly.
 export { hasFoldkitTransport, hotProgram, keepModel } from './devLoop/index.js'
 export type { HotModule, HotProgram, HotProgramOptions, ProgramFactory } from './devLoop/index.js'
+// Long lists that only draw the rows near the screen, and pull to refresh.
+export { list, listRowCount, refreshScrollView, scrollListToIndex } from './list/index.js'
+export type { ListConfig, ListStats, Refresh, RowKey } from './list/index.js'
+// Movement: eased style changes, enter and exit, and dragging.
+export {
+  animated,
+  configureMotion,
+  draggable,
+  keepMoving,
+  stopMotion,
+  transition,
+} from './motion/index.js'
+export type {
+  Animated,
+  Curve,
+  Drag,
+  Draggable,
+  Easing,
+  Enter,
+  Exit,
+  MotionOptions,
+  Timing,
+} from './motion/index.js'

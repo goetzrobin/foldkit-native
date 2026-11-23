@@ -33,7 +33,8 @@ import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderT
 
 import { registerModule } from '../extend'
 import { bagOf, nodeOf } from '../modules'
-import { type Attributes, prop } from './stack'
+import { prop } from '../attributes'
+import type { Attributes } from './stack'
 
 const el = element<any>()
 
