@@ -31,7 +31,8 @@ import { type VNode, h, init, onUnmountModule } from 'foldkit/renderTarget'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { type Handler, customEvent, handlersByNode, makeModules, nodeOf } from '../modules.js'
 import { makeNodeApi } from '../nodeApi.js'
-import { EMPTY_RANGE, Heights, type Range, chooseWindow } from './window.js'
+import { type AnchoredEndSpace, endOffset, endSpaceFor, isAtEnd } from './end.js'
+import { EMPTY_RANGE, Heights, type Range, chooseWindow, rowsBetween } from './window.js'
 
 export type RowKey = string | number
 
@@ -47,6 +48,14 @@ export type ListSpec = Readonly<{
   drawAhead: number
   /** How close to the end counts as reaching it, in screen heights. */
   endReachedThreshold: number
+  /** Open at the last row. See `ListConfig` in `index.ts` for these five. */
+  initialScrollAtEnd: boolean
+  maintainScrollAtEnd: boolean
+  /** Whether following a new row glides or jumps. */
+  maintainScrollAtEndAnimated: boolean
+  /** How close to the end counts as being at it, in screen heights. */
+  atEndThreshold: number
+  anchoredEndSpace: AnchoredEndSpace | undefined
   /**
    * Runs a function that builds Foldkit elements as if it were called inside
    * the program's view, so the handlers in those elements send their Messages
@@ -74,6 +83,14 @@ export const LIST_DATA = 'foldkitList'
 export const CONTENT_DATA = 'foldkitListContent'
 export const LABEL_DATA = 'foldkitListLabel'
 export const END_REACHED = 'listEndReached'
+export const AT_END_CHANGED = 'listAtEndChanged'
+
+/** How long a list that opens at its end may stay unseen while it waits for
+ *  the phone to measure its rows. After this it is shown as it is. */
+const REVEAL_AFTER_MS = 400
+
+/** How long a gliding scroll is trusted to still be on its way. */
+const GLIDE_MS = 700
 
 /** What a label shows when no list with its id is on screen. */
 const NO_LIST: ListStats = { rowViews: 0, first: 0, end: 0, count: 0 }
@@ -104,6 +121,32 @@ type ListState = {
   anchor: Anchor | undefined
   /** A scroll position to send to the phone after the next commit. */
   pendingScroll: number | undefined
+  /** Whether that scroll should glide. */
+  pendingAnimated: boolean
+  /** Where the phone's scroll view is, as last heard from it or sent to it. */
+  native: number
+  /** Blank space under the last row. See `AnchoredEndSpace`. */
+  endSpace: number
+  /** Whether the end of the list is on screen. Not known before the phone
+   *  has said how tall the list is. */
+  isAtEnd: boolean | undefined
+  /** What the program was last told about `isAtEnd`. */
+  toldAtEnd: boolean
+  /**
+   * The list is on its way to its end and must arrive there exactly: on
+   * opening, after `scrollToEnd`, and after a new row is anchored. Row
+   * heights are guesses until the phone measures them, so the end moves a
+   * little while this is set, and the list moves with it. It ends when the
+   * rows at the end are measured, or when the user takes hold of the list.
+   */
+  holdEnd: boolean
+  /** A gliding scroll this module started that has not arrived yet. */
+  glide: { target: number; timer: ReturnType<typeof setTimeout> } | undefined
+  /** Not shown yet: a list that opens at its end, before it is there. */
+  isHidden: boolean
+  revealTimer: ReturnType<typeof setTimeout> | undefined
+  /** The row the list last scrolled to for `anchoredEndSpace`. */
+  anchoredKey: RowKey | undefined
   /** The row vnodes drawn now, kept so an unchanged row is not built again. */
   rows: Map<RowKey, VNode>
   canvas: VNode
@@ -165,8 +208,17 @@ const index = (state: ListState): void => {
   }
 }
 
+/** Every row, and the blank space under the last one. */
+const contentHeight = (state: ListState): number => state.heights.total() + state.endSpace
+
 const furthestOffset = (state: ListState): number =>
-  Math.max(0, state.heights.total() - viewportOf(state))
+  endOffset(contentHeight(state), viewportOf(state))
+
+/** The key of the row `anchoredEndSpace` names, if there is such a row. */
+const anchoredKeyOf = (state: ListState): RowKey | undefined => {
+  const at = state.spec.anchoredEndSpace?.anchorIndex
+  return at === undefined ? undefined : state.keys[at]
+}
 
 const takeAnchor = (state: ListState): void => {
   if (state.keys.length === 0 || state.offset <= 0) {
@@ -210,11 +262,118 @@ const chooseRows = (state: ListState): boolean => {
   return true
 }
 
+const endGlide = (state: ListState): void => {
+  if (state.glide === undefined) return
+  clearTimeout(state.glide.timer)
+  state.glide = undefined
+}
+
+/** Sends a scroll position to the phone, and remembers a glide is under way. */
+const sendScroll = (state: ListState, wanted: number, animated: boolean): void => {
+  endGlide(state)
+  state.native = wanted
+  state.engine.dispatchCommand(state.scroll, 'scrollTo', [0, wanted, animated])
+  if (!animated) return
+  // While the list glides the phone reports positions on the way. Those must
+  // not be read as "the user left the end". The timer is for a glide whose
+  // last report never comes.
+  const glide = {
+    target: wanted,
+    timer: setTimeout(() => {
+      if (state.glide !== glide || !state.isAlive) return
+      state.glide = undefined
+      refreshAtEnd(state)
+      tellAtEnd(state)
+    }, GLIDE_MS),
+  }
+  state.glide = glide
+}
+
 const sendPendingScroll = (state: ListState): void => {
   const wanted = state.pendingScroll
   if (wanted === undefined || !state.isAlive) return
   state.pendingScroll = undefined
-  state.engine.dispatchCommand(state.scroll, 'scrollTo', [0, wanted, false])
+  sendScroll(state, wanted, state.pendingAnimated)
+  state.pendingAnimated = false
+}
+
+/** Works out again whether the end is on screen. Left alone while the list
+ *  is on its way to the end, when the answer is already "yes". */
+const refreshAtEnd = (state: ListState): void => {
+  if (state.viewport <= 0 || state.holdEnd || state.glide !== undefined) return
+  state.isAtEnd = isAtEnd(
+    contentHeight(state),
+    state.offset,
+    state.viewport,
+    state.spec.atEndThreshold * state.viewport,
+  )
+}
+
+/** Sends the at-end Message, only when the answer is not the one last sent. */
+const tellAtEnd = (state: ListState): void => {
+  if (!state.isAlive || state.isAtEnd === undefined || state.isAtEnd === state.toldAtEnd) return
+  state.toldAtEnd = state.isAtEnd
+  const handler = handlersByNode.get(state.scroll)?.[AT_END_CHANGED] as Handler | undefined
+  handler?.(customEvent(AT_END_CHANGED, { isAtEnd: state.isAtEnd }))
+}
+
+/** Whether the list should move to its end whenever the end moves. */
+const followsEnd = (state: ListState): boolean =>
+  state.holdEnd || (state.spec.maintainScrollAtEnd && state.isAtEnd === true)
+
+/** Aims the list at its end. The phone is told after the next commit. */
+const goToEnd = (state: ListState, animated: boolean): void => {
+  const wanted = furthestOffset(state)
+  state.offset = wanted
+  takeAnchor(state)
+  // Before the phone has said how tall the list is, `wanted` is a guess.
+  // It still picks the rows to draw, but is not worth sending.
+  if (state.viewport <= 0 || Math.abs(wanted - state.native) < 1) return
+  state.pendingScroll = wanted
+  // A correction to a glide that is still under way glides as well.
+  state.pendingAnimated = animated || state.glide !== undefined
+}
+
+/** Whether the phone has measured every row that the end of the list shows. */
+const isEndMeasured = (state: ListState): boolean => {
+  if (state.viewport <= 0) return false
+  if (state.spec.rowHeight !== undefined) return true
+  const from = furthestOffset(state)
+  const { first, end } = rowsBetween(state.heights, from, from + state.viewport - 1)
+  for (let at = first; at < end; at++) {
+    if (!state.measured.has(state.keys[at] as RowKey)) return false
+  }
+  return true
+}
+
+const reveal = (state: ListState): void => {
+  clearTimeout(state.revealTimer)
+  state.revealTimer = undefined
+  state.isHidden = false
+}
+
+/**
+ * Run after anything that changes where things are: rows added or removed,
+ * a row measured, the list itself made taller or shorter (the keyboard).
+ * Sizes the blank space, then either follows the end or keeps the row at the
+ * top of the screen where it was.
+ */
+const resettle = (state: ListState, animated = false): void => {
+  state.endSpace = endSpaceFor(state.heights, state.viewport, state.spec.anchoredEndSpace)
+  if (followsEnd(state)) goToEnd(state, animated)
+  else holdAnchor(state)
+  if (state.holdEnd && isEndMeasured(state)) {
+    state.holdEnd = false
+    reveal(state)
+  }
+  refreshAtEnd(state)
+}
+
+/** The user has taken hold of the list: it is theirs to place now. */
+const letGo = (state: ListState): void => {
+  state.holdEnd = false
+  state.pendingScroll = undefined
+  endGlide(state)
 }
 
 /** Sends the `onEndReached` Message once each time the end comes near. */
@@ -269,10 +428,11 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     queueMicrotask(() => {
       state.isMeasureQueued = false
       if (!state.isAlive) return
-      holdAnchor(state)
+      resettle(state)
       chooseRows(state)
       state.draw('own')
       checkEnd(state)
+      tellAtEnd(state)
     })
   }
 
@@ -300,7 +460,14 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       'view',
       // Never collapsed: with only a height it would be optimised away, and
       // a drag that starts between rows would not scroll.
-      { props: { collapsable: false, style: { height: state.heights.total() } } },
+      {
+        props: {
+          collapsable: false,
+          style: state.spec.initialScrollAtEnd
+            ? { height: contentHeight(state), opacity: state.isHidden ? 0 : 1 }
+            : { height: contentHeight(state) },
+        },
+      },
       [
         h('view', {
           key: SPACER_KEY,
@@ -339,20 +506,56 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       }
     )?.nativeEvent
     state.offset = native?.contentOffset?.y ?? 0
-    const viewport = native?.layoutMeasurement?.height
-    if (typeof viewport === 'number' && viewport > 0) state.viewport = viewport
+    state.native = state.offset
+    if (state.glide !== undefined && Math.abs(state.offset - state.glide.target) < 2) {
+      endGlide(state)
+    }
     takeAnchor(state)
+    const viewport = native?.layoutMeasurement?.height
+    if (typeof viewport === 'number' && viewport > 0 && viewport !== state.viewport) {
+      resized(state, viewport)
+      return
+    }
+    refreshAtEnd(state)
     if (chooseRows(state)) state.draw('own')
     checkEnd(state)
+    tellAtEnd(state)
+  }
+
+  /** The list itself is taller or shorter: first layout, rotation, keyboard. */
+  const resized = (state: ListState, viewport: number): void => {
+    state.viewport = viewport
+    const before = { space: state.endSpace, hidden: state.isHidden }
+    resettle(state)
+    const isChanged =
+      state.endSpace !== before.space ||
+      state.isHidden !== before.hidden ||
+      state.pendingScroll !== undefined
+    if (chooseRows(state) || isChanged) state.draw('own')
+    checkEnd(state)
+    tellAtEnd(state)
+  }
+
+  const dragBegan = (state: ListState): void => {
+    letGo(state)
+    if (!state.isHidden) return
+    reveal(state)
+    state.draw('own')
+  }
+
+  /** The phone says a glide or a fling has come to rest. */
+  const cameToRest = (state: ListState): void => {
+    if (state.glide === undefined) return
+    endGlide(state)
+    refreshAtEnd(state)
+    tellAtEnd(state)
   }
 
   const laidOut = (state: ListState, event: unknown): void => {
     const height = (event as { nativeEvent?: { layout?: { height?: number } } })?.nativeEvent
       ?.layout?.height
     if (typeof height !== 'number' || height <= 0 || height === state.viewport) return
-    state.viewport = height
-    if (chooseRows(state)) state.draw('own')
-    checkEnd(state)
+    resized(state, height)
   }
 
   // Scroll views created in this draw whose content view has not been yet.
@@ -376,6 +579,16 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       range: EMPTY_RANGE,
       anchor: undefined,
       pendingScroll: undefined,
+      pendingAnimated: false,
+      native: 0,
+      endSpace: 0,
+      isAtEnd: spec.initialScrollAtEnd ? true : undefined,
+      toldAtEnd: spec.initialScrollAtEnd,
+      holdEnd: spec.initialScrollAtEnd,
+      glide: undefined,
+      isHidden: spec.initialScrollAtEnd,
+      revealTimer: undefined,
+      anchoredKey: undefined,
       rows: new Map(),
       canvas: {
         sel: '!',
@@ -395,12 +608,27 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     state.stops = [
       engine.setEventListener(scroll, 'topScroll', event => scrolled(state, event)),
       engine.setEventListener(scroll, 'topLayout', event => laidOut(state, event)),
+      engine.setEventListener(scroll, 'topScrollBeginDrag', () => dragBegan(state)),
+      engine.setEventListener(scroll, 'topMomentumScrollEnd', () => cameToRest(state)),
     ]
     lists.set(scroll, state)
     let sameId = listsById.get(spec.id)
     if (sameId === undefined) listsById.set(spec.id, (sameId = new Set()))
     sameId.add(state)
     index(state)
+    state.anchoredKey = anchoredKeyOf(state)
+    if (spec.initialScrollAtEnd) {
+      // The rows at the end are drawn first, unseen. Once the phone has
+      // measured them the list is put at its end and shown, so the user
+      // never sees it arrive. The timer is only for a phone that does not
+      // report: the list must not stay unseen.
+      state.offset = furthestOffset(state)
+      state.revealTimer = setTimeout(() => {
+        if (!state.isAlive || !state.isHidden) return
+        reveal(state)
+        state.draw('own')
+      }, REVEAL_AFTER_MS)
+    }
     chooseRows(state)
     state.draw('foldkit')
   }
@@ -411,21 +639,41 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     // The new `row` function may read newer parts of the Model, so every
     // row drawn is built again. Rows are few.
     state.rows = new Map()
-    if (
+    const isReindexed =
       spec.items !== before.items ||
       spec.estimatedRowHeight !== before.estimatedRowHeight ||
       spec.rowHeight !== before.rowHeight
-    ) {
-      index(state)
-      holdAnchor(state)
+    if (isReindexed) index(state)
+    // A row newly named as the anchor: go to the end, which the blank space
+    // makes the place where that row is at the top of the screen.
+    const anchoredKey = anchoredKeyOf(state)
+    const isNewAnchor = anchoredKey !== undefined && anchoredKey !== state.anchoredKey
+    state.anchoredKey = anchoredKey
+    if (isNewAnchor) {
+      state.holdEnd = true
+      state.isAtEnd = true
+    }
+    if (isReindexed || isNewAnchor || spec.anchoredEndSpace !== before.anchoredEndSpace) {
+      const isLonger = spec.items.length > before.items.length
+      resettle(
+        state,
+        isNewAnchor
+          ? (spec.anchoredEndSpace?.animated ?? true)
+          : isLonger && spec.maintainScrollAtEndAnimated,
+      )
     }
     chooseRows(state)
     state.draw('foldkit')
-    afterCommit(() => checkEnd(state))
+    afterCommit(() => {
+      checkEnd(state)
+      tellAtEnd(state)
+    })
   }
 
   const destroyList = (state: ListState): void => {
     state.isAlive = false
+    clearTimeout(state.revealTimer)
+    endGlide(state)
     for (const stop of state.stops) stop()
     // An empty canvas, so every row's own clean-up runs.
     state.range = EMPTY_RANGE
@@ -517,10 +765,33 @@ export const scrollToRow = (
       Math.max(0, state.heights.offsetOf(at) - (options.offset ?? 0)),
       furthestOffset(state),
     )
+    letGo(state)
+    reveal(state)
     state.offset = wanted
     takeAnchor(state)
     chooseRows(state)
     state.draw('own')
-    state.engine.dispatchCommand(state.scroll, 'scrollTo', [0, wanted, options.animated ?? false])
+    sendScroll(state, wanted, options.animated ?? false)
+    refreshAtEnd(state)
+    tellAtEnd(state)
+  }
+}
+
+/**
+ * Scrolls every list with this id to its end: the last row, or the blank
+ * space under it if the list keeps one. The rows there are drawn first. If
+ * their heights are still guesses, the list stays at the end while the phone
+ * measures them.
+ */
+export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }> = {}): void => {
+  for (const state of listsById.get(id) ?? []) {
+    letGo(state)
+    reveal(state)
+    state.holdEnd = true
+    state.isAtEnd = true
+    resettle(state, options.animated ?? false)
+    chooseRows(state)
+    state.draw('own')
+    tellAtEnd(state)
   }
 }
