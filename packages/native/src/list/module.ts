@@ -140,6 +140,8 @@ type ListState = {
    * rows at the end are measured, or when the user takes hold of the list.
    */
   holdEnd: boolean
+  /** How often the phone has been told again during this hold. */
+  holdRepeats: number
   /** A gliding scroll this module started that has not arrived yet. */
   glide: { target: number; timer: ReturnType<typeof setTimeout> } | undefined
   /** Not shown yet: a list that opens at its end, before it is there. */
@@ -369,6 +371,31 @@ const resettle = (state: ListState, animated = false): void => {
   refreshAtEnd(state)
 }
 
+/** How often a hold tells the phone again after the phone stopped short. */
+const MAX_HOLD_REPEATS = 3
+
+const beginHold = (state: ListState): void => {
+  state.holdEnd = true
+  state.holdRepeats = 0
+  state.isAtEnd = true
+}
+
+/**
+ * The phone has reported a position while the list is meant to be at its
+ * end, and it is not the end. The phone can stop short when it is told to
+ * scroll before it has taken in how long the content now is. It is told
+ * again, a few times at most, so the two can never chase each other.
+ */
+const repeatHold = (state: ListState): void => {
+  if (!state.holdEnd || state.glide !== undefined || state.viewport <= 0) return
+  if (state.holdRepeats >= MAX_HOLD_REPEATS) return
+  const wanted = furthestOffset(state)
+  if (Math.abs(wanted - state.offset) < 1) return
+  state.holdRepeats += 1
+  state.offset = wanted
+  sendScroll(state, wanted, false)
+}
+
 /** The user has taken hold of the list: it is theirs to place now. */
 const letGo = (state: ListState): void => {
   state.holdEnd = false
@@ -510,6 +537,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     if (state.glide !== undefined && Math.abs(state.offset - state.glide.target) < 2) {
       endGlide(state)
     }
+    repeatHold(state)
     takeAnchor(state)
     const viewport = native?.layoutMeasurement?.height
     if (typeof viewport === 'number' && viewport > 0 && viewport !== state.viewport) {
@@ -585,6 +613,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       isAtEnd: spec.initialScrollAtEnd ? true : undefined,
       toldAtEnd: spec.initialScrollAtEnd,
       holdEnd: spec.initialScrollAtEnd,
+      holdRepeats: 0,
       glide: undefined,
       isHidden: spec.initialScrollAtEnd,
       revealTimer: undefined,
@@ -649,10 +678,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     const anchoredKey = anchoredKeyOf(state)
     const isNewAnchor = anchoredKey !== undefined && anchoredKey !== state.anchoredKey
     state.anchoredKey = anchoredKey
-    if (isNewAnchor) {
-      state.holdEnd = true
-      state.isAtEnd = true
-    }
+    if (isNewAnchor) beginHold(state)
     if (isReindexed || isNewAnchor || spec.anchoredEndSpace !== before.anchoredEndSpace) {
       const isLonger = spec.items.length > before.items.length
       resettle(
@@ -787,8 +813,7 @@ export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }
   for (const state of listsById.get(id) ?? []) {
     letGo(state)
     reveal(state)
-    state.holdEnd = true
-    state.isAtEnd = true
+    beginHold(state)
     resettle(state, options.animated ?? false)
     chooseRows(state)
     state.draw('own')
