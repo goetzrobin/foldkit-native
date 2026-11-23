@@ -114,13 +114,17 @@ export type LegendDriverHost = Readonly<{
   /** Sends a scroll command to the native scroll view. */
   scrollTo: (options: { animated?: boolean; x?: number; y?: number }) => void
   /**
-   * Reads a container view's size as the last commit laid it out and calls
-   * back before returning. Calls nothing if the size cannot be read now; the
+   * Reads the scroll view's box as the last commit laid it out and calls back
+   * before returning. Calls nothing if it cannot be read now; the scroll
    * view's layout event then brings it later.
    */
-  measureContainer: (containerId: number, into: (width: number, height: number) => void) => void
-  /** The same for the scroll view itself. */
   measureScroller: (into: (layout: LayoutRectangle) => void) => void
+  /**
+   * Legend wants to "render again" although no option changed (React's
+   * `setState`). The owner should call `render` with the same options, commit,
+   * and call `afterCommit`. `takeRerender` says whether that is still wanted.
+   */
+  requestRender: () => void
 }>
 
 export type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>
@@ -168,10 +172,14 @@ export const createLegendDriver = <Item>(
   let isDisposed = false
   // LegendList.tsx: const [canRender, setCanRender] = React.useState(!IsNewArchitecture)
   let canRender = false
+  const askForRender = (): void => {
+    rerender = true
+    host.requestRender()
+  }
   const setCanRender = (value: boolean): void => {
     if (canRender !== value) {
       canRender = value
-      rerender = true
+      askForRender()
     }
   }
 
@@ -678,9 +686,7 @@ export const createLegendDriver = <Item>(
       if (viewability) state.scrollForNextCalculateItemsInView = undefined
 
       // LegendList.tsx: useImperativeHandle
-      handle = createImperativeHandle(ctx, () => {
-        rerender = true
-      })
+      handle ??= createImperativeHandle(ctx, askForRender)
     }
 
     // LegendList.tsx: "Run pending scroll to end after props have settled."
@@ -723,9 +729,7 @@ export const createLegendDriver = <Item>(
     ctx,
     get handle() {
       // Made in the first `afterCommit`, as React makes a ref on mount.
-      handle ??= createImperativeHandle(ctx, () => {
-        rerender = true
-      })
+      handle ??= createImperativeHandle(ctx, askForRender)
       return handle
     },
     render,

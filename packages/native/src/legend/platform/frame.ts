@@ -1,18 +1,27 @@
 /**
  * "Run this on the next frame", for Legend's core.
  *
- * Legend calls the global `requestAnimationFrame`. Two reasons not to:
- * the tests run in plain Node, which has none, and on a first launch in Expo
- * Go the frame clock was once seen not running (docs/BRIEF.md, lesson 1).
- * So a frame here is whichever comes first: the phone's own next frame, or a
- * timer a little longer than one frame.
+ * Legend calls the global `requestAnimationFrame`. Two reasons not to call it
+ * bare: the tests run in plain Node, which has none, and on a first launch in
+ * Expo Go the frame clock was once seen not running (docs/BRIEF.md, lesson 1).
+ *
+ * So: where the phone has a frame clock, a frame is the phone's next frame,
+ * with a slow timer behind it in case that clock is stopped. Where there is
+ * no frame clock at all, a frame is a short timer.
+ *
+ * The short timer must stay under 16 ms. Legend pairs "on the next frame" with
+ * 16 ms timers and expects the frame to come first (for one, its Android
+ * nudge: scroll one point short, then to the target on the next frame).
  */
 type FrameGlobals = {
   requestAnimationFrame?: (run: (time: number) => void) => number
   cancelAnimationFrame?: (handle: number) => void
 }
 
-const FALLBACK_MS = 32
+/** Used when there is no frame clock. */
+const FRAME_MS = 8
+/** Used behind a frame clock that may be stopped. */
+const WATCHDOG_MS = 100
 
 type Pending = { native: number | undefined; timer: ReturnType<typeof setTimeout> }
 
@@ -34,9 +43,11 @@ export const requestAnimationFrame = (run: (time: number) => void): number => {
     if (entry.native !== undefined) (globalThis as FrameGlobals).cancelAnimationFrame?.(entry.native)
     run(time)
   }
-  const entry: Pending = { native: undefined, timer: setTimeout(() => fire(now()), FALLBACK_MS) }
+  const native = (globalThis as FrameGlobals).requestAnimationFrame
+  const wait = typeof native === 'function' ? WATCHDOG_MS : FRAME_MS
+  const entry: Pending = { native: undefined, timer: setTimeout(() => fire(now()), wait) }
   pending.set(handle, entry)
-  entry.native = (globalThis as FrameGlobals).requestAnimationFrame?.(fire)
+  if (typeof native === 'function') entry.native = native(fire)
   return handle
 }
 
