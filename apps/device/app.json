@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Foldkit Device",
+    "slug": "foldkit-native-device",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.foldkitnative.device"
+    },
+    "android": {
+      "package": "dev.foldkitnative.device"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}
