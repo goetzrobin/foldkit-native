@@ -1,0 +1,94 @@
+src/constants.ts
+src/core/adaptiveRender.ts
+src/core/addTotalSize.ts
+src/core/bootstrapInitialScroll.ts  --  One added import line for `requestAnimationFrame`.
+src/core/calculateItemsInView.ts
+src/core/calculateOffsetForIndex.ts
+src/core/calculateOffsetWithOffsetPosition.ts
+src/core/cancelImperativeScroll.ts
+src/core/cancelScroll.ts
+src/core/checkFinishedScroll.ts
+src/core/checkResetContainers.ts
+src/core/checkStructuralDataChange.ts
+src/core/clampScrollOffset.ts
+src/core/containerItemMetadata.ts
+src/core/containerLayoutReady.ts
+src/core/deferredPublicOnScroll.ts
+src/core/doInitialAllocateContainers.ts  --  One added import line for `requestAnimationFrame`.
+src/core/doMaintainScrollAtEnd.ts
+src/core/doScrollParams.ts
+src/core/doScrollTo.native.ts  --  copied under the plain name
+src/core/endOfContentTarget.ts
+src/core/finishInitialScroll.ts  --  One added import line for `requestAnimationFrame`.
+src/core/finishMaintainScrollAtEnd.ts
+src/core/finishScrollTo.ts
+src/core/getCurrentTargetOffset.ts
+src/core/getStartOffsetAdjustment.ts
+src/core/handleLayout.ts
+src/core/initialScroll.ts
+src/core/initialScrollLifecycle.ts  --  One added import line for `requestAnimationFrame`.
+src/core/initialScrollSession.ts
+src/core/itemSizeCache.ts
+src/core/measureContainersInLayoutEffect.native.ts  --  copied under the plain name
+src/core/mvcp.ts
+src/core/nativeScrollToStart.ts  --  One added import line for `requestAnimationFrame`.
+src/core/observedScroll.ts
+src/core/onScroll.ts
+src/core/prepareColumnStartState.ts
+src/core/recalculateSettledScroll.ts
+src/core/resetLayoutCachesForDataChange.ts
+src/core/scheduleContainerLayout.ts
+src/core/ScheduledWork.ts  --  One added import line for `requestAnimationFrame`.
+src/core/ScrollAdjustHandler.ts
+src/core/scrollRequestTracker.ts
+src/core/scrollTo.ts
+src/core/scrollToEnd.ts
+src/core/scrollToIndex.ts
+src/core/setSize.ts
+src/core/shouldMaintainScrollAtEndOnDataChange.ts
+src/core/syncMountedContainer.ts
+src/core/updateAnchoredEndSpace.ts
+src/core/updateContentMetrics.ts
+src/core/updateContentMetricsState.ts
+src/core/updateItemPositions.ts
+src/core/updateItemSizes.ts
+src/core/updateScroll.ts
+src/core/updateTotalSize.ts
+src/core/userMomentum.ts
+src/core/viewability.ts
+src/platform/platform-types.ts
+src/platform/scrollview-types.ts
+src/state/getContentInsetEnd.ts
+src/state/getContentSize.ts
+src/types.base.ts
+src/types.internal.ts
+src/typesInternal.ts
+src/utils/checkAllSizesKnown.ts
+src/utils/checkAtBottom.ts
+src/utils/checkAtTop.ts
+src/utils/checkThreshold.ts
+src/utils/checkThresholds.ts
+src/utils/clampScrollIndex.ts
+src/utils/containerPool.ts
+src/utils/createColumnWrapperStyle.ts
+src/utils/devEnvironment.ts
+src/utils/edgeReachedGate.ts
+src/utils/findAvailableContainers.ts
+src/utils/getAlwaysRenderIndices.ts
+src/utils/getEffectiveDrawDistance.ts
+src/utils/getId.ts
+src/utils/getItemSize.ts
+src/utils/getRenderedItem.ts  --  `import type React` became `import type * as React`: our stand-in has no default export.
+src/utils/getScrollVelocity.ts
+src/utils/hasActiveInitialScroll.ts
+src/utils/helpers.ts
+src/utils/isInMVCPActiveMode.native.ts  --  copied under the plain name
+src/utils/layoutMeasurement.ts
+src/utils/normalizeMaintainScrollAtEnd.ts
+src/utils/normalizeMaintainVisibleContentPosition.ts
+src/utils/requestAdjust.ts  --  One added import line for `requestAnimationFrame`.
+src/utils/rtl.ts
+src/utils/setDidLayout.ts
+src/utils/setInitialRenderState.ts
+src/utils/setPaddingTop.ts
+src/utils/updateSnapToOffsets.ts

@@ -1,0 +1,140 @@
+// foldkit-native: the next frame comes from our own file, so no browser global is needed.
+import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame.js";
+import { cancelScrollCompletionChecks } from "./cancelImperativeScroll.js";
+import { releaseDeferredPublicOnScroll } from "./deferredPublicOnScroll.js";
+import { isEndOfContentTarget } from "./endOfContentTarget.js";
+import { initialScrollCompletion, initialScrollWatchdog, setInitialScrollSession } from "./initialScrollSession.js";
+import { getObservedScrollOffset } from "./observedScroll.js";
+import { recalculateSettledScroll } from "./recalculateSettledScroll.js";
+import { Platform } from "../../platform/Platform.js";
+import { type StateContext, set$ } from "../state/state.js";
+import { setInitialRenderState } from "../utils/setInitialRenderState.js";
+
+const PRESERVED_INITIAL_SCROLL_FALLBACK_CLEAR_DELAY_MS = 2000;
+
+function syncInitialScrollOffset(state: StateContext["state"], offset: number) {
+    state.scroll = offset;
+    state.scrollPending = offset;
+    state.scrollPrev = offset;
+}
+
+export function clearPreservedInitialScrollTarget(state: StateContext["state"]) {
+    state.scheduledWork.cancel("preservedInitialScroll");
+    state.clearPreservedInitialScrollOnNextFinish = undefined;
+    state.initialScroll = undefined;
+    state.preservedEndAnchorCorrection = undefined;
+    setInitialScrollSession(state);
+}
+
+export function supersedeInitialScroll(ctx: StateContext) {
+    const state = ctx.state;
+    const bootstrapInitialScroll =
+        state.initialScrollSession?.kind === "bootstrap" ? state.initialScrollSession.bootstrap : undefined;
+
+    if (state.initialScroll || bootstrapInitialScroll || state.scrollingTo?.isInitialScroll) {
+        if (bootstrapInitialScroll?.frameHandle !== undefined && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(bootstrapInitialScroll.frameHandle);
+        }
+        if (state.scrollingTo?.isInitialScroll) {
+            cancelScrollCompletionChecks(state);
+            state.scrollingTo = undefined;
+            state.scrollTargetPinnedRange = undefined;
+        }
+
+        initialScrollCompletion.resetFlags(state);
+        setInitialScrollSession(state, { bootstrap: null });
+        finishInitialScroll(ctx);
+    }
+}
+
+export function finishInitialScroll(
+    ctx: StateContext,
+    options?: {
+        recalculateItems?: boolean;
+        resolvedOffset?: number;
+        preserveTarget?: boolean;
+        schedulePreservedTargetClear?: boolean;
+        syncObservedOffset?: boolean;
+        waitForCompletionFrame?: boolean;
+        onFinished?: () => void;
+    },
+) {
+    const state = ctx.state;
+    const freshDataTransitionEpoch = state.freshDataTransitionEpoch;
+
+    if (options?.resolvedOffset !== undefined) {
+        syncInitialScrollOffset(state, options.resolvedOffset);
+    } else if (options?.syncObservedOffset && state.initialScrollSession?.kind === "offset") {
+        const observedOffset = getObservedScrollOffset(ctx);
+        if (Number.isFinite(observedOffset)) {
+            syncInitialScrollOffset(state, observedOffset);
+        }
+    }
+
+    const complete = () => {
+        if (state.isUnmounted) {
+            return;
+        }
+        // A queued completion belongs to the dataset that scheduled it.
+        if (freshDataTransitionEpoch !== state.freshDataTransitionEpoch) {
+            options?.onFinished?.();
+            return;
+        }
+        const shouldReleaseDeferredPublicOnScroll =
+            Platform.OS === "web" && state.initialScrollSession?.kind === "bootstrap";
+        if (
+            isEndOfContentTarget(state.initialScroll, state.props.data.length) &&
+            state.props.maintainScrollAtEnd &&
+            !state.endFollowInterrupted
+        ) {
+            set$(ctx, "isFollowingEnd", true);
+        }
+        const finalScrollOffset = options?.resolvedOffset ?? state.scrollPending;
+        initialScrollWatchdog.clear(state);
+        if (options?.preserveTarget && state.initialScroll) {
+            state.clearPreservedInitialScrollOnNextFinish = undefined;
+            setInitialScrollSession(state);
+            state.scheduledWork.cancel("preservedInitialScroll");
+            if (options?.schedulePreservedTargetClear) {
+                // This is only a backstop. The main preservation lifecycle is
+                // event-driven via late layout/data/user-scroll invalidation.
+                state.scheduledWork.timeout(
+                    () => {
+                        if (
+                            !state.didFinishInitialScroll ||
+                            state.scrollingTo?.isInitialScroll ||
+                            !state.initialScroll
+                        ) {
+                            return;
+                        }
+
+                        clearPreservedInitialScrollTarget(state);
+                    },
+                    PRESERVED_INITIAL_SCROLL_FALLBACK_CLEAR_DELAY_MS,
+                    "preservedInitialScroll",
+                );
+            }
+        } else {
+            clearPreservedInitialScrollTarget(state);
+        }
+
+        if (options?.recalculateItems) {
+            recalculateSettledScroll(ctx);
+        }
+
+        setInitialRenderState(ctx, { didInitialScroll: true });
+
+        if (shouldReleaseDeferredPublicOnScroll) {
+            releaseDeferredPublicOnScroll(ctx, finalScrollOffset);
+        }
+
+        options?.onFinished?.();
+    };
+
+    if (options?.waitForCompletionFrame) {
+        requestAnimationFrame(complete);
+        return;
+    }
+
+    complete();
+}

@@ -1,0 +1,430 @@
+import type { Key } from "../platform/react.js";
+import * as React from "../platform/react.js";
+
+import type { ScheduledWork } from "./core/ScheduledWork.js";
+import type { ScrollAdjustHandler } from "./core/ScrollAdjustHandler.js";
+import type {
+    AlwaysRenderConfig,
+    AnchoredEndSpaceConfig,
+    Insets,
+    LayoutRectangle,
+    LegendListPropsBase,
+    LegendListRef,
+    LegendListRenderItemProps,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    ScrollIndexWithOffsetAndContentOffset,
+    ScrollToEndOptions,
+    ViewabilityConfigCallbackPairs,
+    ViewStyle,
+} from "./types.base.js";
+import type { StylesAsSharedValue } from "./typesInternal.js";
+import type { DrawDistanceMode } from "./utils/getEffectiveDrawDistance.js";
+
+export type { BaseScrollViewProps, LegendListPropsBase } from "./types.base.js";
+
+export type ScrollAdjustmentSource = "data" | "item-size" | "layout";
+
+export interface ScrollEventTargetLike {
+    addEventListener(type: string, listener: (...args: any[]) => void): void;
+    removeEventListener(type: string, listener: (...args: any[]) => void): void;
+}
+
+export interface ScrollableNodeLike {
+    scrollLeft?: number;
+    scrollTop?: number;
+}
+
+export interface LegendListScrollerRef {
+    flashScrollIndicators(): void;
+    getCurrentScrollOffset?(): number;
+    getRawScrollOffset?(): number;
+    isScrollInRange?(): boolean;
+    getContentNode?(): unknown;
+    getMaxScrollOffset?(): number;
+    getNativeScrollRef?(): unknown;
+    getScrollEventTarget?(): ScrollEventTargetLike | null;
+    getScrollableNode(): ScrollableNodeLike | null;
+    getScrollResponder(): unknown;
+    scrollTo(options: { animated?: boolean; x?: number; y?: number }): void;
+    scrollToEnd(options?: { animated?: boolean }): void;
+}
+
+export interface MaintainVisibleContentPositionNormalized<ItemT = any> {
+    data: boolean;
+    size: boolean;
+    shouldRestorePosition?: (item: ItemT, index: number, data: readonly ItemT[]) => boolean;
+}
+
+export interface MaintainScrollAtEndNormalized {
+    animated: boolean;
+    onLayout: boolean;
+    onItemLayout: boolean;
+    onDataChange: boolean | "append";
+    onFooterLayout: boolean;
+}
+
+export interface ThresholdSnapshot {
+    scroll: number;
+    contentSize: number;
+    data: readonly unknown[];
+    dataLength?: number;
+    didRearmForData?: boolean;
+    isRequestPending?: boolean;
+}
+
+export type MaintainingScrollAtEndState = "pending-instant" | "pending-animated" | "instant" | "animated";
+
+export type ScrollResolve = () => void;
+
+export interface ScrollTarget {
+    averageSizeSnapshot?: Record<string, number>;
+    animated?: boolean;
+    /** Absolute and end targets include the contentContainerStyle minimum; item targets align to rows. */
+    clampToContentContainerMinSize?: boolean;
+    index?: number;
+    key?: string;
+    isInitialScroll?: boolean;
+    itemSize?: number;
+    offset: number;
+    precomputedWithViewOffset?: boolean;
+    targetOffset?: number;
+    viewOffset?: number;
+    viewPosition?: number;
+    /** Alignment used only when the item exceeds the viewport. Omit to preserve viewPosition. */
+    viewPositionFallback?: "start" | "end";
+}
+
+type BootstrapInitialScrollSession = {
+    frameHandle?: number;
+    mountFrameCount: number;
+    passCount: number;
+    previousResolvedOffset?: number;
+    scroll: number;
+    seedContentOffset: number;
+    targetIndexSeed?: number;
+    visibleIndices?: readonly number[];
+};
+
+export type InternalScrollTarget = ScrollTarget & {
+    isScrollToEnd?: boolean;
+    /** Web retries reissued after an animated scroll settled short of its recomputed target. */
+    landingRetries?: number;
+    /** Offset the latest landing retry started from, used to stop when the scroll makes no progress. */
+    landingRetryFrom?: number;
+    waitForInitialScrollCompletionFrame?: boolean;
+};
+
+type InitialScrollSessionCompletion = {
+    didDispatchNativeScroll?: boolean;
+    didRetrySilentInitialScroll?: boolean;
+    watchdog?: {
+        startScroll: number;
+        targetOffset: number;
+    };
+};
+
+interface InternalInitialScrollTarget extends ScrollIndexWithOffsetAndContentOffset {
+    preserveForBottomPadding?: boolean;
+    preserveForFooterLayout?: boolean;
+}
+
+type InternalInitialScrollSessionBase = {
+    completion?: InitialScrollSessionCompletion;
+    previousDataLength: number;
+};
+
+type OffsetInitialScrollSession = InternalInitialScrollSessionBase & {
+    kind: "offset";
+};
+
+type BootstrapOwnedInitialScrollSession = InternalInitialScrollSessionBase & {
+    bootstrap?: BootstrapInitialScrollSession;
+    kind: "bootstrap";
+};
+
+type InternalInitialScrollSession = OffsetInitialScrollSession | BootstrapOwnedInitialScrollSession;
+
+type LegendListPropsInternal = LegendListPropsBase<any, Record<string, any>, string | undefined> & {
+    data: readonly any[];
+    renderItem: (props: LegendListRenderItemProps<any, string | undefined>) => React.ReactNode;
+};
+
+export interface ContainerItemMetadata {
+    data: readonly any[];
+    dataChangeEpoch: number;
+    didResolveFixedItemSize?: boolean;
+    fixedItemSize?: number;
+    getFixedItemSize: LegendListPropsInternal["getFixedItemSize"];
+    getItemType: LegendListPropsInternal["getItemType"];
+    itemData: any;
+    itemIndex: number;
+    itemType?: string;
+}
+
+export interface PendingDataComparison {
+    byIndex: Array<0 | 1 | 2 | undefined>;
+    nextData: readonly unknown[];
+    previousData: readonly unknown[];
+}
+
+export type AverageSizes = Record<string, { num: number; avg: number }>;
+
+export type AnchoredEndSpaceOwner = "list" | "scroll";
+
+// Internal bridge for integrations, not part of the public list ref contract.
+// Keyboard integrations report occlusion separately from scroll-range insets.
+export interface LegendListInternalRef extends LegendListRef {
+    reportViewabilityInsetEndInternal?: (inset: number) => void;
+    reportContentInsetForScrollInternal?: LegendListRef["reportContentInset"];
+}
+
+export interface InternalState {
+    viewabilityInsetEnd?: number;
+    adjustingFromInitialMount?: number;
+    anchoredEndSpacePendingReady?: boolean;
+    anchoredEndSpaceReadyAnchorIndex?: number;
+    anchoredEndSpaceReadyAnchorKey?: string;
+    averageSizes: AverageSizes;
+    columns: Array<number | undefined>;
+    columnSpans: Array<number | undefined>;
+    containerItemKeys: Map<string, number>;
+    containerItemGenerations: Array<number | undefined>;
+    containerItemMetadata: Map<number, ContainerItemMetadata>;
+    dataChangeEpoch: number;
+    dataChangeNeedsScrollUpdate: boolean;
+    freshDataTransitionEpoch: number;
+    handledDataChangeEpoch: number;
+    handledFreshDataTransitionEpoch: number;
+    deferredPublicOnScrollEvent?: NativeSyntheticEvent<NativeScrollEvent>;
+    didColumnsChange?: boolean;
+    didDataChange?: boolean;
+    didFinishInitialScroll?: boolean;
+    didLoad?: boolean;
+    didMeasureHeader?: boolean;
+    didContainersLayout?: boolean;
+    enableScrollForNextCalculateItemsInView: boolean;
+    edgeReachedGate?: "closed" | "prepared" | "consumed-start" | "consumed-end";
+    edgeReachedGateScroll?: number;
+    endBuffered: number;
+    endNoBuffer: number;
+    endReachedSnapshot: ThresholdSnapshot | undefined;
+    firstFullyOnScreenIndex: number;
+    preservedEndAnchorCorrection?: {
+        lastRequestTime?: number;
+    };
+    hasHadNonEmptyData: boolean;
+    hasScrolled?: boolean;
+    idCache: string[];
+    idsInView: string[];
+    ignoreScrollFromMVCP?: { lt?: number; gt?: number };
+    ignoreScrollFromMVCPIgnored?: boolean;
+    indexByKey: Map<string, number>;
+    previousIndexByKey?: Map<string, number>;
+    clearPreservedInitialScrollOnNextFinish?: boolean;
+    initialScrollSession?: InternalInitialScrollSession;
+    initialScroll: InternalInitialScrollTarget | undefined;
+    isDragging?: boolean;
+    isEndReached: boolean | null;
+    isFirst?: boolean;
+    isStartReached: boolean | null;
+    isUnmounted?: boolean;
+    lastBatchingAction: number;
+    lastLayout: LayoutRectangle | undefined;
+    lastFirstVisibleItemCallback?: { index: number; key: string };
+    lastNativeScroll?: number;
+    lastNativeScrollTime?: number;
+    nativeScrollGeometry?: { content: number; length: number };
+    accessibilityScrollEvent?: {
+        scroll: number;
+        content: number;
+        length: number;
+        adjust: number;
+        time?: number;
+        blocked: boolean;
+        direction: number;
+    };
+    lastScrollAdjustForHistory?: number;
+    lastScrollDelta: number;
+    loadStartTime: number;
+    pendingEndMeasurements?: Set<string>;
+    isMomentumScrolling?: boolean;
+    // Content size at release while a user gesture awaits settlement.
+    userScrollContentSize?: number;
+    layoutAdjustmentEpoch?: number;
+    endFollowInterrupted?: boolean;
+    visibleContentAnchor?: { key: string; offset: number; sizeOnly?: true };
+    maintainingScrollAtEnd?: MaintainingScrollAtEndState;
+    positionRecalculationStartIndex: number | undefined;
+    mvcpAnchorLock?: {
+        id: string;
+        position: number;
+        quietPasses: number;
+        expiresAt: number;
+    };
+    contentInsetOverride?: Partial<Insets> | null;
+    nativeContentInset?: Insets;
+    nativeMarginTop: number;
+    needsOtherAxisSize?: boolean;
+    otherAxisSize?: number;
+    pendingNativeMVCPAdjust?: {
+        amount: number;
+        furthestProgressTowardAmount: number;
+        manualApplied: number;
+        startScroll: number;
+    };
+    pendingMaintainScrollAtEnd?: boolean;
+    pendingDataComparison?: PendingDataComparison;
+    pendingScrollToEnd?: {
+        options?: ScrollToEndOptions;
+        token: number;
+    };
+    pendingTotalSize?: number;
+    pendingScrollResolve?: ScrollResolve | undefined;
+    runPendingScrollToEnd?: () => void;
+    positions: Array<number | undefined>;
+    positionsAreCurrent?: boolean;
+    previousData?: readonly unknown[];
+    queuedCalculateItemsInView: number | undefined;
+    queuedInitialLayout?: boolean | undefined;
+    reprocessCurrentScroll?: () => void;
+    refScroller: React.RefObject<LegendListScrollerRef | null>;
+    scroll: number;
+    scrollAdjustHandler: ScrollAdjustHandler;
+    scrollForNextCalculateItemsInView: { top: number | null; bottom: number | null } | undefined;
+    scrollHistory: Array<{ scroll: number; time: number }>;
+    scrollBufferDirection?: -1 | 1;
+    scrollingTo?: InternalScrollTarget | undefined;
+    scrollTargetPinnedRange?: { end: number; start: number };
+    horizontalRTLScrollType?: "normal" | "inverted" | "negative";
+    scrollLastCalculate?: number;
+    scrollLength: number;
+    scrollPending: number;
+    scrollPrev: number;
+    scrollPrevTime: number;
+    scrollProcessingEnabled: boolean;
+    scrollTime: number;
+    scheduledWork: ScheduledWork;
+    sizes: Map<string, number>;
+    sizesKnown: Map<string, number>;
+    fixedItemSizeKeys?: Set<string>;
+    startBuffered: number;
+    startBufferedId?: string;
+    startNoBuffer: number;
+    startReachedSnapshot: ThresholdSnapshot | undefined;
+    stickyContainerPool: Set<number>;
+    stickyContainers: Map<number, number>;
+    timeoutSetPaddingTop?: any;
+    totalSize: number;
+    triggerCalculateItemsInView?: (params?: {
+        doMVCP?: boolean;
+        dataChanged?: boolean;
+        drawDistanceMode?: DrawDistanceMode;
+        forceFullItemPositions?: boolean;
+        mvcpAdjustmentSource?: ScrollAdjustmentSource;
+        scrollVelocity?: number;
+    }) => void;
+    userScrollAnchorReset?: {
+        keys: Set<string>;
+    };
+    viewabilityConfigCallbackPairs: ViewabilityConfigCallbackPairs<any> | undefined;
+    props: {
+        alignItemsAtEnd: boolean;
+        alignItemsAtEndPaddingEnabled: boolean;
+        animatedProps: StylesAsSharedValue<Record<string, any>>;
+        anchoredEndSpace: AnchoredEndSpaceConfig | undefined;
+        anchoredEndSpaceOwner: AnchoredEndSpaceOwner;
+        alwaysRender: AlwaysRenderConfig | undefined;
+        contentContainerAlignItems: ViewStyle["alignItems"] | undefined;
+        contentContainerMinSize?: number;
+        alwaysRenderIndicesArr: number[];
+        alwaysRenderIndicesSet: Set<number>;
+        contentInset: Insets | undefined;
+        data: readonly any[];
+        dataKey: Key | undefined;
+        dataVersion: Key | undefined;
+        drawDistance: number;
+        contentInsetEndAdjustment: number | undefined;
+        estimatedItemSize: number | undefined;
+        getFixedItemSize: LegendListPropsInternal["getFixedItemSize"];
+        getItemType: LegendListPropsInternal["getItemType"];
+        hideItemsUntilMeasured: LegendListPropsInternal["experimental_hideItemsUntilMeasured"];
+        horizontal: boolean;
+        rtl?: boolean;
+        itemsAreEqual: LegendListPropsInternal["itemsAreEqual"];
+        keyExtractor: LegendListPropsInternal["keyExtractor"];
+        maintainScrollAtEnd: MaintainScrollAtEndNormalized | undefined;
+        maintainScrollAtEndThreshold: number | undefined;
+        maintainVisibleContentPosition: MaintainVisibleContentPositionNormalized;
+        numColumns: number;
+        onEndReached: LegendListPropsInternal["onEndReached"];
+        onEndReachedThreshold: number | null | undefined;
+        adaptiveRender: LegendListPropsInternal["experimental_adaptiveRender"];
+        onItemSizeChanged: LegendListPropsInternal["onItemSizeChanged"];
+        onLoad: LegendListPropsInternal["onLoad"];
+        onReady: LegendListPropsInternal["onReady"];
+        onMomentumScrollBegin: LegendListPropsInternal["onMomentumScrollBegin"];
+        onMomentumScrollEnd: LegendListPropsInternal["onMomentumScrollEnd"];
+        onMetricsChange: LegendListPropsInternal["onMetricsChange"];
+        onUserScroll: LegendListPropsInternal["onUserScroll"];
+        onScroll: LegendListPropsInternal["onScroll"];
+        onScrollBeginDrag: LegendListPropsInternal["onScrollBeginDrag"];
+        onScrollEndDrag: LegendListPropsInternal["onScrollEndDrag"];
+        onStartReached: LegendListPropsInternal["onStartReached"];
+        onStartReachedThreshold: number | null | undefined;
+        onStickyHeaderChange: LegendListPropsInternal["onStickyHeaderChange"];
+        onFirstVisibleItemChanged: LegendListPropsInternal["onFirstVisibleItemChanged"];
+        overrideItemLayout: LegendListPropsInternal["overrideItemLayout"];
+        recycleItems: boolean;
+        renderItem: LegendListPropsInternal["renderItem"];
+        scrollBuffer?: number;
+        snapToIndices: number[] | undefined;
+        positionComponentInternal: React.ComponentType<any> | undefined;
+        stickyPositionComponentInternal: React.ComponentType<any> | undefined;
+        stickyHeaderIndicesArr: number[];
+        stickyHeaderIndicesSet: Set<number>;
+        stylePaddingBottom: number | undefined;
+        stylePaddingLeft: number | undefined;
+        stylePaddingRight: number | undefined;
+        stylePaddingTop: number | undefined;
+        useWindowScroll: boolean;
+        hasExternalScroll?: boolean;
+    };
+}
+
+export interface ViewableRange<T> {
+    end: number;
+    endBuffered: number;
+    items: T[];
+    start: number;
+    startBuffered: number;
+}
+
+export type GetRenderedItemResult<ItemT> = {
+    index: number;
+    item: ItemT;
+    renderedItem: React.ReactNode;
+    type?: string;
+};
+export type GetRenderedItem = (
+    key: string,
+    containerId: number,
+    onReadIndex?: () => void,
+) => GetRenderedItemResult<any> | null;
+
+// biome-ignore lint/complexity/noBannedTypes: This is correct
+export type TypedForwardRef = <T, P = {}>(
+    render: (props: P, ref: React.Ref<T>) => React.ReactElement | null,
+) => (props: P & React.RefAttributes<T>) => React.ReactElement | null;
+
+export const typedForwardRef = React.forwardRef as TypedForwardRef;
+
+export type TypedMemo = <T extends React.ComponentType<any>>(
+    Component: T,
+    propsAreEqual?: (
+        prevProps: Readonly<React.ComponentProps<T>>,
+        nextProps: Readonly<React.ComponentProps<T>>,
+    ) => boolean,
+) => T & { displayName?: string };
+
+export const typedMemo = React.memo as TypedMemo;

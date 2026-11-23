@@ -1,0 +1,109 @@
+import { resolveContainerItemMetadata } from "./containerItemMetadata.js";
+import {
+    type ItemSizeMeasurement,
+    isContainerItemCurrent,
+    updateItemSizes,
+    updateItemSizesBatch,
+} from "./updateItemSizes.js";
+import { peek$, type StateContext, set$ } from "../state/state.js";
+
+function resolveSkippedAnchorReset(ctx: StateContext, itemKey: string) {
+    const state = ctx.state;
+    const anchorReset = state.userScrollAnchorReset;
+    if (anchorReset?.keys.delete(itemKey) && anchorReset.keys.size === 0) {
+        state.userScrollAnchorReset = undefined;
+    }
+}
+
+function revealMeasuredGeneration(ctx: StateContext, containerId: number, itemKey: string, generation: number) {
+    // Opted-out lists never hide a row, so there is nothing to reveal.
+    if (!ctx.state.props.hideItemsUntilMeasured) {
+        return;
+    }
+    const isCurrentGeneration = (ctx.state.containerItemGenerations[containerId] ?? 0) === generation;
+    const isCurrentAssignment = peek$(ctx, `containerItemKey${containerId}`) === itemKey;
+    if (isCurrentGeneration && isCurrentAssignment) {
+        set$(ctx, `containerLayoutReady${containerId}`, true);
+    }
+}
+
+export function measureContainersInLayoutEffect(
+    ctx: StateContext,
+    targetContainerIds: ReadonlySet<number> | null = null,
+) {
+    const state = ctx.state;
+    const measurements: ItemSizeMeasurement[] = [];
+    const measuredGenerations: Array<{ containerId: number; generation: number; itemKey: string }> | undefined = state
+        .props.hideItemsUntilMeasured
+        ? []
+        : undefined;
+    // Fabric normally invokes measure callbacks inline. Keep those results together,
+    // but let an unexpectedly late callback update independently after this pass closes.
+    let isCollectingSynchronousMeasurements = true;
+    const containerIds = targetContainerIds ?? ctx.viewRefs.keys();
+
+    for (const containerId of containerIds) {
+        const view = ctx.viewRefs.get(containerId)?.current;
+        const itemKey = peek$(ctx, `containerItemKey${containerId}`);
+        if (itemKey !== undefined) {
+            // Assignment changes also advance this token. Advancing it for every pass
+            // prevents an older same-key callback from overwriting a newer measurement.
+            const generation = (state.containerItemGenerations[containerId] ?? 0) + 1;
+            state.containerItemGenerations[containerId] = generation;
+            if (!isContainerItemCurrent(ctx, containerId, itemKey)) continue;
+            const index = state.indexByKey.get(itemKey)!;
+            const itemData = state.props.data[index];
+            const fixedItemSize =
+                state.props.getFixedItemSize && itemData !== undefined
+                    ? resolveContainerItemMetadata(state, containerId, index, itemData)?.fixedItemSize
+                    : undefined;
+            // sizesKnown includes the list's scroll-axis gap, while the fixed-size
+            // callback describes only the item itself.
+            const canSkipMeasurement =
+                !state.needsOtherAxisSize &&
+                fixedItemSize !== undefined &&
+                state.sizesKnown.get(itemKey) === fixedItemSize + ctx.scrollAxisGap;
+            if (canSkipMeasurement) {
+                resolveSkippedAnchorReset(ctx, itemKey);
+                if (measuredGenerations) {
+                    revealMeasuredGeneration(ctx, containerId, itemKey, generation);
+                }
+            } else if (view?.measure) {
+                view.measure((_x, _y, width, height) => {
+                    const isCurrentGeneration = (ctx.state.containerItemGenerations[containerId] ?? 0) === generation;
+                    if (isCurrentGeneration) {
+                        const measurement: ItemSizeMeasurement = {
+                            containerId,
+                            itemKey,
+                            size: { height, width },
+                        };
+                        if (isCollectingSynchronousMeasurements) {
+                            measurements.push(measurement);
+                            measuredGenerations?.push({ containerId, generation, itemKey });
+                        } else {
+                            updateItemSizes(ctx, measurement);
+                            if (measuredGenerations) {
+                                revealMeasuredGeneration(ctx, containerId, itemKey, generation);
+                            }
+                        }
+                    }
+                });
+            } else if (measuredGenerations) {
+                // Nothing can measure this container, so a hidden row would stay hidden until
+                // its slot is recycled to another item. Show it at its estimated position
+                // instead: a row that is slightly misplaced beats a row that never appears.
+                revealMeasuredGeneration(ctx, containerId, itemKey, generation);
+            }
+        }
+    }
+
+    isCollectingSynchronousMeasurements = false;
+    if (measurements.length > 0) {
+        updateItemSizesBatch(ctx, measurements);
+        if (measuredGenerations) {
+            for (const { containerId, generation, itemKey } of measuredGenerations) {
+                revealMeasuredGeneration(ctx, containerId, itemKey, generation);
+            }
+        }
+    }
+}
