@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Foldkit Dev Loop",
+    "slug": "foldkit-native-devloop",
+    "newArchEnabled": true,
+    "ios": { "bundleIdentifier": "dev.foldkitnative.devloop" },
+    "android": { "package": "dev.foldkitnative.devloop" }
+  }
+}
