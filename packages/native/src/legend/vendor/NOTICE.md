@@ -44,6 +44,5 @@ No function body in `core/` or `utils/` was edited.
 ## Not vendored
 
 `src/components/*`, `src/hooks/*`, `src/integrations/*`, `src/section-list/*`,
-the entry points, `state/ContextContainer.ts` (React hooks for rows),
-`utils/createImperativeHandle.ts` and every `platform/*` file except the two
-type files.
+the entry points, `state/ContextContainer.ts` (React hooks for rows) and every `platform/*` file
+except the two type files.

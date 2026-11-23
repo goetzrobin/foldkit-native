@@ -45,11 +45,11 @@ const ENTRIES = [
   'core/finishMaintainScrollAtEnd', 'core/ScheduledWork', 'core/ScrollAdjustHandler',
   'core/updateScroll', 'core/checkFinishedScroll', 'core/endOfContentTarget', 'core/initialScroll',
   'core/finishInitialScroll', 'core/containerLayoutReady', 'core/clampScrollOffset',
-  'core/containerItemMetadata', 'core/viewability',
+  'core/containerItemMetadata', 'core/viewability', 'core/updateContentInsetEndAdjustment',
   'utils/checkThresholds', 'utils/getId', 'utils/getRenderedItem', 'utils/setPaddingTop',
   'utils/normalizeMaintainScrollAtEnd', 'utils/normalizeMaintainVisibleContentPosition',
   'utils/edgeReachedGate', 'utils/getAlwaysRenderIndices', 'utils/setInitialRenderState',
-  'utils/requestAdjust', 'utils/helpers', 'utils/createColumnWrapperStyle', 'utils/rtl',
+  'utils/requestAdjust', 'utils/createImperativeHandle', 'utils/helpers', 'utils/createColumnWrapperStyle', 'utils/rtl',
   'state/getContentSize', 'platform/platform-types', 'platform/scrollview-types',
 ]
 

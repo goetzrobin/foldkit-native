@@ -48,6 +48,7 @@ src/core/setSize.ts
 src/core/shouldMaintainScrollAtEndOnDataChange.ts
 src/core/syncMountedContainer.ts
 src/core/updateAnchoredEndSpace.ts
+src/core/updateContentInsetEndAdjustment.ts
 src/core/updateContentMetrics.ts
 src/core/updateContentMetricsState.ts
 src/core/updateItemPositions.ts
@@ -71,6 +72,7 @@ src/utils/checkThresholds.ts
 src/utils/clampScrollIndex.ts
 src/utils/containerPool.ts
 src/utils/createColumnWrapperStyle.ts
+src/utils/createImperativeHandle.ts
 src/utils/devEnvironment.ts
 src/utils/edgeReachedGate.ts
 src/utils/findAvailableContainers.ts
