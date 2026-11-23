@@ -33,3 +33,4 @@ export type {
   TextStyle,
 } from './attributes.js'
 export { crashView, nativeCrash } from './crash.js'
+export * from './styling/index.js'

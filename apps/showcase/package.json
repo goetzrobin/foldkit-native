@@ -4,11 +4,13 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
+    "start": "npm run sync && expo start",
     "ios": "expo run:ios",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
-    "export": "expo export --platform ios --platform android --output-dir dist"
+    "export": "expo export --platform ios --platform android --output-dir dist",
+    "postinstall": "npm run sync && node metro.config.js",
+    "sync": "bash ../../scripts/sync-showcase.sh"
   },
   "dependencies": {
     "@effect/platform-browser": "4.1.0",
@@ -22,7 +24,11 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@ng-native/metro": "0.25.0",
+    "@ng-native/tailwind": "0.25.0",
+    "@tailwindcss/cli": "^4.3.5",
     "@types/react": "~19.3.0",
+    "tailwindcss": "^4.3.5",
     "typescript": "~6.0.3"
   }
 }

@@ -1,0 +1,22 @@
+/*
+ * The app's Tailwind entry. Metro (see metro.config.js) runs the Tailwind
+ * CLI on this file, which scans the app's source for class names, and
+ * ng-native's compiler turns the result into .foldkit-native/tailwind.js.
+ *
+ * theme.css and utilities.css, not the plain 'tailwindcss' import: that one
+ * also brings preflight, a browser reset that means nothing on a phone.
+ * native.css adds what Tailwind does not know about a phone: the ios: and
+ * android: variants, a class-based dark: variant, safe-area and hairline
+ * utilities.
+ */
+@import 'tailwindcss/theme.css';
+@import 'tailwindcss/utilities.css';
+@import '@ng-native/tailwind/native.css';
+
+/*
+ * Where Tailwind looks for class names: the demo programs. This has to be
+ * said out loud, because `native/` is a generated copy that git ignores, and
+ * Tailwind skips whatever git ignores. The adapter itself (native/src) uses
+ * no classes, so it is not scanned.
+ */
+@source './native/test';
