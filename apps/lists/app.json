@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Foldkit Lists",
+    "slug": "foldkit-native-lists",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.foldkitnative.lists"
+    },
+    "android": {
+      "package": "dev.foldkitnative.lists"
+    }
+  }
+}
