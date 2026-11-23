@@ -10,6 +10,8 @@ import { Runtime } from 'foldkit'
 
 import type { BackSource, Phone } from '../../src/index.js'
 import { makeNotes } from '../notes.js'
+import { makeDemo as makeAiChat } from './aiChat.js'
+import { makeDemo as makeChat } from './chat.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
 import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeNavigation } from './navigation.js'
@@ -50,6 +52,18 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Lists and motion',
     blurb: '5,000 rows with about 40 drawn, pull to refresh, fades, and a card you can drag.',
     start: (container, env) => Runtime.embed(makeLists(container, env)),
+  },
+  {
+    id: 'chat',
+    title: 'Chat',
+    blurb: 'Opens at the newest message and stays there. Scroll up and a new message leaves you be.',
+    start: (container, env) => Runtime.embed(makeChat(container, env, resources.device)),
+  },
+  {
+    id: 'ai-chat',
+    title: 'AI chat',
+    blurb: 'Your question goes to the top and the answer is written under it, word by word.',
+    start: (container, env) => Runtime.embed(makeAiChat(container, env, resources.device)),
   },
   {
     id: 'styling',

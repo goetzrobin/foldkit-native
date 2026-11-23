@@ -28,6 +28,20 @@
  * calling view's context whenever it is called. `list` embeds itself as a
  * Submodel whose Messages pass through unchanged, and keeps that function.
  *
+ * A chat lives at the end of its list, not the start. These options are for
+ * that, and are modelled on Legend List's:
+ *
+ *   alignItemsAtEnd       a few rows sit at the bottom, not the top
+ *   initialScrollAtEnd    opens at the last row
+ *   maintainScrollAtEnd   stays at the end as rows arrive or grow, and when
+ *                         the keyboard makes the list shorter
+ *   anchoredEndSpace      blank space under the last row, so a new message can
+ *                         sit at the top while the reply streams in below it
+ *   onAtEndChanged        a Message when the user leaves the end or returns
+ *
+ * A list that is not at its end always keeps what the user is reading in
+ * place when rows above it change.
+ *
  * Not built yet: horizontal lists, headers and footers inside the list,
  * sticky rows, and several columns.
  */
@@ -35,7 +49,9 @@ import { Effect, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
 
+import type { AnchoredEndSpace } from './end.js'
 import {
+  AT_END_CHANGED,
   CONTENT_DATA,
   END_REACHED,
   LABEL_DATA,
@@ -43,6 +59,7 @@ import {
   type ListSpec,
   type ListStats,
   type RowKey,
+  scrollToEnd,
   scrollToRow,
 } from './module.js'
 import { type Refresh, scrollWithRefresh } from './refresh.js'
@@ -51,6 +68,8 @@ export type { ListStats, RowKey } from './module.js'
 export { refreshScrollView } from './refresh.js'
 export type { Refresh } from './refresh.js'
 export { Heights, chooseWindow, rowsBetween } from './window.js'
+export { endOffset, endSpaceFor, isAtEnd } from './end.js'
+export type { AnchoredEndSpace } from './end.js'
 export type { Range } from './window.js'
 
 const el = element<any>()
@@ -76,6 +95,38 @@ export type ListConfig<Item, Message> = Readonly<{
   onEndReached?: () => Message
   /** How near, in screen heights. Default 1. */
   endReachedThreshold?: number
+  /**
+   * When the rows are shorter than the list, put them at the bottom, as a
+   * chat with two messages does.
+   */
+  alignItemsAtEnd?: boolean
+  /**
+   * Open at the last row. The list is not shown until it is there, so the
+   * user does not see it arrive.
+   */
+  initialScrollAtEnd?: boolean
+  /**
+   * While the user is at the end, stay there: when rows are added, when a
+   * row grows (text streaming in), and when the list itself gets shorter
+   * (the keyboard opens). A user who has scrolled away is left alone.
+   * `animated` glides to a new row. Growth and the keyboard never glide.
+   */
+  maintainScrollAtEnd?: boolean | Readonly<{ animated?: boolean }>
+  /** How near the end counts as at the end, in screen heights. Default 0.1. */
+  atEndThreshold?: number
+  /**
+   * Blank space under the last row so that row `anchorIndex` can sit at the
+   * top of the screen. When `anchorIndex` changes to a new row the list
+   * scrolls there by itself. See `end.ts`.
+   */
+  anchoredEndSpace?: AnchoredEndSpace
+  /**
+   * Sent when the user leaves the end of the list (`false`) or comes back to
+   * it (`true`). Never sent twice in a row with the same answer, however
+   * many scroll events there are. Start the Model with `true` if the list
+   * has `initialScrollAtEnd`, otherwise with `false`.
+   */
+  onAtEndChanged?: (isAtEnd: boolean) => Message
   /** Pull to refresh. See `refresh.ts`. */
   refresh?: Refresh<Message>
   /** Attributes for the scroll view, such as `style({ flex: 1 })`. */
@@ -99,11 +150,28 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
     rowHeight: config.rowHeight,
     drawAhead: config.drawAhead ?? 1,
     endReachedThreshold: config.endReachedThreshold ?? 1,
+    initialScrollAtEnd: config.initialScrollAtEnd ?? false,
+    maintainScrollAtEnd: config.maintainScrollAtEnd !== undefined && config.maintainScrollAtEnd !== false,
+    maintainScrollAtEndAnimated:
+      typeof config.maintainScrollAtEnd === 'object' && (config.maintainScrollAtEnd.animated ?? false),
+    atEndThreshold: config.atEndThreshold ?? 0.1,
+    anchoredEndSpace: config.anchoredEndSpace,
     inFrame: inputs.inFrame,
   }
   const onEndReached = config.onEndReached
+  const onAtEndChanged = config.onAtEndChanged
   // The one content view a scroll view needs. The list module fills it.
-  const content = el('view')([Prop({ key: 'collapsable', value: false })] as never, [])
+  const content = el('view')(
+    [
+      Prop({ key: 'collapsable', value: false }),
+      // At least as tall as the list, with the rows pushed to its bottom:
+      // what React Native apps do with `contentContainerStyle`.
+      ...(config.alignItemsAtEnd === true
+        ? [Prop({ key: 'style', value: { flexGrow: 1, justifyContent: 'flex-end' } })]
+        : []),
+    ] as never,
+    [],
+  )
   const { root, scroll } = scrollWithRefresh(
     config.refresh,
     [
@@ -116,6 +184,20 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
       ...(onEndReached === undefined
         ? []
         : [OnCustomEvent({ name: END_REACHED, f: () => Option.some(onEndReached()) })]),
+      // Also called by the list module, only when the answer changes.
+      ...(onAtEndChanged === undefined
+        ? []
+        : [
+            OnCustomEvent({
+              name: AT_END_CHANGED,
+              f: (event: unknown) =>
+                Option.some(
+                  onAtEndChanged(
+                    (event as { detail?: { isAtEnd?: boolean } }).detail?.isAtEnd === true,
+                  ),
+                ),
+            }),
+          ]),
     ],
     content,
   )
@@ -176,3 +258,15 @@ export const scrollListToIndex = (
   index: number,
   options: Readonly<{ animated?: boolean; offset?: number }> = {},
 ): Effect.Effect<void> => Effect.sync(() => scrollToRow(id, index, options))
+
+/**
+ * Scrolls the list to its end. An Effect, for a Command:
+ *
+ *   execute: scrollListToEnd('messages', { animated: true }).pipe(
+ *     Effect.as(Message.CompletedScrollToEnd()),
+ *   )
+ */
+export const scrollListToEnd = (
+  id: string,
+  options: Readonly<{ animated?: boolean }> = {},
+): Effect.Effect<void> => Effect.sync(() => scrollToEnd(id, options))
