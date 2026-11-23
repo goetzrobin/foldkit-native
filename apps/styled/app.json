@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Foldkit Styled",
+    "slug": "foldkit-native-styled",
+    "newArchEnabled": true,
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "ios": { "bundleIdentifier": "dev.foldkitnative.styled" },
+    "android": { "package": "dev.foldkitnative.styled" }
+  }
+}
