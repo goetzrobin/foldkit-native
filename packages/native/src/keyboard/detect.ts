@@ -15,13 +15,14 @@
  * 2. react-native-keyboard-controller's native half in the build. None of its
  *    JavaScript is used, so it is looked for by asking React Native for its
  *    native module by name, which answers nothing when it is not there.
- * 3. An engine that was given React Native's animation module
- *    (`nativeAnimated` in `createNativeSurface`), which is what moves a view
- *    on the native side.
+ * 3. React Native's animation module, which is what moves a view on the
+ *    native side. The app hands it over at startup:
+ *    `configureKeyboardDock({ nativeAnimated })`. An engine that was itself
+ *    started with it (`nativeAnimated` in `createNativeSurface`) also counts.
  *
  * Nothing here throws when a piece is missing: the answer is `fallback`.
  */
-import { nativePlatform } from '@ng-native/fabric'
+import { type NativeAnimated, nativePlatform } from '@ng-native/fabric'
 
 export type KeyboardDockMode = 'native' | 'fallback'
 
@@ -52,9 +53,20 @@ export type KeyboardDockOptions = Readonly<{
    * fallback. `'detect'` (the default) looks for them.
    */
   controller?: boolean | 'detect'
+  /**
+   * React Native's animation module, for the dock alone:
+   *
+   *   import NativeAnimatedHelper from 'react-native/src/private/animated/NativeAnimatedHelper'
+   *   configureKeyboardDock({ nativeAnimated: NativeAnimatedHelper })
+   *
+   * Without it (and with an engine that was not given it either) the dock
+   * uses the fallback. `null` takes it away again.
+   */
+  nativeAnimated?: NativeAnimated | null
 }>
 
 let controller: boolean | 'detect' = 'detect'
+let animated: NativeAnimated | null = null
 let detected: boolean | undefined
 /** Whether the engine of the surface now on screen can move views natively. */
 let engineDrives = false
@@ -65,7 +77,11 @@ let engineDrives = false
  */
 export const configureKeyboardDock = (options: KeyboardDockOptions): void => {
   if (options.controller !== undefined) controller = options.controller
+  if (options.nativeAnimated !== undefined) animated = options.nativeAnimated
 }
+
+/** The animation module the app handed over for the dock, if it did. */
+export const dockAnimated = (): NativeAnimated | null => animated
 
 /** Called by the dock's module when a surface is created. */
 export const noteEngine = (drives: boolean): void => {
@@ -94,7 +110,9 @@ const platform = (): string => {
 export const keyboardDockFallbackReason = (): string => {
   if (platform() !== 'ios') return 'native following is built for iOS only'
   if (!hasController()) return 'react-native-keyboard-controller is not in this build'
-  if (!engineDrives) return 'the app did not pass nativeAnimated to createNativeSurface'
+  if (!engineDrives && animated === null) {
+    return 'the app did not pass nativeAnimated to configureKeyboardDock'
+  }
   return ''
 }
 

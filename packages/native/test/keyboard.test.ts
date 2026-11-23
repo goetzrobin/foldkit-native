@@ -45,12 +45,16 @@ type Setup = Readonly<{
   platform?: 'ios' | 'android'
   /** Whether the build has react-native-keyboard-controller's native views. */
   hasController: boolean
-  /** Whether the app passed React Native's animation module to the engine. */
-  hasAnimated: boolean
+  /**
+   * Who was handed React Native's animation module: the dock alone, the
+   * whole engine, or nobody.
+   */
+  animated: 'dock' | 'engine' | 'none'
 }>
 
-const NATIVE: Setup = { hasController: true, hasAnimated: true }
-const EXPO_GO_WITHOUT: Setup = { hasController: false, hasAnimated: true }
+const NATIVE: Setup = { hasController: true, animated: 'dock' }
+const NATIVE_BY_ENGINE: Setup = { hasController: true, animated: 'engine' }
+const WITHOUT_VIEWS: Setup = { hasController: false, animated: 'dock' }
 
 /** An iPhone's window, and a bar whose content ends 34 points above its bottom. */
 const WINDOW = { x: 0, y: 0, width: 402, height: 874 }
@@ -102,17 +106,20 @@ describe('the keyboard dock', () => {
     frames = []
     registerNavigation()
     registerPlatformComponents(setup.platform ?? 'ios')
-    configureKeyboardDock({ controller: setup.hasController })
+    animated = makeNativeAnimated()
+    configureKeyboardDock({
+      controller: setup.hasController,
+      nativeAnimated: setup.animated === 'dock' ? animated.native : null,
+    })
     fabric = createFakeFabric()
     if (measures) {
       fabric.frames.set('View', WINDOW)
       fabric.frames.set(DOCK_CONTENT_ID, CONTENT)
     }
-    animated = makeNativeAnimated()
     surface = createNativeSurface(fabric, 1, {
       dev: false,
       now: () => now,
-      ...(setup.hasAnimated ? { nativeAnimated: animated.native } : {}),
+      ...(setup.animated === 'engine' ? { nativeAnimated: animated.native } : {}),
     })
     configureMotion(surface, { requestFrame: run => frames.push(run) })
     device = Phone.makeTest()
@@ -146,11 +153,14 @@ describe('the keyboard dock', () => {
   afterEach(async () => {
     await stop()
     surface.dispose()
-    configureKeyboardDock({ controller: 'detect' })
+    configureKeyboardDock({ controller: 'detect', nativeAnimated: null })
     registerPlatformComponents('ios')
   })
 
-  describe('with react-native-keyboard-controller in the build, on iOS', () => {
+  describe.each([
+    ['the dock was handed the animation module', NATIVE],
+    ['the whole engine was handed the animation module', NATIVE_BY_ENGINE],
+  ])('with react-native-keyboard-controller in the build, on iOS, when %s', (_name, NATIVE) => {
     it('says on screen that it follows the keyboard natively', async () => {
       await startDemo(NATIVE)
       expect(keyboardDockMode()).toBe('native')
@@ -171,10 +181,11 @@ describe('the keyboard dock', () => {
     it('has the phone move the bar by every frame of the keyboard, a drag included', async () => {
       await startDemo(NATIVE)
       const controller = named('KeyboardControllerView')[0] as FakeFabricNode
-      expect(animated.events()).toEqual([
-        [controller.reactTag, 'onKeyboardMove'],
-        [controller.reactTag, 'onKeyboardMoveInteractive'],
-        [controller.reactTag, 'onKeyboardMoveEnd'],
+      // Fed by nothing but that view's three events. The middle one is the drag.
+      expect([...new Set(animated.events().map(([tag, name]) => `${tag} ${name}`))]).toEqual([
+        `${controller.reactTag} onKeyboardMove`,
+        `${controller.reactTag} onKeyboardMoveInteractive`,
+        `${controller.reactTag} onKeyboardMoveEnd`,
       ])
       expect(animated.translateY(bar().reactTag, 0)).toBe(0)
       expect(animated.translateY(bar().reactTag, 150)).toBe(-150)
@@ -257,7 +268,7 @@ describe('the keyboard dock', () => {
 
   describe('without it', () => {
     it('says on screen that it is the fallback, and why', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       expect(keyboardDockMode()).toBe('fallback')
       expect(textOf(byTestId(fabric, 'dock-mode'))).toBe(
         'Mode: fallback (react-native-keyboard-controller is not in this build)',
@@ -265,7 +276,7 @@ describe('the keyboard dock', () => {
     })
 
     it('draws none of the native keyboard views and asks the phone to move nothing', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       expect(named('KeyboardControllerView')).toHaveLength(0)
       expect(named('KeyboardGestureArea')).toHaveLength(0)
       expect(animated.drivenViews()).toEqual([])
@@ -273,7 +284,7 @@ describe('the keyboard dock', () => {
     })
 
     it('eases the bar up by the keyboard height the program was told', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       expect(seat().props['paddingBottom'] ?? 0).toBe(0)
       device.keyboard.show(KEYBOARD)
       await settle()
@@ -289,7 +300,7 @@ describe('the keyboard dock', () => {
     })
 
     it('rises less by the room it already stands above', async () => {
-      await startDemo(EXPO_GO_WITHOUT, true)
+      await startDemo(WITHOUT_VIEWS, true)
       device.keyboard.show(KEYBOARD)
       await settle()
       finishFrames()
@@ -297,7 +308,7 @@ describe('the keyboard dock', () => {
     })
 
     it('eases back down when the keyboard hides', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       device.keyboard.show(KEYBOARD)
       await settle()
       finishFrames()
@@ -310,12 +321,12 @@ describe('the keyboard dock', () => {
     })
 
     it('puts the keyboard away as a drag on the list starts', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       expect(byTestId(fabric, 'lines').props['keyboardDismissMode']).toBe('on-drag')
     })
 
     it('stops listening when the program stops', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       expect(device.keyboard.listenerCount()).toBe(1)
       await stop()
       expect(device.keyboard.listenerCount()).toBe(0)
@@ -325,7 +336,7 @@ describe('the keyboard dock', () => {
     })
 
     it('is the fallback on Android even with the native views in the build', async () => {
-      await startDemo({ platform: 'android', hasController: true, hasAnimated: true })
+      await startDemo({ platform: 'android', hasController: true, animated: 'dock' })
       expect(keyboardDockFallbackReason()).toBe('native following is built for iOS only')
       expect(named('KeyboardControllerView')).toHaveLength(0)
       device.keyboard.show(300)
@@ -334,10 +345,10 @@ describe('the keyboard dock', () => {
       expect(seat().props['paddingBottom']).toBe(300)
     })
 
-    it('is the fallback when the engine cannot move views natively', async () => {
-      await startDemo({ hasController: true, hasAnimated: false })
+    it('is the fallback when nobody was handed the animation module', async () => {
+      await startDemo({ hasController: true, animated: 'none' })
       expect(keyboardDockFallbackReason()).toBe(
-        'the app did not pass nativeAnimated to createNativeSurface',
+        'the app did not pass nativeAnimated to configureKeyboardDock',
       )
       expect(named('KeyboardControllerView')).toHaveLength(0)
       device.keyboard.show(KEYBOARD)
@@ -349,7 +360,7 @@ describe('the keyboard dock', () => {
 
   describe('the demo', () => {
     it('adds a sent line at the top and clears the field', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       expect(textOf(byTestId(fabric, 'line-30'))).toBe('Line 30')
       fabric.emit(byTestId(fabric, 'draft'), 'topChange', { text: 'Hello', eventCount: 1 })
       await settle()
@@ -359,7 +370,7 @@ describe('the keyboard dock', () => {
     })
 
     it('leaves when Exit is pressed', async () => {
-      await startDemo(EXPO_GO_WITHOUT)
+      await startDemo(WITHOUT_VIEWS)
       await press(fabric, 'exit')
       expect(exits).toBe(1)
     })
@@ -427,7 +438,7 @@ describe('the keyboard dock', () => {
     })
 
     it('pads the bar from the Model in fallback mode', async () => {
-      await startBar(EXPO_GO_WITHOUT)
+      await startBar(WITHOUT_VIEWS)
       await press(fabric, 'more')
       finishFrames()
       expect(seat().props['paddingBottom']).toBe(250)

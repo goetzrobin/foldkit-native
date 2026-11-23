@@ -19,10 +19,10 @@
  *
  * NATIVE. react-native-keyboard-controller has a native view that reports
  * the keyboard's height on every frame, including while a finger drags the
- * keyboard down. None of that library's JavaScript is used. The engine
- * connects the reports to the bar's position on the native side, so the bar
- * moves with the keyboard and no JavaScript runs per frame. The approach is
- * ng-native's `keyboard-dock.ts`.
+ * keyboard down. None of that library's JavaScript is used. React Native's
+ * animation module connects the reports to the bar's position on the native
+ * side (see `drive.ts`), so the bar moves with the keyboard and no JavaScript
+ * runs per frame. The approach is ng-native's `keyboard-dock.ts`.
  *
  * FALLBACK. The program passes the keyboard's height from its Model. The bar
  * is padded up by that much, eased over a quarter of a second. The content
@@ -52,7 +52,8 @@ import { prop, style } from '../attributes.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { bagOf, nodeOf } from '../modules.js'
 import { keepMoving } from '../motion/clock.js'
-import { keyboardDockMode, noteEngine } from './detect.js'
+import { dockAnimated, keyboardDockMode, noteEngine } from './detect.js'
+import { type EventDrive, driveByEvent } from './drive.js'
 
 const el = element<any>()
 
@@ -140,8 +141,11 @@ export const keyboardDock = <Message>(
   const seat = box([], [controller, gesture, bar].filter(part => part !== null) as never)
   const host = box(background as never, [seat])
 
-  // Also styled by the module alone.
-  const lift = config.above === undefined ? null : box([], config.above as never)
+  // Also styled by the module alone. Kept as a real view, for the phone to move.
+  const lift =
+    config.above === undefined
+      ? null
+      : box([prop('collapsable', false)] as never, config.above as never)
   const outer =
     lift === null
       ? host
@@ -221,6 +225,8 @@ type Dock = {
   givenFieldId: string | undefined
   /** The name the drag area was last told. */
   namedFieldId: string | undefined
+  /** Drives this file built itself, which connect once the views are on the phone. */
+  ownDrives: Array<EventDrive>
   stops: Array<() => void>
   isAlive: boolean
 }
@@ -314,22 +320,49 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     }
   }
 
+  /** The native tag a view was sent to the phone with, or null before that. */
+  const tagOf = (node: EngineNode): number | null =>
+    (engine as { tagOf?: (node: EngineNode) => number | null }).tagOf?.(node) ??
+    (node as { committed?: { tag?: number } | null }).committed?.tag ??
+    null
+
+  /**
+   * Has the phone move `view` by the keyboard's height. The engine does it
+   * when it was started with the animation module. Otherwise the module the
+   * app handed to the dock does. See `drive.ts`.
+   */
+  const drive = (
+    dock: Dock,
+    view: EngineNode,
+    controller: EngineNode,
+    range: ScrollRange,
+    shift: number | null,
+  ): ScrollDrive | null => {
+    if (canDrive(engine)) {
+      return engine.driveByEvent(view, controller, KEYBOARD_FEED, 'translateY', range, [], shift)
+    }
+    const native = dockAnimated()
+    if (native === null) return null
+    const own = driveByEvent(
+      native,
+      () => {
+        const [viewTag, sourceTag] = [tagOf(view), tagOf(controller)]
+        return viewTag === null || sourceTag === null ? null : { view: viewTag, source: sourceTag }
+      },
+      KEYBOARD_FEED,
+      range,
+      shift,
+    )
+    dock.ownDrives.push(own)
+    return own
+  }
+
   const startNative = (dock: Dock): void => {
     const controller = dock.controller
     if (controller === undefined) return
     const range = rangeFor(restOf(dock))
-    dock.barDrive = engine.driveByEvent(dock.bar, controller, KEYBOARD_FEED, 'translateY', range)
-    if (dock.lift !== undefined) {
-      dock.liftDrive = engine.driveByEvent(
-        dock.lift,
-        controller,
-        KEYBOARD_FEED,
-        'translateY',
-        range,
-        [],
-        0,
-      )
-    }
+    dock.barDrive = drive(dock, dock.bar, controller, range, null)
+    if (dock.lift !== undefined) dock.liftDrive = drive(dock, dock.lift, controller, range, 0)
     const moved = (event: unknown): void => {
       const height = (event as NativeEvent | undefined)?.nativeEvent?.height
       if (!dock.isAlive || typeof height !== 'number') return
@@ -455,6 +488,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       liftDrive: null,
       givenFieldId: undefined,
       namedFieldId: undefined,
+      ownDrives: [],
       stops: [],
       isAlive: true,
     }
@@ -476,8 +510,11 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       // A rotation moves the bar without changing its content's size.
       engine.setEventListener(dock.seat, 'topLayout', () => measureRest(dock)),
     )
-    // The first measurement needs the views to be on the phone.
-    afterCommit(() => measureRest(dock))
+    // Connecting and the first measurement need the views to be on the phone.
+    afterCommit(() => {
+      for (const own of dock.ownDrives) own.connect()
+      measureRest(dock)
+    })
   }
 
   const update = (_old: VNode, vnode: VNode): void => {
