@@ -34,3 +34,6 @@ export type {
 } from './attributes.js'
 export { crashView, nativeCrash } from './crash.js'
 export * from './styling/index.js'
+// The phone's own features: haptics, clipboard, storage, share and more.
+// Named Phone here because Device is already the type for platform and OS version.
+export * as Phone from './device/index.js'

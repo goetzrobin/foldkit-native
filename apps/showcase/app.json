@@ -10,6 +10,9 @@
       "package": "dev.foldkitnative.showcase"
     },
     "userInterfaceStyle": "automatic",
-    "orientation": "default"
+    "orientation": "default",
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

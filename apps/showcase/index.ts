@@ -1,5 +1,10 @@
 // Expo's runtime setup. Nothing else imports it, so it is imported here.
 import 'expo'
+import * as ExpoClipboard from 'expo-clipboard'
+import * as ExpoHaptics from 'expo-haptics'
+import * as ExpoNetwork from 'expo-network'
+import * as SecureStore from 'expo-secure-store'
+import * as ReactNative from 'react-native'
 import {
   AppRegistry,
   AppState,
@@ -17,13 +22,14 @@ import { getFabricUIManager, registerPlatformComponents } from '@ng-native/fabri
 // Every Tailwind class the demos use, compiled by Metro (see metro.config.js).
 import sheet from './.foldkit-native/tailwind.js'
 import {
+  Phone,
   type DeviceSources,
   createNativeSurface,
   registerNavigation,
   stylingOptions,
   watchStyling,
 } from './native/src'
-import { demos } from './native/test/demos'
+import { makeDemos } from './native/test/demos'
 import { startShowcase } from './native/test/demos/shell'
 
 registerPlatformComponents(Platform.OS)
@@ -62,5 +68,17 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
   // From here on the engine restyles by itself when the phone switches
   // between light and dark or is rotated. No Foldkit view runs for that.
   watchStyling(surface.engine, sources)
-  startShowcase(surface.container, device, demos)
+  // The phone features, backed by the real modules. The adapter never
+  // imports them itself, so its tests can pass fakes.
+  const phone = Phone.live({
+    reactNative: ReactNative,
+    haptics: ExpoHaptics,
+    clipboard: ExpoClipboard,
+    secureStore: SecureStore,
+    network: ExpoNetwork,
+    // The engine knows which text field has the focus. Without this,
+    // "Hide keyboard" leaves the keyboard up.
+    blurFocused: () => surface.engine.blurFocused(),
+  })
+  startShowcase(surface.container, device, makeDemos({ device: phone }))
 })
