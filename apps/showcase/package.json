@@ -1,0 +1,28 @@
+{
+  "name": "foldkit-native-showcase",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "export": "expo export --platform ios --platform android --output-dir dist"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.1.0",
+    "@ng-native/fabric": "0.25.0",
+    "effect": "4.1.0",
+    "expo": "~58.0.16",
+    "foldkit": "file:./vendor/foldkit-0.171.0-native.2.tgz",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-screens": "~4.30.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  }
+}

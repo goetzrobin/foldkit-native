@@ -36,15 +36,22 @@ const isSame = (before: unknown, after: unknown): boolean => {
   )
 }
 
-/** A text field's `value` is kept in step by `textInputModule`, not as a prop. */
+/** Read by the press handling in this file. Not a native prop. */
+const PRESSED_STYLE = 'pressedStyle'
+
+/**
+ * Props the adapter consumes itself. A text field's `value` is kept in step
+ * by `textInputModule`, and `pressedStyle` is applied while a finger is down.
+ */
 const isFieldValue = (node: EngineNode, name: string): boolean =>
-  name === 'value' && node.tag === TEXT_INPUT
+  (name === 'value' && node.tag === TEXT_INPUT) || name === PRESSED_STYLE
 
 /** Properties and attributes both become native props. */
 const propsModule = (engine: Engine): Partial<Module> => {
   const update = (oldVnode: VNode, vnode: VNode): void => {
     const node = nodeOf(vnode)
     if (node === undefined) return
+    propsByNode.set(node, bagOf(vnode, 'props'))
     for (const key of ['props', 'attrs'] as const) {
       const before = bagOf(oldVnode, key)
       const after = bagOf(vnode, key)
@@ -153,19 +160,72 @@ const stubEvent = (native: unknown): Bag => ({
   stopPropagation: () => {},
 })
 
+/** How far a finger may drift, in points, and still count as a press. */
+const PRESS_SLOP = 10
+
+type Point = Readonly<{ x: number; y: number }>
+
+const pointOf = (event: unknown): Point | undefined => {
+  const native = (event as { nativeEvent?: { pageX?: number; pageY?: number } })?.nativeEvent
+  return typeof native?.pageX === 'number' && typeof native?.pageY === 'number'
+    ? { x: native.pageX, y: native.pageY }
+    : undefined
+}
+
+/** The newest props drawn on a node, for the style to return to after a press. */
+const propsByNode = new WeakMap<EngineNode, Bag>()
+
+const showPressed = (engine: Engine, node: EngineNode, isPressed: boolean): void => {
+  const props = propsByNode.get(node) ?? EMPTY
+  const pressedStyle = props[PRESSED_STYLE]
+  if (!isPlain(pressedStyle)) return
+  const base = isPlain(props['style']) ? props['style'] : undefined
+  engine.setProp(node, 'style', isPressed ? { ...base, ...pressedStyle } : base)
+  // A press happens between draws, so this change is sent now.
+  engine.commit()
+}
+
 /**
- * `click` has no native event of its own: a press is a touch that starts and
- * ends on the view. This is the smallest version of that. A full one also
- * cancels when the finger slides away and reports the pressed state.
+ * `click` has no native event of its own: a press is a touch that starts on
+ * a view and ends there without drifting away.
+ *
+ * - The finger goes down: the view shows its `pressedStyle`, if it has one.
+ * - The finger drifts more than a few points: the press is off. This is also
+ *   what keeps a scroll that starts on a row from pressing the row.
+ * - Something else takes the touch (a scroll view starts scrolling): off.
+ * - The finger lifts while the press is still on: the handler runs.
  */
-const listenForPress = (engine: Engine, node: EngineNode): (() => void) =>
-  engine.setResponder(node, {
+const listenForPress = (engine: Engine, node: EngineNode): (() => void) => {
+  let start: Point | undefined
+  let isOn = false
+  const end = (): void => {
+    if (!isOn) return
+    isOn = false
+    showPressed(engine, node, false)
+  }
+  return engine.setResponder(node, {
     onStartShouldSetResponder: () => true,
+    onResponderTerminationRequest: () => true,
+    onResponderGrant: event => {
+      start = pointOf(event)
+      isOn = true
+      showPressed(engine, node, true)
+    },
+    onResponderMove: event => {
+      const now = pointOf(event)
+      if (!isOn || start === undefined || now === undefined) return
+      if (Math.hypot(now.x - start.x, now.y - start.y) > PRESS_SLOP) end()
+    },
+    onResponderTerminate: end,
     onResponderRelease: event => {
+      const wasOn = isOn
+      end()
+      if (!wasOn) return
       const handler = handlersByNode.get(node)?.['click'] as Handler | undefined
-      handler?.(stubEvent(event))
+      handler?.(customEvent('click', (event as { nativeEvent?: unknown })?.nativeEvent))
     },
   })
+}
 
 const eventsModule = (engine: Engine): Partial<Module> => {
   const update = (oldVnode: VNode, vnode: VNode): void => {

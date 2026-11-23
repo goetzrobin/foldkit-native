@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Foldkit Showcase",
+    "slug": "foldkit-native-showcase",
+    "newArchEnabled": true,
+    "ios": { "bundleIdentifier": "dev.foldkitnative.showcase" },
+    "android": { "package": "dev.foldkitnative.showcase" }
+  }
+}

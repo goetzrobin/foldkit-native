@@ -3,8 +3,8 @@
  * for one note. It uses the phone's own screen stack, so swipe-back works,
  * and the Model catches up when the phone goes back by itself.
  */
-import { Schema } from 'effect'
-import { Runtime, type Update } from 'foldkit'
+import { Effect, Schema } from 'effect'
+import { Command, Runtime, type Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -12,6 +12,7 @@ import { modifyFields } from 'foldkit/struct'
 import {
   type Device,
   header,
+  nativeCrash,
   onDismissed,
   prop,
   safeArea,
@@ -44,11 +45,29 @@ export const Message = defineMessageUnion({
   PressedBack: {},
   PressedDelete: { id: Schema.Number },
   PoppedByPhone: { count: Schema.Number },
+  PressedMenu: {},
+  CompletedExit: {},
 })
 export type Message = typeof Message.Type
 
-export const update = (model: Model, message: Message) =>
+/** Extras for running inside the showcase. */
+export type NotesOptions = Readonly<{
+  /** Leave the program. Shows a "Menu" button when given. */
+  exit?: () => void
+  crashed?: (error: Error) => void
+}>
+
+export const makeUpdate = (options: NotesOptions = {}) => {
+  const Exit = Command.define('Exit', {
+    args: {},
+    messages: [Message.CompletedExit],
+    execute: () =>
+      Effect.sync(() => options.exit?.()).pipe(Effect.as(Message.CompletedExit())),
+  })
+  return (model: Model, message: Message) =>
   Message.match<Update.Return<Model, Message>>(message, {
+    PressedMenu: () => ({ model, commands: [Exit({})] }),
+    CompletedExit: () => ({ model }),
     ChangedDraft: ({ text }) => ({ model: modifyFields(model, { draft: () => text }) }),
     PressedAdd: () =>
       model.draft.trim() === ''
@@ -79,6 +98,9 @@ export const update = (model: Model, message: Message) =>
       }),
     }),
   })
+}
+
+export const update = makeUpdate()
 
 export const init: Runtime.ElementInit<Model, Message> = () => ({
   model: {
@@ -126,7 +148,12 @@ const button = (
     [text([style({ color: PAPER, fontSize: 17, fontWeight: '600' })], [label])],
   )
 
-const homeScreen = (model: Model, h: HtmlBuilder<Message>, device: Device): Html =>
+const homeScreen = (
+  model: Model,
+  h: HtmlBuilder<Message>,
+  device: Device,
+  options: NotesOptions,
+): Html =>
   screen(
     [h.Key('home'), h.Attribute('testID', 'screen-home')],
     [
@@ -142,6 +169,9 @@ const homeScreen = (model: Model, h: HtmlBuilder<Message>, device: Device): Html
             }),
           ],
           [
+            ...(options.exit === undefined
+              ? []
+              : [button(h, 'menu', 'Menu', MUTED, Message.PressedMenu())]),
             text(
               [h.Attribute('testID', 'probe'), style({ color: INK, fontSize: 13 })],
               [`${device.platform} ${device.osVersion}`],
@@ -233,12 +263,12 @@ const noteScreen = (
   )
 
 export const makeView =
-  (device: Device) =>
+  (device: Device, options: NotesOptions = {}) =>
   (model: Model, h: HtmlBuilder<Message>): Html =>
     stack(
       [h.Attribute('testID', 'stack')],
       [
-        homeScreen(model, h, device),
+        homeScreen(model, h, device, options),
         ...model.open.flatMap((id, depth) => {
           const note = model.notes.find(each => each.id === id)
           return note === undefined ? [] : [noteScreen(note, depth, h, device)]
@@ -246,5 +276,12 @@ export const makeView =
       ],
     )
 
-export const makeNotes = (container: HTMLElement, device: Device) =>
-  Runtime.makeElement({ Model, init, update, view: makeView(device), container })
+export const makeNotes = (container: HTMLElement, device: Device, options: NotesOptions = {}) =>
+  Runtime.makeElement({
+    Model,
+    init,
+    update: makeUpdate(options),
+    view: makeView(device, options),
+    container,
+    crash: nativeCrash(options.crashed),
+  })

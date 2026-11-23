@@ -20,7 +20,11 @@
  */
 import { registerViewName } from '@ng-native/fabric'
 import { Option } from 'effect'
-import { OnCustomEvent, Prop, element } from 'foldkit/renderTarget'
+import { OnCustomEvent, element } from 'foldkit/renderTarget'
+
+import { prop } from './attributes'
+
+export { prop, style } from './attributes'
 
 const el = element<any>()
 
@@ -62,15 +66,6 @@ export const screen = el('screen')
 /** A screen's navigation bar. A direct child of its `screen`. */
 export const header = el('native-header')
 
-/** A native prop with any value, where `h.Attribute` takes only text. */
-export const prop = (key: string, value: unknown) => Prop({ key, value })
-
-/**
- * Native styles, as React Native names them: `style({ paddingVertical: 12 })`.
- * `h.Style` accepts web CSS names only, so native-only ones go through here.
- */
-export const style = (value: Readonly<Record<string, string | number>>) =>
-  prop('style', value)
 
 /** The navigation bar's title. */
 export const title = (value: string) => prop('title', value)
