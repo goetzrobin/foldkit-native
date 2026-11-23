@@ -8,15 +8,18 @@
 import type { Layer } from 'effect'
 import { Runtime } from 'foldkit'
 
-import type { Phone } from '../../src/index.js'
+import type { BackSource, Phone } from '../../src/index.js'
 import { makeNotes } from '../notes.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
+import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
 
 export type DemoResources = Readonly<{
   /** The phone features: `Phone.live({...})` in an app, `Phone.makeTest()` in a test. */
   device: Layer.Layer<Phone.Services>
+  /** Android's hardware Back button: `backSourceFrom(BackHandler)` in an app. */
+  backSource?: BackSource
 }>
 
 export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
@@ -27,6 +30,18 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     start: (container, env) =>
       Runtime.embed(
         makeNotes(container, env.device, { exit: env.exit, crashed: env.crashed }),
+      ),
+  },
+  {
+    id: 'navigation',
+    title: 'Navigation',
+    blurb: 'Tabs, a deep stack, a modal and a sheet, title bar buttons, blocking Back.',
+    start: (container, env) =>
+      Runtime.embed(
+        makeNavigation(container, {
+          ...env,
+          ...(resources.backSource === undefined ? {} : { backSource: resources.backSource }),
+        }),
       ),
   },
   {

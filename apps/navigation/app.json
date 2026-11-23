@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Foldkit Navigation",
+    "slug": "foldkit-native-navigation",
+    "newArchEnabled": true,
+    "ios": { "bundleIdentifier": "dev.foldkitnative.navigation" },
+    "android": { "package": "dev.foldkitnative.navigation" }
+  }
+}

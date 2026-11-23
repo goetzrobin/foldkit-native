@@ -9,6 +9,7 @@ import {
   AppRegistry,
   AppState,
   Appearance,
+  BackHandler,
   Dimensions,
   I18nManager,
   Image,
@@ -24,6 +25,7 @@ import sheet from './.foldkit-native/tailwind.js'
 import {
   Phone,
   type DeviceSources,
+  backSourceFrom,
   createNativeSurface,
   registerNavigation,
   stylingOptions,
@@ -80,5 +82,5 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
     // "Hide keyboard" leaves the keyboard up.
     blurFocused: () => surface.engine.blurFocused(),
   })
-  startShowcase(surface.container, device, makeDemos({ device: phone }))
+  startShowcase(surface.container, device, makeDemos({ device: phone, backSource: backSourceFrom(BackHandler) }))
 })
