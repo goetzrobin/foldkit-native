@@ -193,3 +193,22 @@ export const composer = <Message>(h: HtmlBuilder<Message>, config: Composer<Mess
     ],
   })
 }
+
+/**
+ * Attributes for the list: a drag on it puts the keyboard away.
+ *
+ * iOS does this by itself with `keyboardDismissMode`. Android's scroll view
+ * has no such thing (React Native does it in JavaScript), so the start of a
+ * drag is also sent as a Message, only while the keyboard is up. That is one
+ * Message per drag, not one per scroll event.
+ */
+export const dismissOnDrag = <Message>(
+  isKeyboardUp: boolean,
+  message: Message,
+): ReadonlyArray<unknown> => [
+  prop('keyboardDismissMode', 'on-drag'),
+  OnCustomEvent<Message>({
+    name: 'scrollBeginDrag',
+    f: () => (isKeyboardUp ? Option.some(message) : Option.none()),
+  }),
+]

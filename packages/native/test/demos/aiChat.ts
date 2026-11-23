@@ -32,6 +32,7 @@ import {
   bubbleNote,
   bubbleText,
   composer,
+  dismissOnDrag,
   scrollToEndButton,
   smallButton,
   topStrip,
@@ -98,6 +99,7 @@ export const Message = defineMessageUnion({
   FinishedThinking: { messageId: Schema.Number },
   TickedStream: {},
   ChangedAtEnd: { isAtEnd: Schema.Boolean },
+  DraggedListWithKeyboardUp: {},
   PressedScrollToEnd: {},
   CompletedScrollToEnd: {},
   GotKeyboardMessage: { message: Keyboard.Message },
@@ -265,6 +267,11 @@ const makeUpdate = (env: DemoEnv, options: AiChatOptions) => {
           },
         }),
       ChangedAtEnd: ({ isAtEnd }) => ({ model: modifyFields(model, { isAtEnd: () => isAtEnd }) }),
+      // Scrolling through the messages puts the keyboard away, as in other chat apps.
+      DraggedListWithKeyboardUp: () => ({
+        model,
+        commands: [Command.mapMessage(Keyboard.Dismiss(), fromKeyboard)],
+      }),
       PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
       CompletedScrollToEnd: () => ({ model }),
       GotKeyboardMessage: ({ message: keyboardMessage }) => ({
@@ -387,6 +394,7 @@ const makeView =
                         attributes: [
                           h.Attribute('testID', 'messages'),
                           style({ flex: 1 }),
+                          ...dismissOnDrag(model.keyboardHeight > 0, Message.DraggedListWithKeyboardUp()),
                         ],
                       }),
                       ...(model.isAtEnd

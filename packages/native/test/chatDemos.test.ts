@@ -234,6 +234,18 @@ describe('the chat demo', () => {
     expect((dockParts().safeArea.props['edges'] as { bottom: boolean }).bottom).toBe(true)
   })
 
+  it('puts the keyboard away when the user drags the list, only if it is up', async () => {
+    phone.fabric.emit(byTestId(phone.fabric, 'messages'), 'topScrollBeginDrag', {})
+    await settle()
+    expect(keyboard.dismissCount()).toBe(0)
+    keyboard.show(336)
+    await settle()
+    phone.fabric.emit(byTestId(phone.fabric, 'messages'), 'topScrollBeginDrag', {})
+    await settle()
+    expect(keyboard.dismissCount()).toBe(1)
+    expect(dockParts().padding.props['paddingBottom']).toBe(0)
+  })
+
   it('keeps the screen clear of the top but leaves the bottom to the dock', () => {
     const area = flatten(phone.fabric.committed).find(
       node =>
