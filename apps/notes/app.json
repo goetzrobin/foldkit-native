@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Foldkit Notes",
+    "slug": "foldkit-native-notes",
+    "newArchEnabled": true,
+    "ios": { "bundleIdentifier": "dev.foldkitnative.notes" },
+    "android": { "package": "dev.foldkitnative.notes" }
+  }
+}

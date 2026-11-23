@@ -1,0 +1,227 @@
+diff --git a/packages/foldkit/package.json b/packages/foldkit/package.json
+index 0660a3b..e7427f8 100644
+--- a/packages/foldkit/package.json
++++ b/packages/foldkit/package.json
+@@ -143,6 +143,10 @@
+       "types": "./dist/update/public.d.ts",
+       "import": "./dist/update/public.js"
+     },
++    "./renderTarget": {
++      "types": "./dist/renderTarget/public.d.ts",
++      "import": "./dist/renderTarget/public.js"
++    },
+     "./url": {
+       "types": "./dist/url/public.d.ts",
+       "import": "./dist/url/public.js"
+diff --git a/packages/foldkit/src/renderTarget/public.ts b/packages/foldkit/src/renderTarget/public.ts
+new file mode 100644
+index 0000000..f734529
+--- /dev/null
++++ b/packages/foldkit/src/renderTarget/public.ts
+@@ -0,0 +1,19 @@
++/** Drawing a Foldkit view tree somewhere other than the browser DOM.
++ *
++ *  A host builds its own patch function with `init`, passing modules and a
++ *  node API for its platform, wraps it in a `RenderTarget`, and registers
++ *  that against the container object it gives `makeElement`. */
++export { registerRenderTarget, type RenderTarget } from '../vdom.js'
++export {
++  h,
++  init,
++  VNodeDataMask,
++  vnodeDataMaskKey,
++  type Module,
++  type VNode,
++  type VNodeData,
++} from '../snabbdom/index.js'
++export type { DOMAPI } from '../snabbdom/htmldomapi.js'
++export { onUnmountModule } from '../onUnmountModule.js'
++export { customElement as element } from '../html/index.js'
++export { OnCustomEvent, Prop } from '../html/index.js'
+diff --git a/packages/foldkit/src/runtime/devToolsConfig.ts b/packages/foldkit/src/runtime/devToolsConfig.ts
+index e1be26a..b1b5c8c 100644
+--- a/packages/foldkit/src/runtime/devToolsConfig.ts
++++ b/packages/foldkit/src/runtime/devToolsConfig.ts
+@@ -120,7 +120,10 @@ export type ResolvedDevToolsConfig = Readonly<{
+ export const resolveDevToolsConfig = (
+   devTools: DevToolsConfig | undefined,
+ ): Option.Option<ResolvedDevToolsConfig> => {
+-  const isInIframe = window.self !== window.top
++  // NOTE: a host with no browser window (a native render target) is never in
++  // an iframe.
++  const isInIframe =
++    typeof window !== 'undefined' && window.self !== window.top
+ 
+   return pipe(
+     devTools ?? {},
+diff --git a/packages/foldkit/src/runtime/renderer.ts b/packages/foldkit/src/runtime/renderer.ts
+index ff07685..6e58087 100644
+--- a/packages/foldkit/src/runtime/renderer.ts
++++ b/packages/foldkit/src/runtime/renderer.ts
+@@ -21,6 +21,8 @@ import type { CommitNotifier } from '../render/commit.js'
+ import {
+   VNode,
+   __patchVNode,
++  __requestRenderFrame,
++  __unmountVNode,
+   __recoverVNodeAfterPatchFailure,
+ } from '../vdom.js'
+ import {
+@@ -258,7 +260,10 @@ export const makeRenderer = <Model, Message>({
+           const maybeRecoveryVNode = vnodeSlot.maybeCurrentVNode
+           if (Option.isSome(maybeRecoveryVNode)) {
+             vnodeSlot.maybeCurrentVNode = Option.some(
+-              __recoverVNodeAfterPatchFailure(maybeRecoveryVNode.value),
++              __recoverVNodeAfterPatchFailure(
++                maybeRecoveryVNode.value,
++                container,
++              ),
+             )
+           }
+         } finally {
+@@ -293,18 +298,7 @@ export const makeRenderer = <Model, Message>({
+           onNone: () => Effect.void,
+           onSome: currentVNode =>
+             Effect.sync(() => {
+-              const placeholderNode = __patchVNode(
+-                Option.some(currentVNode),
+-                null,
+-                container,
+-              ).elm
+-              if (placeholderNode && placeholderNode.parentNode) {
+-                placeholderNode.parentNode.replaceChild(
+-                  container,
+-                  placeholderNode,
+-                )
+-                container.replaceChildren()
+-              }
++              __unmountVNode(currentVNode, container)
+             }),
+         })
+       }).pipe(
+@@ -811,7 +805,7 @@ export const makeRenderer = <Model, Message>({
+         queueMicrotask(renderFramePlain)
+         return
+       }
+-      requestAnimationFrame(renderFramePlain)
++      __requestRenderFrame(container, renderFramePlain)
+     }
+ 
+     const devToolsRenderBridge: DevToolsRenderBridge = {
+diff --git a/packages/foldkit/src/vdom.ts b/packages/foldkit/src/vdom.ts
+index dbe80eb..39e273b 100644
+--- a/packages/foldkit/src/vdom.ts
++++ b/packages/foldkit/src/vdom.ts
+@@ -162,6 +162,62 @@ const patchFreshInto = (
+   return patch(toVNode(placeholder), nextVNode, onRootPatched)
+ }
+ 
++/** A place a view tree can be drawn other than the browser DOM, such as a
++ *  native view tree. A host registers one against the container object it
++ *  hands to `makeElement`; every patch for that container then goes through
++ *  the target instead of the DOM patch above. Containers with no registered
++ *  target take the DOM path unchanged. */
++export type RenderTarget = Readonly<{
++  /** First render: build `vnode` fresh inside `container`. */
++  mount: (
++    container: object,
++    vnode: VNode,
++    onRootPatched?: (vnode: VNode) => void,
++  ) => VNode
++  /** Every later render. */
++  patch: (
++    currentVNode: VNode,
++    vnode: VNode,
++    onRootPatched?: (vnode: VNode) => void,
++  ) => VNode
++  /** Dispose: `emptyVNode` is the tree after patching to nothing. Leave
++   *  `container` as it was before the first render. */
++  unmount: (container: object, emptyVNode: VNode) => void
++  /** When to run a scheduled render. Defaults to `requestAnimationFrame`,
++   *  which a host may lack or may pause. */
++  requestFrame?: (run: () => void) => void
++}>
++
++const renderTargets = new WeakMap<object, RenderTarget>()
++
++/** Registers the render target for a container. Returns a function that
++ *  removes the registration. */
++export const registerRenderTarget = (
++  container: object,
++  target: RenderTarget,
++): (() => void) => {
++  renderTargets.set(container, target)
++  return () => {
++    if (renderTargets.get(container) === target) {
++      renderTargets.delete(container)
++    }
++  }
++}
++
++/** Schedules a render for `container`: through its render target when that
++ *  supplies a frame source, otherwise on the next animation frame. */
++export const __requestRenderFrame = (
++  container: HTMLElement,
++  run: () => void,
++): void => {
++  const requestFrame = renderTargets.get(container)?.requestFrame
++  if (requestFrame !== undefined) {
++    requestFrame(run)
++    return
++  }
++  requestAnimationFrame(run)
++}
++
+ export const __patchVNode = (
+   maybeCurrentVNode: Option.Option<VNode>,
+   nextVNode: VNode | null,
+@@ -172,6 +228,13 @@ export const __patchVNode = (
+   const dedupedVNode =
+     nextVNode !== null ? dedupeSharedVNodes(nextVNode, seen) : h('!')
+ 
++  const target = renderTargets.get(container)
++  if (target !== undefined) {
++    return Option.isNone(maybeCurrentVNode)
++      ? target.mount(container, dedupedVNode, onRootPatched)
++      : target.patch(maybeCurrentVNode.value, dedupedVNode, onRootPatched)
++  }
++
+   if (Option.isNone(maybeCurrentVNode)) {
+     return patchFreshInto(container, dedupedVNode, onRootPatched)
+   }
+@@ -179,7 +242,34 @@ export const __patchVNode = (
+   return patch(maybeCurrentVNode.value, dedupedVNode, onRootPatched)
+ }
+ 
+-export const __recoverVNodeAfterPatchFailure = (currentVNode: VNode): VNode => {
++/** Patches the current tree to nothing and restores `container` to its state
++ *  before the first render. The dispose path. */
++export const __unmountVNode = (
++  currentVNode: VNode,
++  container: HTMLElement,
++): void => {
++  const emptyVNode = __patchVNode(Option.some(currentVNode), null, container)
++  const target = renderTargets.get(container)
++  if (target !== undefined) {
++    target.unmount(container, emptyVNode)
++    return
++  }
++  const placeholderNode = emptyVNode.elm
++  if (placeholderNode && placeholderNode.parentNode) {
++    placeholderNode.parentNode.replaceChild(container, placeholderNode)
++    container.replaceChildren()
++  }
++}
++
++export const __recoverVNodeAfterPatchFailure = (
++  currentVNode: VNode,
++  container?: HTMLElement,
++): VNode => {
++  const target =
++    container === undefined ? undefined : renderTargets.get(container)
++  if (target !== undefined) {
++    return target.patch(currentVNode, h('!'))
++  }
+   const currentElement = currentVNode.elm
+   const recoveryVNode = patch(currentVNode, h('!'))
+   if (recoveryVNode.elm !== currentElement && currentElement?.parentNode) {

@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Foldkit Counter",
+    "slug": "foldkit-native-counter",
+    "newArchEnabled": true,
+    "ios": { "bundleIdentifier": "dev.foldkitnative.counter" },
+    "android": { "package": "dev.foldkitnative.counter" }
+  }
+}

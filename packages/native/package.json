@@ -1,0 +1,14 @@
+{
+  "name": "foldkit-native",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Foldkit programs on native iOS and Android views, through ng-native's Fabric engine.",
+  "main": "src/index.ts",
+  "scripts": { "test": "vitest run" },
+  "peerDependencies": {
+    "@ng-native/fabric": "^0.25.0",
+    "effect": "~4.1.0",
+    "foldkit": "*"
+  }
+}
