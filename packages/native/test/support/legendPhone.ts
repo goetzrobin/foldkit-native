@@ -14,7 +14,8 @@ import { type Phone, byTestId, flatten, settle } from './phone.js'
 export type FakeScroll = {
   readonly phone: Phone
   readonly listId: string
-  readonly viewport: number
+  /** The scroll view's own height. Change it and call `layOutList` to stand for a keyboard. */
+  viewport: number
   /** A row's height by the testID of the element `row` drew. */
   heightOf: (rowId: string) => number
   offset: number
@@ -26,6 +27,10 @@ export type FakeScroll = {
   reported: Map<number, string>
   /** Every scroll event sent, for tests that count them. */
   events: number
+  /** False until the scroll view has been laid out once. */
+  didStart: boolean
+  /** False for a phone whose layout is read straight from the commit, with no layout events. */
+  sendsLayoutEvents: boolean
 }
 
 export const makeFakeScroll = (
@@ -43,6 +48,8 @@ export const makeFakeScroll = (
   commandsSeen: phone.fabric.commands.length,
   reported: new Map(),
   events: 0,
+  didStart: false,
+  sendsLayoutEvents: true,
 })
 
 const scrollNode = (scroll: FakeScroll): FakeFabricNode => byTestId(scroll.phone.fabric, scroll.listId)
@@ -113,6 +120,25 @@ export const screenTopOf = (scroll: FakeScroll, rowId: string): number | undefin
     : num(content.props['paddingTop']) + num(start.props['height']) + row.top - scroll.offset
 }
 
+/**
+ * Lets the engine read boxes straight after a commit, as Fabric on a phone
+ * does (`getBoundingClientRect`), in place of waiting for layout events.
+ * Answers for the scroll view and for each container view.
+ */
+export const answerLayoutReads = (scroll: FakeScroll): void => {
+  scroll.sendsLayoutEvents = false
+  const fabric = scroll.phone.fabric as unknown as {
+    getBoundingClientRect?: (node: unknown) => readonly [number, number, number, number] | undefined
+  }
+  fabric.getBoundingClientRect = node => {
+    const view = node as FakeFabricNode
+    if (view.props['testID'] === scroll.listId) return [0, 0, 320, scroll.viewport]
+    if (view.props['position'] !== 'absolute' || typeof view.props['top'] !== 'number') return undefined
+    const rowId = rowIdIn(view)
+    return rowId === undefined ? undefined : [0, view.props['top'], 320, scroll.heightOf(rowId)]
+  }
+}
+
 export const containerViews = (scroll: FakeScroll): FakeFabricNode[] => partsOf(scroll).layer.children
 
 const sendScroll = (scroll: FakeScroll, type = 'topScroll'): void => {
@@ -157,7 +183,9 @@ const react = (scroll: FakeScroll): boolean => {
   }
 
   // Layout: each container reports its height when it is new or has changed.
-  for (const container of layer.children) {
+  // Read again: the scroll event above may have made the list draw other rows.
+  const laidOut = !scroll.sendsLayoutEvents ? [] : did ? partsOf(scroll).layer.children : layer.children
+  for (const container of laidOut) {
     const rowId = rowIdIn(container)
     if (rowId === undefined) continue
     const said = `${rowId}:${scroll.heightOf(rowId)}`
@@ -187,7 +215,8 @@ export const layOutList = async (scroll: FakeScroll): Promise<void> => {
   })
   // A scroll view starts where its `contentOffset` says, if its content reaches.
   const initial = scrollNode(scroll).props['contentOffset'] as { y?: number } | undefined
-  if (typeof initial?.y === 'number') scroll.offset = initial.y
+  if (!scroll.didStart && typeof initial?.y === 'number') scroll.offset = initial.y
+  scroll.didStart = true
   await pump(scroll)
 }
 

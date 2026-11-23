@@ -41,12 +41,14 @@ import {
   legendHandles,
 } from './module.js'
 import type { LegendPlatform } from './platform/Platform.js'
+import type { MaintainScrollAtEndOptions } from './vendor/types.base.js'
 
 export { legendContainers, legendHandles } from './module.js'
 export type { LegendContainerInfo } from './module.js'
 export { setPixelRatio } from './platform/PixelRatio.js'
 export { setScreenReaderEnabled } from './platform/screenReader.js'
 export type { LegendPlatform } from './platform/Platform.js'
+export type { MaintainScrollAtEndOptions } from './vendor/types.base.js'
 
 const el = element<any>()
 
@@ -78,8 +80,13 @@ export type LegendListConfig<Item, Message> = Readonly<{
   initialScrollAtEnd?: boolean
   /** Keep what is on screen where it is when rows above change size or are added. */
   maintainVisibleContentPosition?: boolean | Readonly<{ data?: boolean; size?: boolean }>
-  /** While the list is at its end, stay there as rows grow or are added. */
-  maintainScrollAtEnd?: boolean | Readonly<{ animated?: boolean }>
+  /**
+   * While the list is at its end, stay there. `true` means on every cause:
+   * rows added, a row growing, the list itself changing height. Or name the
+   * causes: `{ on: { layout: true } }` only follows the list's own height,
+   * which is what an opening keyboard changes.
+   */
+  maintainScrollAtEnd?: boolean | MaintainScrollAtEndOptions
   /** How near the end counts as "at its end", as a share of the list's height. Default 0.1. */
   maintainScrollAtEndThreshold?: number
   /** A list shorter than the screen sits at the bottom, as in a chat. */

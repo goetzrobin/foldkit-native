@@ -11,6 +11,7 @@ import { Runtime } from 'foldkit'
 import type { BackSource, Phone } from '../../src/index.js'
 import { makeNotes } from '../notes.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
+import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
@@ -50,6 +51,12 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Lists and motion',
     blurb: '5,000 rows with about 40 drawn, pull to refresh, fades, and a card you can drag.',
     start: (container, env) => Runtime.embed(makeLists(container, env)),
+  },
+  {
+    id: 'legend-chat',
+    title: 'AI chat on Legend List',
+    blurb: "Legend List's own core with no React. Send: your message goes to the top, the reply streams under it.",
+    start: (container, env) => Runtime.embed(makeLegendChat(container, env, resources.device)),
   },
   {
     id: 'styling',

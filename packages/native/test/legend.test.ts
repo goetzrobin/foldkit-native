@@ -23,6 +23,7 @@ import {
 } from '../src/legend/index.js'
 import {
   type FakeScroll,
+  answerLayoutReads,
   containerViews,
   contentHeight,
   dragTo,
@@ -188,7 +189,11 @@ const baseHeight = (rowId: string): number => 40 + (Number(rowId.slice(4)) % 3) 
 
 type Running = { phone: Phone; scroll: FakeScroll; grown: Map<string, number>; stop: () => Promise<void> }
 
-const start = async (platform: 'ios' | 'android', options: Options = {}): Promise<Running> => {
+const start = async (
+  platform: 'ios' | 'android',
+  options: Options = {},
+  layout: 'events' | 'read from the commit' = 'events',
+): Promise<Running> => {
   viewRuns = 0
   rowRuns = 0
   const phone = startPhone(platform)
@@ -196,7 +201,32 @@ const start = async (platform: 'ios' | 'android', options: Options = {}): Promis
   const handle = Runtime.embed(makeProgram(phone, platform, options))
   await settle()
   const scroll = makeFakeScroll(phone, 'list', VIEWPORT, rowId => grown.get(rowId) ?? baseHeight(rowId))
-  await layOutList(scroll)
+  if (layout === 'events') {
+    await layOutList(scroll)
+  } else {
+    // Legend reads the scroll view's box in its first layout effect, which has
+    // already run. So the list is started again, on a phone that can answer.
+    handle.dispose()
+    await settle()
+    answerLayoutReads(scroll)
+    const again = Runtime.embed(makeProgram(phone, platform, options))
+    await settle()
+    scroll.didStart = false
+    const initial = byTestId(phone.fabric, 'list').props['contentOffset'] as { y?: number } | undefined
+    if (typeof initial?.y === 'number') scroll.offset = initial.y
+    scroll.didStart = true
+    await pump(scroll)
+    return {
+      phone,
+      scroll,
+      grown,
+      stop: async () => {
+        again.dispose()
+        await settle()
+        phone.surface.dispose()
+      },
+    }
+  }
   return {
     phone,
     scroll,
@@ -402,20 +432,66 @@ describe.each(['ios', 'android'] as const)('Legend core, a list that starts at i
   })
 })
 
+describe('Legend core, on a phone whose layout is read straight after a commit', () => {
+  // On a real phone the engine can read a view's box as soon as it has committed
+  // it. Legend then measures rows in the same turn, before anything is painted,
+  // and no layout event is needed. This is the path a phone takes.
+  let running: Running
+  afterEach(() => running.stop())
+
+  it('places the first rows by their real heights with no layout event at all', async () => {
+    running = await start('ios', {}, 'read from the commit')
+    const { scroll } = running
+    const rows = drawnRows(scroll)
+    expect(ids(rows).slice(0, 5)).toEqual([0, 1, 2, 3, 4])
+    for (const row of rows.slice(0, 10)) {
+      expect(row.top).toBe(realOffsetOf(Number(row.rowId.slice(4))))
+    }
+    expect(partsOf(scroll).layer.props['opacity']).toBe(1)
+  })
+
+  it('starts at the end and follows a growing last row', async () => {
+    running = await start('ios', { initialScrollAtEnd: true, maintainScrollAtEnd: true }, 'read from the commit')
+    const { scroll, grown, phone } = running
+    expect(rowsOnScreen(scroll).at(-1)!.rowId).toBe(`row-${COUNT - 1}`)
+    expect(scroll.offset).toBe(furthest(scroll))
+    // The row grows. With no layout event, the list hears of it when it next
+    // draws that row: here, because the program drew again.
+    grown.set(`row-${COUNT - 1}`, 300)
+    await press(phone.fabric, 'rename')
+    await pump(scroll)
+    expect(scroll.offset).toBe(furthest(scroll))
+    const last = drawnRows(scroll).at(-1)!
+    expect(Math.abs(screenTopOf(scroll, last.rowId)! + 300 - VIEWPORT)).toBeLessThanOrEqual(1)
+  })
+
+  it('keeps position while scrolling up through rows never measured', async () => {
+    running = await start('ios', {}, 'read from the commit')
+    const { scroll } = running
+    await dragTo(scroll, 20000)
+    const watched = rowsOnScreen(scroll)[2]!.rowId
+    const before = screenTopOf(scroll, watched)!
+    await dragTo(scroll, scroll.offset - 300)
+    expect(Math.abs(screenTopOf(scroll, watched)! - (before + 300))).toBeLessThanOrEqual(1)
+  })
+})
+
 describe('Legend core, the chat behaviours', () => {
+  let running: Running
+  afterEach(() => running.stop())
+
   it('puts a short list at the bottom of the screen', async () => {
-    const running = await start('ios', { count: 3, alignItemsAtEnd: true })
+    running = await start('ios', { count: 3, alignItemsAtEnd: true })
     const { scroll } = running
     const rows = drawnRows(scroll)
     expect(ids(rows)).toEqual([0, 1, 2])
     const last = rows.at(-1)!
     expect(screenTopOf(scroll, last.rowId)! + last.height).toBe(VIEWPORT)
     expect(Number(partsOf(scroll).start.props['height'])).toBe(VIEWPORT - (40 + 60 + 80))
-    await running.stop()
   })
 
   it('on send, brings the new message to the top and leaves room below for the reply', async () => {
-    const running = await start('ios', { count: 30, initialScrollAtEnd: true })
+    running = await start('ios', { count: 30, initialScrollAtEnd: true })
     const { scroll, phone, grown } = running
     await press(phone.fabric, 'send')
     await pump(scroll)
@@ -430,13 +506,13 @@ describe('Legend core, the chat behaviours', () => {
     await pump(scroll)
     expect(Math.abs(screenTopOf(scroll, 'row-100000')! - 16)).toBeLessThanOrEqual(1)
     expect(Number(partsOf(scroll).end.props['height'])).toBe(endSpace - 200)
-    await running.stop()
   })
 
   it('cleans up: nothing is drawn or heard after the list is gone', async () => {
-    const running = await start('ios', { count: 50 })
+    running = await start('ios', { count: 50 })
     expect(legendHandles('rows')).toHaveLength(1)
     await running.stop()
     expect(legendHandles('rows')).toHaveLength(0)
+    running = await start('ios', { count: 5 })
   })
 })

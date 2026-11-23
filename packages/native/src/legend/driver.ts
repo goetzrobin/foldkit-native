@@ -66,6 +66,7 @@ import { setupViewability } from './vendor/core/viewability.js'
 import type { LayoutRectangle, NativeScrollEvent, NativeSyntheticEvent } from './vendor/platform/platform-types.js'
 import { getContentSize } from './vendor/state/getContentSize.js'
 import { type StateContext, createStateContext, peek$, set$ } from './vendor/state/state.js'
+import type { MaintainScrollAtEndOptions } from './vendor/types.base.js'
 import type { InternalState, LegendListInternalRef, LegendListScrollerRef } from './vendor/types.internal.js'
 import { checkThresholds } from './vendor/utils/checkThresholds.js'
 import { createImperativeHandle } from './vendor/utils/createImperativeHandle.js'
@@ -89,7 +90,7 @@ export type LegendDriverProps<Item> = Readonly<{
   drawDistance?: number
   initialScrollAtEnd?: boolean
   maintainVisibleContentPosition?: boolean | { data?: boolean; size?: boolean }
-  maintainScrollAtEnd?: boolean | { animated?: boolean }
+  maintainScrollAtEnd?: boolean | MaintainScrollAtEndOptions
   maintainScrollAtEndThreshold?: number
   alignItemsAtEnd?: boolean
   recycleItems?: boolean
