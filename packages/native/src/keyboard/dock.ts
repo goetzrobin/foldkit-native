@@ -92,20 +92,15 @@ export type KeyboardDock = Readonly<{
 
 const DOCK_DATA = 'foldkitKeyboardDock'
 
-/** The elements of one dock that the module below works on. */
-type Parts = Readonly<{
-  seat: Html
-  bar: Html
-  content: Html
-  controller: Html
-  gesture: Html
-  lift: Html
-}>
-
+/**
+ * What the module below needs to know about one dock. It finds the dock's
+ * views by their places under the marked element, which `keyboardDock` fixes.
+ */
 type Marker = Readonly<{
   keyboardHeight: number
   offset: number | undefined
-  parts: Parts
+  isNative: boolean
+  hasAbove: boolean
 }>
 
 /** A native view the dock draws for itself, out of the way of the layout. */
@@ -164,7 +159,8 @@ export const keyboardDock = <Message>(
     const marker: Marker = {
       keyboardHeight: Math.max(0, config.keyboardHeight),
       offset: config.offset,
-      parts: { seat, bar, content, controller, gesture, lift },
+      isNative,
+      hasAbove: lift !== null,
     }
     ;(outer.data ??= {})[DOCK_DATA] = marker
   }
@@ -244,8 +240,29 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
   noteEngine(canDrive(engine))
   const docks = new Map<EngineNode, Dock>()
 
-  const nodeFor = (part: Html): EngineNode | undefined =>
-    part === null ? undefined : nodeOf(part)
+  /** A child element by its place. Text and gaps are not elements. */
+  const childAt = (vnode: VNode | undefined, index: number): VNode | undefined => {
+    const child = vnode?.children?.[index]
+    return child === undefined || typeof child === 'string' ? undefined : child
+  }
+
+  /** The dock's elements, by the places `keyboardDock` puts them in. */
+  const partsOf = (outer: VNode, marker: Marker) => {
+    const host = marker.hasAbove ? childAt(outer, 1) : outer
+    const seat = childAt(host, 0)
+    const bar = childAt(seat, marker.isNative ? 2 : 0)
+    return {
+      seat,
+      bar,
+      content: childAt(childAt(bar, 0), 0),
+      controller: marker.isNative ? childAt(seat, 0) : undefined,
+      gesture: marker.isNative ? childAt(seat, 1) : undefined,
+      lift: marker.hasAbove ? childAt(childAt(outer, 0), 0) : undefined,
+    }
+  }
+
+  const nodeFor = (part: VNode | undefined): EngineNode | undefined =>
+    part === undefined ? undefined : nodeOf(part)
 
   const restOf = (dock: Dock): number => dock.marker.offset ?? dock.measuredRest ?? 0
 
@@ -331,7 +348,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
    * The field in the bar, by name. react-native-keyboard-controller's drag
    * area finds it by `nativeID`, so a field without one is given one.
    */
-  const nameField = (dock: Dock): void => {
+  const nameField = (dock: Dock, contentVNode: VNode | undefined): void => {
     if (dock.gesture === undefined) return
     const find = (vnode: VNode | string | null | undefined): VNode | undefined => {
       if (vnode === null || vnode === undefined || typeof vnode === 'string') return undefined
@@ -342,7 +359,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       }
       return undefined
     }
-    const field = find(dock.marker.parts.content)
+    const field = find(contentVNode)
     const node = field === undefined ? undefined : nodeOf(field)
     if (field === undefined || node === undefined) return
     const own = bagOf(field, 'props')['nativeID'] ?? bagOf(field, 'attrs')['nativeID']
@@ -401,13 +418,25 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     })
   }
 
+  /**
+   * Docks drawn for the first time in the draw now under way. An element is
+   * announced before its children are made, and a dock is mostly children,
+   * so each waits here until the whole draw is done.
+   */
+  const fresh: Array<VNode> = []
+
   const create = (_empty: VNode, vnode: VNode): void => {
+    if (vnode.data?.[DOCK_DATA] !== undefined) fresh.push(vnode)
+  }
+
+  const start = (vnode: VNode): void => {
     const marker = vnode.data?.[DOCK_DATA] as Marker | undefined
     const outer = nodeOf(vnode)
     if (marker === undefined || outer === undefined) return
-    const seat = nodeFor(marker.parts.seat)
-    const bar = nodeFor(marker.parts.bar)
-    const content = nodeFor(marker.parts.content)
+    const parts = partsOf(vnode, marker)
+    const seat = nodeFor(parts.seat)
+    const bar = nodeFor(parts.bar)
+    const content = nodeFor(parts.content)
     if (seat === undefined || bar === undefined || content === undefined) return
     const dock: Dock = {
       outer,
@@ -415,9 +444,9 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       seat,
       bar,
       content,
-      controller: nodeFor(marker.parts.controller),
-      gesture: nodeFor(marker.parts.gesture),
-      lift: nodeFor(marker.parts.lift),
+      controller: nodeFor(parts.controller),
+      gesture: nodeFor(parts.gesture),
+      lift: nodeFor(parts.lift),
       measuredRest: undefined,
       reported: 0,
       pad: null,
@@ -434,7 +463,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     if (dock.controller !== undefined) startNative(dock)
     // A keyboard that is already up puts the bar in place with no easing.
     else padFallback(dock, false)
-    nameField(dock)
+    nameField(dock, parts.content)
     dock.stops.push(
       engine.setEventListener(dock.content, 'topLayout', event => {
         const height = (event as NativeEvent | undefined)?.nativeEvent?.layout?.height
@@ -469,7 +498,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     // The bar's children are drawn after this runs, so look once they are.
     afterCommit(() => {
       if (!dock.isAlive) return
-      nameField(dock)
+      nameField(dock, partsOf(vnode, marker).content)
       if (before.offset !== marker.offset) measureRest(dock)
     })
   }
@@ -486,7 +515,12 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     for (const stop of dock.stops.splice(0)) stop()
   }
 
-  return { create, update, destroy }
+  // After the draw and before it is sent to the phone.
+  const post = (): void => {
+    for (const vnode of fresh.splice(0)) start(vnode)
+  }
+
+  return { create, update, destroy, post }
 }
 
 registerModule(dockModule)
