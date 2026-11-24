@@ -421,7 +421,6 @@ export const make = (audio: AudioModule, options: RecorderOptions): RecorderServ
 
   const startRecording = async (start: StartOptions): Promise<Background> => {
     if (session !== undefined) throw new Error('A recording is already running.')
-    unsaved = undefined
     const wantsBackground = options.backgroundRecording ?? true
     try {
       await begin(start, wantsBackground)

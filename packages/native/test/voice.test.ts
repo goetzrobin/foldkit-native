@@ -646,6 +646,18 @@ describe('the recorder service', () => {
     expect(fake.audio.recorders[0]?.isReleased).toBe(true)
   })
 
+  it('keeps a recording that ended unheard until someone asks, even if a new one starts first', async () => {
+    const fake = Recorder.makeTest()
+    await run(fake.service.start({ maxSeconds: 5, warnSeconds: 2 }))
+    fake.audio.advance(6000)
+    await run(fake.service.start({ maxSeconds: 900, warnSeconds: 60 }))
+    const first = await run(fake.service.snapshot)
+    expect(first.unsaved).toMatchObject({ endedBy: 'limit', durationMs: 5000 })
+    expect(first.status.phase).toBe('recording')
+    // Handed out once.
+    expect((await run(fake.service.snapshot)).unsaved).toBeUndefined()
+  })
+
   it('releases the recorder when starting fails', async () => {
     const fake = Recorder.makeTest({ backgroundRecording: false })
     fake.audio.state.failNext = { method: 'prepareToRecordAsync', reason: 'microphone busy' }
