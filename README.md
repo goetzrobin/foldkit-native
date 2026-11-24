@@ -11,28 +11,53 @@ framework-neutral engine inside
 
 **Status: proof of concept.** Not for production use.
 
-## What works on a real iPhone today
+## The showcase app
 
-Checked in Expo Go on iOS 27:
+`apps/showcase` is one app with a menu of demos. Each demo is a complete
+Foldkit program.
 
-- Native views, text and styles from a Foldkit view function
-- Presses as Messages
-- A native text field tied to the Model, with fast typing
-- A native screen stack with a title bar and swipe-back, where the Model
-  catches up when the phone goes back by itself
-- A native scroll view
+| Demo | What it shows |
+|---|---|
+| Notes | Type, add a note, open it, swipe back. The first app this project ran on a phone. |
+| Navigation | Tabs, a deep stack, a modal and a sheet, title bar buttons, blocking Back. |
+| Lists and motion | 5,000 rows with about 40 drawn, pull to refresh, fades, and a card you can drag. |
+| Chat | A list that opens at the newest message and stays there, with a text field above the keyboard. |
+| AI chat | Your question goes to the top and the answer is written under it, word by word. |
+| Styling | Tailwind classes, with colors that change when the phone goes to dark mode. |
+| Phone features | Haptics, clipboard, saved text, share sheet, alerts, keyboard, network, rotation. |
+| Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |
 
-## Try it
+Chat and AI chat have a button, "Keyboard: following" or "Keyboard: simple",
+that switches between two ways of keeping the text field above the keyboard.
+
+## Run it
 
 You need Node 22 or newer, and Expo Go on a phone on the same Wi-Fi.
 
 ```
-cd apps/notes
+cd apps/showcase
 npm install
-npx expo start
+npm start
 ```
 
 Scan the QR code with the phone's camera.
+
+- `docs/PHONE_CHECKLIST.md` lists what to look at on the phone, as yes or no
+  questions.
+- `docs/DEV_BUILD.md` explains how to make a development build, for when
+  Expo Go lacks the native code the keyboard dock needs to follow the
+  keyboard frame by frame.
+
+## What has been seen on a phone
+
+The Notes demo ran in Expo Go on an iPhone with iOS 27: native views, text and
+styles, presses, a text field that keeps up with fast typing, a screen stack
+with a title bar and swipe-back, and a scroll view.
+
+The other demos pass their tests on a simulated phone. The simulated phone
+checks what the program asks the phone to do. It cannot show layout or
+movement, so those demos still need the checklist. Chat, AI chat and Keyboard
+dock have not been seen on a phone at all. Nothing has run on Android.
 
 ## How it fits together
 
@@ -56,11 +81,14 @@ supplies ones that call the ng-native engine.
 
 | Path | What it is |
 |---|---|
-| `packages/native/` | The adapter, with tests that run on a simulated phone |
-| `apps/notes/` | The demo app: notes list, text field, second screen |
-| `apps/counter/` | The smallest possible app |
+| `packages/native/` | The adapter, with its demos and tests that run on a simulated phone |
+| `apps/showcase/` | The app with every demo in a menu |
+| `apps/devloop/` | A small app for trying reload that keeps your state |
+| `apps/notes/`, `apps/counter/` | The first two apps, kept as the smallest examples |
 | `foldkit-fork/` | The change Foldkit needs, as a patch against 0.171.0 |
 | `docs/BRIEF.md` | How to work on this, and what the phone has taught us |
+| `docs/PHONE_CHECKLIST.md` | What to check on a real phone |
+| `docs/DEV_BUILD.md` | How to make a development build of the showcase |
 
 ## Run the tests
 

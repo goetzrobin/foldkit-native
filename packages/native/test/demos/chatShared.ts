@@ -3,15 +3,28 @@
  * button), the round button that scrolls to the newest message, and the
  * strip of buttons and hints at the top.
  *
- * Nothing here holds state. Each demo keeps the draft, the keyboard height
- * and "is the list at its end" in its own Model and passes them in.
+ * Nothing here holds state. Each demo keeps the draft, the keyboard height,
+ * "is the list at its end" and which dock is in use in its own Model and
+ * passes them in.
+ *
+ * There are two docks (see `src/chat/composerDock.ts`), and a button in each
+ * demo switches between them, so both can be tried on one phone:
+ *
+ * - "following": the composer and the list travel with the keyboard where
+ *   the phone can do that, and ease to their places where it cannot.
+ * - "simple": the composer is padded by the keyboard's height and jumps.
  */
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent } from 'foldkit/renderTarget'
 
-import { composerDock } from '../../src/chat/index.js'
+import { type ComposerDockMode, composerDock } from '../../src/chat/index.js'
 import { prop, style, text, textInput, view as box } from '../../src/index.js'
+import {
+  dismissKeyboardOnDrag,
+  keyboardDockFallbackReason,
+  keyboardDockMode,
+} from '../../src/keyboard/index.js'
 
 export const INK = '#111111'
 export const MUTED = '#6b6b6b'
@@ -41,11 +54,15 @@ export const smallButton = <Message>(
     [text([style({ color: PAPER, fontSize: 14, fontWeight: '600' })], [label])],
   )
 
-/** The strip above the list: buttons, one line of state, and what to try. */
+/**
+ * The strip above the list: buttons, one line of state, what to try, and one
+ * line on what the keyboard should do.
+ */
 export const topStrip = (
   buttons: ReadonlyArray<Html>,
   status: string,
   hint: string,
+  keyboardNote: string,
 ): Html =>
   box(
     [style({ padding: 12, gap: 6, borderBottomWidth: 1, borderBottomColor: LINE })],
@@ -55,6 +72,7 @@ export const topStrip = (
         status,
       ]),
       text([prop('testID', 'hint'), style({ color: MUTED, fontSize: 13 })], [hint]),
+      text([prop('testID', 'dock-note'), style({ color: MUTED, fontSize: 13 })], [keyboardNote]),
     ],
   )
 
@@ -120,23 +138,77 @@ export const scrollToEndButton = <Message>(h: HtmlBuilder<Message>, message: Mes
     [text([style({ color: PAPER, fontSize: 22, fontWeight: '700' })], ['↓'])],
   )
 
+/** Which dock a demo uses. Kept in its Model. */
+export const DockMode = Schema.Literals(['follow', 'simple'])
+export type DockMode = ComposerDockMode
+
+export const otherDockMode = (mode: DockMode): DockMode =>
+  mode === 'follow' ? 'simple' : 'follow'
+
+/** The button that says which dock is in use and switches to the other. */
+export const dockModeButton = <Message>(
+  h: HtmlBuilder<Message>,
+  mode: DockMode,
+  message: Message,
+): Html =>
+  smallButton(
+    h,
+    'dock-mode',
+    mode === 'follow' ? 'Keyboard: following' : 'Keyboard: simple',
+    message,
+  )
+
+/** One sentence on what the text field should do in this mode, on this phone. */
+export const dockModeNote = (mode: DockMode): string => {
+  if (mode === 'simple') return 'Keyboard: the text field jumps to its place above the keyboard.'
+  return keyboardDockMode() === 'native'
+    ? 'Keyboard: the text field and the messages should travel up with the keyboard.'
+    : `Keyboard: the text field eases up to the keyboard (${keyboardDockFallbackReason()}).`
+}
+
 export type Composer<Message> = Readonly<{
   draft: string
   placeholder: string
   keyboardHeight: number
+  dockMode: DockMode
+  /** The list of messages, in a box with `flex: 1`. */
+  messages: Html
   onChange: (text: string) => Message
   onSend: Message
 }>
 
-/** The text field and Send button, docked above the keyboard. */
-export const composer = <Message>(h: HtmlBuilder<Message>, config: Composer<Message>): Html => {
+/**
+ * The list of messages with the text field and Send button under it, docked
+ * above the keyboard. Spread the result into the screen's column.
+ *
+ * In "simple" mode these are the two views this demo has always drawn: the
+ * list, then the dock. In "following" mode the dock is given the list, so
+ * that it can move both.
+ */
+export const messagesAndComposer = <Message>(
+  h: HtmlBuilder<Message>,
+  config: Composer<Message>,
+): ReadonlyArray<Html> => {
   const canSend = config.draft.trim() !== ''
-  return composerDock(h, {
+  const isFollowing = config.dockMode === 'follow'
+  const dock = composerDock(h, {
     keyboardHeight: config.keyboardHeight,
-    attributes: [
-      h.Attribute('testID', 'dock'),
-      style({ backgroundColor: PAPER, borderTopWidth: 1, borderTopColor: LINE }),
-    ],
+    mode: config.dockMode,
+    ...(isFollowing
+      ? {
+          above: [config.messages],
+          backgroundColor: PAPER,
+          attributes: [
+            h.Attribute('testID', 'dock'),
+            style({ borderTopWidth: 1, borderTopColor: LINE }),
+          ],
+        }
+      : {
+          attributes: [
+            h.Attribute('testID', 'dock'),
+            style({ backgroundColor: PAPER, borderTopWidth: 1, borderTopColor: LINE }),
+          ],
+        }),
     children: [
       box(
         [style({ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 })],
@@ -192,6 +264,7 @@ export const composer = <Message>(h: HtmlBuilder<Message>, config: Composer<Mess
       ),
     ],
   })
+  return isFollowing ? [dock] : [config.messages, dock]
 }
 
 /**
@@ -201,14 +274,22 @@ export const composer = <Message>(h: HtmlBuilder<Message>, config: Composer<Mess
  * has no such thing (React Native does it in JavaScript), so the start of a
  * drag is also sent as a Message, only while the keyboard is up. That is one
  * Message per drag, not one per scroll event.
+ *
+ * The exception is the "following" dock on a phone that moves it natively.
+ * There the keyboard follows the finger down, and may come back up if the
+ * finger lets go early, so the program must not put it away itself.
  */
 export const dismissOnDrag = <Message>(
+  dockMode: DockMode,
   isKeyboardUp: boolean,
   message: Message,
-): ReadonlyArray<unknown> => [
-  prop('keyboardDismissMode', 'on-drag'),
-  OnCustomEvent<Message>({
-    name: 'scrollBeginDrag',
-    f: () => (isKeyboardUp ? Option.some(message) : Option.none()),
-  }),
-]
+): ReadonlyArray<unknown> => {
+  const isDraggedByFinger = dockMode === 'follow' && keyboardDockMode() === 'native'
+  return [
+    dockMode === 'follow' ? dismissKeyboardOnDrag() : prop('keyboardDismissMode', 'on-drag'),
+    OnCustomEvent<Message>({
+      name: 'scrollBeginDrag',
+      f: () => (isKeyboardUp && !isDraggedByFinger ? Option.some(message) : Option.none()),
+    }),
+  ]
+}

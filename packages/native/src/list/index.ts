@@ -110,8 +110,13 @@ export type ListConfig<Item, Message> = Readonly<{
    * row grows (text streaming in), and when the list itself gets shorter
    * (the keyboard opens). A user who has scrolled away is left alone.
    * `animated` glides to a new row. Growth and the keyboard never glide.
+   *
+   * `onlyWhenResized` keeps the last of those three and drops the first two:
+   * the list stays at its end when the keyboard opens or closes, and does
+   * not chase rows that arrive or grow. An AI chat wants that, because its
+   * answer is meant to run off the bottom of the screen.
    */
-  maintainScrollAtEnd?: boolean | Readonly<{ animated?: boolean }>
+  maintainScrollAtEnd?: boolean | Readonly<{ animated?: boolean; onlyWhenResized?: boolean }>
   /** How near the end counts as at the end, in screen heights. Default 0.1. */
   atEndThreshold?: number
   /**
@@ -154,6 +159,9 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
     maintainScrollAtEnd: config.maintainScrollAtEnd !== undefined && config.maintainScrollAtEnd !== false,
     maintainScrollAtEndAnimated:
       typeof config.maintainScrollAtEnd === 'object' && (config.maintainScrollAtEnd.animated ?? false),
+    maintainScrollAtEndOnlyWhenResized:
+      typeof config.maintainScrollAtEnd === 'object' &&
+      (config.maintainScrollAtEnd.onlyWhenResized ?? false),
     atEndThreshold: config.atEndThreshold ?? 0.1,
     anchoredEndSpace: config.anchoredEndSpace,
     inFrame: inputs.inFrame,

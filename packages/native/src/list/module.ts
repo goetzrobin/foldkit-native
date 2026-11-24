@@ -53,6 +53,8 @@ export type ListSpec = Readonly<{
   maintainScrollAtEnd: boolean
   /** Whether following a new row glides or jumps. */
   maintainScrollAtEndAnimated: boolean
+  /** Follow the end only when the list itself changes height (the keyboard). */
+  maintainScrollAtEndOnlyWhenResized: boolean
   /** How close to the end counts as being at it, in screen heights. */
   atEndThreshold: number
   anchoredEndSpace: AnchoredEndSpace | undefined
@@ -319,9 +321,16 @@ const tellAtEnd = (state: ListState): void => {
   handler?.(customEvent(AT_END_CHANGED, { isAtEnd: state.isAtEnd }))
 }
 
-/** Whether the list should move to its end whenever the end moves. */
-const followsEnd = (state: ListState): boolean =>
-  state.holdEnd || (state.spec.maintainScrollAtEnd && state.isAtEnd === true)
+/**
+ * Whether the list should move to its end now that the end has moved.
+ * `isResize` says the list itself got taller or shorter, which is all that
+ * a list with `onlyWhenResized` follows.
+ */
+const followsEnd = (state: ListState, isResize: boolean): boolean =>
+  state.holdEnd ||
+  (state.spec.maintainScrollAtEnd &&
+    state.isAtEnd === true &&
+    (isResize || !state.spec.maintainScrollAtEndOnlyWhenResized))
 
 /** Aims the list at its end. The phone is told after the next commit. */
 const goToEnd = (state: ListState, animated: boolean): void => {
@@ -360,9 +369,9 @@ const reveal = (state: ListState): void => {
  * Sizes the blank space, then either follows the end or keeps the row at the
  * top of the screen where it was.
  */
-const resettle = (state: ListState, animated = false): void => {
+const resettle = (state: ListState, animated = false, isResize = false): void => {
   state.endSpace = endSpaceFor(state.heights, state.viewport, state.spec.anchoredEndSpace)
-  if (followsEnd(state)) goToEnd(state, animated)
+  if (followsEnd(state, isResize)) goToEnd(state, animated)
   else holdAnchor(state)
   if (state.holdEnd && isEndMeasured(state)) {
     state.holdEnd = false
@@ -554,7 +563,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   const resized = (state: ListState, viewport: number): void => {
     state.viewport = viewport
     const before = { space: state.endSpace, hidden: state.isHidden }
-    resettle(state)
+    resettle(state, false, true)
     const isChanged =
       state.endSpace !== before.space ||
       state.isHidden !== before.hidden ||

@@ -31,8 +31,19 @@ export * as Phone from './device/index.js'
 export { hasFoldkitTransport, hotProgram, keepModel } from './devLoop/index.js'
 export type { HotModule, HotProgram, HotProgramOptions, ProgramFactory } from './devLoop/index.js'
 // Long lists that only draw the rows near the screen, and pull to refresh.
-export { list, listRowCount, refreshScrollView, scrollListToIndex } from './list/index.js'
-export type { ListConfig, ListStats, Refresh, RowKey } from './list/index.js'
+export {
+  list,
+  listRowCount,
+  refreshScrollView,
+  scrollListToEnd,
+  scrollListToIndex,
+} from './list/index.js'
+export type { AnchoredEndSpace, ListConfig, ListStats, Refresh, RowKey } from './list/index.js'
+// A chat screen: the composer above the keyboard, and the safe area around it.
+export { chatSafeArea, composerDock } from './chat/index.js'
+export type { ComposerDock, ComposerDockMode } from './chat/index.js'
+// A bar that follows the keyboard frame by frame where the phone can do that.
+export * from './keyboard/index.js'
 // Movement: eased style changes, enter and exit, and dragging.
 export {
   animated,

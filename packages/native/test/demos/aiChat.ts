@@ -11,6 +11,9 @@
  * - Once the answer is longer than the screen, it runs off the bottom and a
  *   round button appears that scrolls to the end.
  *
+ * The button "Keyboard: following" / "Keyboard: simple" switches between the
+ * two ways of keeping the composer above the keyboard (see `chatShared.ts`).
+ *
  * The "Thinking..." wait is a Command. The stream is a Subscription that
  * ticks while an answer is being written, and each tick adds a word.
  *
@@ -27,12 +30,16 @@ import { Keyboard } from '../../src/device/index.js'
 import { type Device, header, screen, stack, style, title, view as box } from '../../src/index.js'
 import { list, scrollListToEnd } from '../../src/list/index.js'
 import {
+  DockMode,
   PAPER,
   bubble,
   bubbleNote,
   bubbleText,
-  composer,
   dismissOnDrag,
+  dockModeButton,
+  dockModeNote,
+  messagesAndComposer,
+  otherDockMode,
   scrollToEndButton,
   smallButton,
   topStrip,
@@ -87,6 +94,8 @@ export const Model = Schema.Struct({
   isAtEnd: Schema.Boolean,
   /** 0 while the keyboard is hidden. */
   keyboardHeight: Schema.Number,
+  /** Which of the two docks holds the composer. A button switches it. */
+  dockMode: DockMode,
 })
 export type Model = typeof Model.Type
 
@@ -102,6 +111,7 @@ export const Message = defineMessageUnion({
   DraggedListWithKeyboardUp: {},
   PressedScrollToEnd: {},
   CompletedScrollToEnd: {},
+  PressedDockMode: {},
   GotKeyboardMessage: { message: Keyboard.Message },
 })
 export type Message = typeof Message.Type
@@ -274,6 +284,16 @@ const makeUpdate = (env: DemoEnv, options: AiChatOptions) => {
       }),
       PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
       CompletedScrollToEnd: () => ({ model }),
+      PressedDockMode: () => ({
+        model: modifyFields(model, {
+          dockMode: otherDockMode,
+          // The two docks are built from different views, so the list is
+          // made again, and a new list opens at its end.
+          isAtEnd: () => true,
+        }),
+        // The field is made again as well. The keyboard goes with the old one.
+        commands: [Command.mapMessage(Keyboard.Dismiss(), fromKeyboard)],
+      }),
       GotKeyboardMessage: ({ message: keyboardMessage }) => ({
         model: modifyFields(model, {
           keyboardHeight: height =>
@@ -297,6 +317,7 @@ export const init: Runtime.ElementInit<Model, Message> = () => ({
     // The list opens at its end, and only reports when that changes.
     isAtEnd: true,
     keyboardHeight: 0,
+    dockMode: 'follow',
   },
 })
 
@@ -364,50 +385,60 @@ const makeView =
                     [
                       smallButton(h, 'exit', 'Exit', Message.PressedExit()),
                       smallButton(h, 'sample', 'Ask a sample question', Message.PressedSample()),
+                      dockModeButton(h, model.dockMode, Message.PressedDockMode()),
                     ],
                     statusOf(model),
                     'Ask something. Your question should go to the top and stay still while ' +
                       'the answer is written under it. When the answer runs off the screen, ' +
                       'a round button appears.',
+                    dockModeNote(model.dockMode),
                   ),
-                  box(
-                    [style({ flex: 1 })],
-                    [
-                      list(h, {
-                        id: LIST_ID,
-                        items: model.messages,
-                        key: each => each.id,
-                        row: row(model),
-                        estimatedRowHeight: 120,
-                        initialScrollAtEnd: true,
-                        ...Option.match(model.maybeAnchorIndex, {
-                          onNone: () => ({}),
-                          onSome: anchorIndex => ({
-                            anchoredEndSpace: {
-                              anchorIndex,
-                              anchorMaxSize: ANCHOR_MAX_SIZE,
-                              anchorOffset: ANCHOR_OFFSET,
-                            },
-                          }),
-                        }),
-                        onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
-                        attributes: [
-                          h.Attribute('testID', 'messages'),
-                          style({ flex: 1 }),
-                          ...dismissOnDrag(model.keyboardHeight > 0, Message.DraggedListWithKeyboardUp()),
-                        ],
-                      }),
-                      ...(model.isAtEnd
-                        ? []
-                        : [scrollToEndButton(h, Message.PressedScrollToEnd())]),
-                    ],
-                  ),
-                  composer(h, {
+                  ...messagesAndComposer(h, {
                     draft: model.draft,
                     placeholder: 'Ask about lists',
                     keyboardHeight: model.keyboardHeight,
+                    dockMode: model.dockMode,
                     onChange: words => Message.ChangedDraft({ text: words }),
                     onSend: Message.PressedSend(),
+                    messages: box(
+                      [style({ flex: 1 })],
+                      [
+                        list(h, {
+                          id: LIST_ID,
+                          items: model.messages,
+                          key: each => each.id,
+                          row: row(model),
+                          estimatedRowHeight: 120,
+                          initialScrollAtEnd: true,
+                          // The keyboard must not cover the last message. An
+                          // answer that grows is left to run off the screen.
+                          maintainScrollAtEnd: { onlyWhenResized: true },
+                          ...Option.match(model.maybeAnchorIndex, {
+                            onNone: () => ({}),
+                            onSome: anchorIndex => ({
+                              anchoredEndSpace: {
+                                anchorIndex,
+                                anchorMaxSize: ANCHOR_MAX_SIZE,
+                                anchorOffset: ANCHOR_OFFSET,
+                              },
+                            }),
+                          }),
+                          onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
+                          attributes: [
+                            h.Attribute('testID', 'messages'),
+                            style({ flex: 1 }),
+                            ...dismissOnDrag(
+                              model.dockMode,
+                              model.keyboardHeight > 0,
+                              Message.DraggedListWithKeyboardUp(),
+                            ),
+                          ],
+                        }),
+                        ...(model.isAtEnd
+                          ? []
+                          : [scrollToEndButton(h, Message.PressedScrollToEnd())]),
+                      ],
+                    ),
                   }),
                 ],
               ),
