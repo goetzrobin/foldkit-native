@@ -1,0 +1,11 @@
+/*
+ * The app's Tailwind entry, as in the showcase. Fold Chat draws with
+ * `style({...})` and its own colour tokens (flagship/theme.ts), so few or no
+ * classes are used. The step is kept so that a class written later just
+ * works, and so the engine gets the same styling setup as the showcase.
+ */
+@import 'tailwindcss/theme.css';
+@import 'tailwindcss/utilities.css';
+@import '@ng-native/tailwind/native.css';
+
+@source './native/flagship';

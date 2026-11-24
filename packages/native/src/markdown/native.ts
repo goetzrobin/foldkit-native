@@ -76,6 +76,8 @@ export type NativeMarkdownData = Readonly<{
   text: string
   isStreaming: boolean
   isFadeOn: boolean
+  /** Text selection once the reply is finished. Left out means on. */
+  isSelectable?: boolean
   theme: MarkdownTheme
 }>
 
@@ -196,6 +198,7 @@ type ViewState = {
   sent: string | undefined
   isStreaming: boolean
   isFadeOn: boolean
+  isSelectable: boolean
   isFrameAsked: boolean
   theme: MarkdownTheme | undefined
   id: string
@@ -284,6 +287,7 @@ const nativeMarkdownModule: ModuleFactory = (engine, afterCommit) => {
         sent: undefined,
         isStreaming: data.isStreaming,
         isFadeOn: data.isFadeOn,
+        isSelectable: data.isSelectable ?? true,
         isFrameAsked: false,
         theme: undefined,
         id: data.id,
@@ -292,7 +296,7 @@ const nativeMarkdownModule: ModuleFactory = (engine, afterCommit) => {
       numbersFor(data.id, 'native').textsGiven += 1
       for (const [key, value] of FIXED_PROPS) engine.setProp(node, key, value)
       applyTheme(node, state, data.theme)
-      engine.setProp(node, 'selectable', !data.isStreaming)
+      engine.setProp(node, 'selectable', state.isSelectable && !data.isStreaming)
       // Off for the first draw, so text already there never fades in.
       engine.setProp(node, 'streamingAnimation', false)
       send(node, state)
@@ -314,13 +318,17 @@ const nativeMarkdownModule: ModuleFactory = (engine, afterCommit) => {
         engine.setProp(node, 'streamingAnimation', data.isFadeOn && data.isStreaming)
       }
       const wasStreaming = state.isStreaming
+      const wasSelectable = state.isSelectable
       state.isStreaming = data.isStreaming
+      state.isSelectable = data.isSelectable ?? true
       if (data.text !== state.given) {
         state.given = data.text
         numbersFor(state.id, 'native').textsGiven += 1
       }
+      if (wasStreaming !== data.isStreaming || wasSelectable !== state.isSelectable) {
+        engine.setProp(node, 'selectable', state.isSelectable && !data.isStreaming)
+      }
       if (wasStreaming !== data.isStreaming) {
-        engine.setProp(node, 'selectable', !data.isStreaming)
         if (data.isStreaming && data.isFadeOn) engine.setProp(node, 'streamingAnimation', true)
         // The fade stays on after the end, so the last words finish fading.
       }
