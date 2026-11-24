@@ -20,7 +20,7 @@ import { type BarButton, leftBarButtons, onBarButtonPressed, rightBarButtons } f
 import { onBarMenuItemPressed } from '../src/foldkit/navigation/header.js'
 import { type Device, header, title } from '../src/foldkit/navigation/stack.js'
 import { type MenuItem, menuButton } from '../src/menus/index.js'
-import { type Palette, SPACE, TYPE } from './theme.js'
+import { type Palette, RADIUS, SPACE, TYPE } from './theme.js'
 
 const el = element<any>()
 
@@ -370,3 +370,21 @@ export const navBar = <Message>(
   children.push(...(options.children ?? []))
   return header(attributes as never, children)
 }
+
+/** A voice note's name in a small rounded chip, with a microphone, and maybe a button after it. */
+export const attachmentChip = (palette: Palette, name: string, trailing: ReadonlyArray<Html> = []): Html =>
+  view(
+    [
+      style({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACE.s,
+        alignSelf: 'flex-start',
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: RADIUS.chip,
+        backgroundColor: palette.surface2,
+      }),
+    ],
+    [microphone(palette.ink2), text([style({ ...TYPE.caption, color: palette.ink })], [name]), ...trailing],
+  )

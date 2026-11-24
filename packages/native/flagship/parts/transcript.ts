@@ -1,0 +1,272 @@
+/**
+ * The transcript: the chat's rows in the adapter's own `list`, the empty
+ * chat with its suggestions, the round button to the end, and the
+ * developer's numbers.
+ *
+ * The list is the adapter's own (src/list), not the Legend List port: it is
+ * the one that knows the keyboard's "inset" way (the list keeps its full
+ * height under the composer and the keyboard and scrolls to make room),
+ * keeps blank space under the newest question so that question can sit near
+ * the top while the reply streams in under it, and can show its own numbers.
+ *
+ * After Send, your question becomes the list's anchor (`anchorKey`): the
+ * list scrolls it near the top by itself and leaves room under it. The reply
+ * grows into that room. Once the reply is longer than the room, it runs off
+ * the bottom and a round button offers the way to the end.
+ *
+ * Where the list is and whether it follows the end are the list's own,
+ * outside this Model. The list reports reaching or leaving the end
+ * (`ChangedAtEnd`), which is what this part keeps.
+ */
+import { Effect, Option, Schema } from 'effect'
+import { Command, Submodel, type Update } from 'foldkit'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { OnCustomEvent } from 'foldkit/renderTarget'
+import { modifyFields } from 'foldkit/struct'
+
+import { chatInsetAvailable } from '../../src/chat/index.js'
+import { type NativeStyle, prop, pressedStyle, style } from '../../src/foldkit/attributes.js'
+import { text, view as box } from '../../src/foldkit/elements.js'
+import { dismissKeyboardOnDrag, keyboardDockMode } from '../../src/keyboard/index.js'
+import { list, listNumbersLabel, scrollListToEnd } from '../../src/list/index.js'
+import { animated } from '../../src/motion/index.js'
+import type { Context, Resources } from '../context.js'
+import type { ChatRow } from '../model.js'
+import { onTapAway } from '../tapAway.js'
+import { MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from '../theme.js'
+import { StyleHairline, arrowDown, roundButton, spinner } from '../ui.js'
+import * as MessageRow from './messageRow.js'
+import type * as ReplyStream from './replyStream.js'
+
+export const TRANSCRIPT_ID = 'transcript'
+
+/** A question taller than this shows only its last lines at the top, so the reply has room. */
+const ANCHOR_MAX_SIZE = 3 * TYPE.message.lineHeight + 20
+/** How far below the top of the list the question sits. */
+const ANCHOR_OFFSET = SPACE.l
+
+/** Questions for an empty chat. Each picks a different kind of reply. */
+export const SUGGESTIONS = [
+  { id: 'running', label: 'Start running', text: 'How do I start running?' },
+  { id: 'travel', label: 'Train or car?', text: 'Should I take the train or drive to the coast? Think it through.' },
+  { id: 'weather', label: 'Weather in Lisbon', text: 'What is the weather in Lisbon tomorrow?' },
+  { id: 'code', label: 'A debounce function', text: 'Write a debounce function in TypeScript.' },
+] as const
+
+// MODEL
+
+export const Model = Schema.Struct({
+  /** The question held near the top of the screen, by its row key. */
+  anchorKey: Schema.Option(Schema.String),
+  /** Whether the end of the list is on screen, as the list last said. */
+  isAtEnd: Schema.Boolean,
+})
+export type Model = typeof Model.Type
+
+export const init = (): Model => ({ anchorKey: Option.none(), isAtEnd: true })
+
+// MESSAGE
+
+export const Message = defineMessageUnion({
+  ChangedAtEnd: { isAtEnd: Schema.Boolean },
+  PressedScrollToEnd: {},
+  /** Android's scroll view cannot put the keyboard away by itself. */
+  DraggedListWithKeyboardUp: {},
+  /** A tap on the transcript that no button, link or hold took. */
+  TappedTranscript: {},
+  PressedSuggestion: { text: Schema.String },
+  GotRowMessage: { rowKey: Schema.String, message: MessageRow.Message },
+  CompletedSideEffect: {},
+})
+export type Message = typeof Message.Type
+
+export const OutMessage = defineMessageUnion({
+  /** A tap that nothing took: the keyboard goes away, if it is up. */
+  Tapped: {},
+  /** Android: a drag started with the keyboard up. */
+  DraggedWithKeyboardUp: {},
+  PressedSuggestion: { text: Schema.String },
+  GotRowOutMessage: { message: MessageRow.OutMessage },
+})
+export type OutMessage = typeof OutMessage.Type
+
+// UPDATE
+
+const ScrollToEnd = Command.define('ChatScrollToEnd', {
+  messages: [Message.CompletedSideEffect],
+  execute: scrollListToEnd(TRANSCRIPT_ID, { animated: true }).pipe(Effect.as(Message.CompletedSideEffect())),
+})
+
+type Return = Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources>
+
+export const update = (model: Model, message: Message): Return =>
+  Message.match<Return>(message, {
+    ChangedAtEnd: ({ isAtEnd }) => ({ model: modifyFields(model, { isAtEnd: () => isAtEnd }) }),
+    PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
+    DraggedListWithKeyboardUp: () => ({ model, outMessage: OutMessage.DraggedWithKeyboardUp() }),
+    TappedTranscript: () => ({ model, outMessage: OutMessage.Tapped() }),
+    PressedSuggestion: ({ text }) => ({ model, outMessage: OutMessage.PressedSuggestion({ text }) }),
+    GotRowMessage: ({ rowKey, message: rowMessage }) => {
+      const row = MessageRow.update({}, rowMessage, rowKey)
+      return row.outMessage === undefined
+        ? { model }
+        : row.outMessage._tag === 'Tapped'
+          ? { model, outMessage: OutMessage.Tapped() }
+          : { model, outMessage: OutMessage.GotRowOutMessage({ message: row.outMessage }) }
+    },
+    CompletedSideEffect: () => ({ model }),
+  })
+
+/** Holds this question near the top of the screen, or lets go. */
+export const anchorAt = (model: Model, key: Option.Option<string>): Model =>
+  modifyFields(model, { anchorKey: () => key })
+
+// VIEW
+
+export type ViewInputs = Context &
+  Readonly<{
+    rows: ReadonlyArray<ChatRow>
+    /** The chat's rows are still on their way from the server. */
+    isLoading: boolean
+    reply: ReplyStream.Model
+    /** How tall the composer floating over the list is, roughly. */
+    composerHeight: number
+  }>
+
+const emptyChat = (h: HtmlBuilder<Message>, palette: Palette): Html =>
+  box(
+    [
+      prop('testID', 'empty-chat'),
+      prop('pointerEvents', 'box-none'),
+      style({ position: 'absolute', left: 0, right: 0, top: 0, bottom: 140, alignItems: 'center', justifyContent: 'center', gap: SPACE.l, paddingHorizontal: SPACE.xxl }),
+    ],
+    [
+      text([style({ ...TYPE.headline, color: palette.ink })], ['Ask anything']),
+      box(
+        [style({ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: SPACE.s })],
+        SUGGESTIONS.map(suggestion =>
+          box(
+            [
+              h.Key(suggestion.id),
+              prop('testID', `suggestion-${suggestion.id}`),
+              prop('accessibilityRole', 'button'),
+              h.OnClick(Message.PressedSuggestion({ text: suggestion.text })),
+              pressedStyle({ backgroundColor: palette.surface2 }),
+              style({
+                paddingVertical: SPACE.s,
+                paddingHorizontal: SPACE.m,
+                borderRadius: RADIUS.chip,
+                borderWidth: StyleHairline,
+                borderColor: palette.line,
+                backgroundColor: palette.surface,
+              }),
+            ],
+            [text([style({ ...TYPE.rowPreview, color: palette.ink })], [suggestion.label])],
+          ),
+        ),
+      ),
+    ],
+  )
+
+const numbersStrip = (palette: Palette): Html =>
+  box(
+    [
+      prop('testID', 'numbers'),
+      prop('pointerEvents', 'none'),
+      style({ position: 'absolute', top: 0, left: 0, right: 0, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: 'rgba(13,13,14,0.86)' }),
+    ],
+    [
+      listNumbersLabel(TRANSCRIPT_ID, [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })]),
+      text(
+        [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })],
+        [`keyboard mode ${chatInsetAvailable() ? 'inset' : `follow (${keyboardDockMode()})`}, theme ${palette === paletteOf('dark') ? 'dark' : 'light'}`],
+      ),
+    ],
+  )
+
+const scrollButton = (h: HtmlBuilder<Message>, inputs: ViewInputs, palette: Palette): Html => {
+  const covered = chatInsetAvailable()
+    ? inputs.composerHeight + (inputs.shared.keyboardCovers > 0 ? inputs.shared.keyboardCovers : 34)
+    : 0
+  const place: NativeStyle = { position: 'absolute', alignSelf: 'center', bottom: covered + SPACE.m, left: '50%', marginLeft: -18 }
+  return animated(
+    {
+      enter: { from: { opacity: 0 }, duration: MOTION.scrollButton, easing: 'easeOut' },
+      exit: { to: { opacity: 0 }, duration: MOTION.scrollButton, easing: 'easeOut' },
+    },
+    roundButton(
+    h,
+    { id: 'scroll-to-end', label: 'Scroll to the newest message', fill: palette.bg, size: 36, border: palette.line, onPress: Message.PressedScrollToEnd(), extra: { ...place, shadowColor: '#000000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } } },
+    arrowDown(palette.ink),
+    ),
+  )
+}
+
+export const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html => {
+  const { device, shared, rows } = inputs
+  const palette = paletteOf(shared.scheme)
+  const anchorIndex = Option.flatMap(model.anchorKey, key => {
+    const index = rows.findIndex(row => row.key === key)
+    return index < 0 ? Option.none() : Option.some(index)
+  })
+  const isInset = chatInsetAvailable()
+  return box(
+    // One key for the chat's whole life on screen: a new chat gets its id
+    // after the first Send, and the list must not be built again then.
+    [h.Key('messages'), style({ flex: 1, backgroundColor: palette.bg })],
+    [
+      list(h, {
+        id: TRANSCRIPT_ID,
+        items: rows,
+        key: row => row.key,
+        row: (row, index) =>
+          h.submodel({
+            slotId: `row-${row.key}`,
+            view: MessageRow.view,
+            model: {},
+            viewInputs: { row, index, scheme: shared.scheme, device, reply: inputs.reply },
+            toParentMessage: (message: MessageRow.Message) => Message.GotRowMessage({ rowKey: row.key, message }),
+          }),
+        estimatedRowHeight: 120,
+        initialScrollAtEnd: true,
+        // Stays at the end when the keyboard opens or closes. After Send the
+        // reply is left to run off the screen under the question, as in other
+        // AI apps. Once the user asks for the end (the round button, or
+        // scrolling there by hand) the list follows the reply as it is
+        // written, until a drag up. See `Following` in src/host/list/controller.ts.
+        maintainScrollAtEnd: { onlyWhenResized: true, followOnReturn: true },
+        ...(isInset ? { keyboardInset: { lift: 'whenAtEnd' as const } } : {}),
+        ...Option.match(anchorIndex, {
+          onNone: () => ({}),
+          onSome: index => ({ anchoredEndSpace: { anchorIndex: index, anchorMaxSize: ANCHOR_MAX_SIZE, anchorOffset: ANCHOR_OFFSET } }),
+        }),
+        onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
+        attributes: [
+          prop('testID', 'transcript'),
+          style({ flex: 1 }),
+          prop('indicatorStyle', shared.scheme === 'dark' ? 'white' : 'black'),
+          dismissKeyboardOnDrag(),
+          // A tap that no row or button takes puts the keyboard away, as in
+          // Messages. A drag is not a tap, and the keyboard still follows the
+          // finger down. See `tapAway.ts`.
+          ...onTapAway(Message.TappedTranscript()),
+          // Android's scroll view cannot put the keyboard away by itself.
+          OnCustomEvent<Message>({
+            name: 'scrollBeginDrag',
+            f: () =>
+              shared.keyboardHeight > 0 && device.platform === 'android'
+                ? Option.some(Message.DraggedListWithKeyboardUp())
+                : Option.none(),
+          }),
+        ],
+      }),
+      ...(rows.length === 0 && !inputs.isLoading ? [emptyChat(h, palette)] : []),
+      ...(inputs.isLoading ? [box([style({ position: 'absolute', top: '40%', alignSelf: 'center' })], [spinner(device, palette.ink3)])] : []),
+      ...(model.isAtEnd || rows.length === 0 ? [] : [scrollButton(h, inputs, palette)]),
+      ...(shared.showsNumbers ? [numbersStrip(palette)] : []),
+    ],
+  )
+}
+
+export const view = Submodel.defineView<Model, Message, ViewInputs>(view_)

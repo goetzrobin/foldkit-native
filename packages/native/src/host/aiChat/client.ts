@@ -393,9 +393,11 @@ export const LiveTurn = Schema.Struct({
   lastSeq: Schema.Number,
   parts: Schema.Array(Part),
   status: LiveTurnStatus,
+  // effect-ui: h.isRunning ('resuming' is a Resume Command still running)
   connection: Schema.Literals(['open', 'lost', 'resuming']),
   /** How many times in a row the connection was lost. */
   lostCount: Schema.Number,
+  // effect-ui: h.isRunning (a Stop Command still running)
   isStopping: Schema.Boolean,
   failure: Schema.NullOr(Schema.String),
   isRetryable: Schema.Boolean,

@@ -1,5 +1,8 @@
 /**
- * The home screen: every chat, newest first, grouped by day.
+ * The list of chats: every chat, newest first, grouped by day, with search.
+ * It owns only what was typed in search. The chats themselves are server
+ * data and come in from above (`list`). Opening, starting, renaming and
+ * deleting a chat are the app's: they go up as OutMessages.
  *
  * iOS: a large title with the phone's own search field under it. The list
  * runs under the bar and the phone insets it (`contentInsetAdjustmentBehavior`),
@@ -10,28 +13,79 @@
  * src/swipe: the native swipe view is not built into this app, see
  * apps/chat/README.md), and holds for a menu with the same two.
  */
-import { Option } from 'effect'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import { Option, Schema } from 'effect'
 import * as AsyncResult from 'effect/reactivity/AsyncResult'
+import { Submodel, type Update } from 'foldkit'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
-import { prop, pressedStyle, style } from '../src/foldkit/attributes.js'
-import { text, textInput, view } from '../src/foldkit/elements.js'
-import { list } from '../src/list/index.js'
-import { contextMenu } from '../src/menus/index.js'
-import { searchBar } from '../src/foldkit/navigation/searchBar.js'
-import { type Device, safeArea, screen } from '../src/foldkit/navigation/stack.js'
-import { swipeAction, swipeActions, swipeRow, tiles } from '../src/swipe/index.js'
+import { prop, pressedStyle, style } from '../../src/foldkit/attributes.js'
+import { text, textInput, view as box } from '../../src/foldkit/elements.js'
+import { list } from '../../src/list/index.js'
+import { contextMenu } from '../../src/menus/index.js'
+import { searchBar } from '../../src/foldkit/navigation/searchBar.js'
+import { safeArea, screen } from '../../src/foldkit/navigation/stack.js'
+import { swipeAction, swipeActions, swipeRow, tiles } from '../../src/swipe/index.js'
 import {
   isNativeSwipeAvailable,
   nativeSwipeOptions,
   nativeSwipeRow,
   swipeAction as nativeAction,
-} from '../src/swipeNative/index.js'
-import { type ListItem, Message, type Model, listItems } from './model.js'
-import { type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
-import { navBar, solidButton, spinner } from './ui.js'
+} from '../../src/swipeNative/index.js'
+import type { ConversationListResult } from '../../src/aiChat/index.js'
+import type { Context, Resources } from '../context.js'
+import { type ListItem, listItems } from '../model.js'
+import { type Palette, RADIUS, SPACE, TYPE, paletteOf } from '../theme.js'
+import { navBar, solidButton, spinner } from '../ui.js'
 
 export const CHAT_LIST_ID = 'chats'
+
+// MODEL
+
+export const Model = Schema.Struct({ query: Schema.String })
+export type Model = typeof Model.Type
+
+export const init = (): Model => ({ query: '' })
+
+// MESSAGE
+
+export const Message = defineMessageUnion({
+  ChangedQuery: { text: Schema.String },
+  PressedConversation: { id: Schema.String },
+  PressedNewChat: {},
+  PressedSettings: {},
+  /** Rename or Delete, from a row's swipe or its menu. */
+  SelectedRowAction: { id: Schema.String, key: Schema.String },
+  ArmedFullSwipe: { isArmed: Schema.Boolean },
+})
+export type Message = typeof Message.Type
+
+/** What the app hears from the list. */
+export const OutMessage = defineMessageUnion({
+  OpenedConversation: { id: Schema.String },
+  StartedNewChat: {},
+  OpenedSettings: {},
+  ChoseRowAction: { id: Schema.String, key: Schema.String },
+  ArmedFullSwipe: { isArmed: Schema.Boolean },
+})
+export type OutMessage = typeof OutMessage.Type
+
+// UPDATE
+
+export const update = (model: Model, message: Message): Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources> =>
+  Message.match<Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources>>(message, {
+    ChangedQuery: ({ text }) => ({ model: modifyFields(model, { query: () => text }) }),
+    PressedConversation: ({ id }) => ({ model, outMessage: OutMessage.OpenedConversation({ id }) }),
+    PressedNewChat: () => ({ model, outMessage: OutMessage.StartedNewChat() }),
+    PressedSettings: () => ({ model, outMessage: OutMessage.OpenedSettings() }),
+    SelectedRowAction: ({ id, key }) => ({ model, outMessage: OutMessage.ChoseRowAction({ id, key }) }),
+    ArmedFullSwipe: ({ isArmed }) => ({ model, outMessage: OutMessage.ArmedFullSwipe({ isArmed }) }),
+  })
+
+// VIEW
+
+export type ViewInputs = Context & Readonly<{ list: ConversationListResult }>
 
 export const ROW_MENU = [
   { key: 'rename', title: 'Rename', symbol: 'pencil' },
@@ -39,14 +93,14 @@ export const ROW_MENU = [
 ] as const
 
 const headerRow = (palette: Palette, title: string, isFirst: boolean): Html =>
-  view(
+  box(
     [style({ paddingHorizontal: SPACE.xl, paddingTop: isFirst ? SPACE.s : SPACE.xxl, paddingBottom: 6, backgroundColor: palette.bg })],
     [text([prop('accessibilityRole', 'header'), style({ ...TYPE.section, color: palette.ink3 })], [title])],
   )
 
-const chatRow = (h: HtmlBuilder<Message>, model: Model, palette: Palette, item: Extract<ListItem, { _tag: 'Chat' }>): Html => {
+const chatRow = (h: HtmlBuilder<Message>, palette: Palette, item: Extract<ListItem, { _tag: 'Chat' }>): Html => {
   const { summary } = item
-  const content = view(
+  const content = box(
     [
       prop('testID', `chat-${summary.id}`),
       prop('accessibilityRole', 'button'),
@@ -130,7 +184,7 @@ const chatRow = (h: HtmlBuilder<Message>, model: Model, palette: Palette, item: 
 }
 
 const centred = (children: ReadonlyArray<Html>, id: string): Html =>
-  view(
+  box(
     [prop('testID', id), prop('pointerEvents', 'box-none'), style({ position: 'absolute', left: 0, right: 0, top: '30%', alignItems: 'center', gap: SPACE.m, paddingHorizontal: SPACE.xxxl })],
     children,
   )
@@ -140,7 +194,7 @@ const emptyList = (h: HtmlBuilder<Message>, palette: Palette): Html =>
     [
       text([style({ ...TYPE.headline, color: palette.ink })], ['No chats yet']),
       text([style({ ...TYPE.rowPreview, color: palette.ink2, textAlign: 'center' })], ['Start one and it shows up here.']),
-      view([style({ height: SPACE.s })], []),
+      box([style({ height: SPACE.s })], []),
       solidButton(h, 'start-chat', 'New chat', palette, Message.PressedNewChat()),
     ],
     'empty-list',
@@ -154,7 +208,7 @@ const noMatches = (palette: Palette, query: string): Html =>
 
 /** Android's search: a field at the top of the screen. */
 const searchField = (h: HtmlBuilder<Message>, model: Model, palette: Palette): Html =>
-  view(
+  box(
     [style({ paddingHorizontal: SPACE.l, paddingTop: SPACE.s, paddingBottom: SPACE.s, backgroundColor: palette.bg })],
     [
       textInput(
@@ -174,26 +228,27 @@ const searchField = (h: HtmlBuilder<Message>, model: Model, palette: Palette): H
     ],
   )
 
-export const listScreen = (h: HtmlBuilder<Message>, device: Device, model: Model): Html => {
-  const palette = paletteOf(model.scheme)
+const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html => {
+  const { device, shared } = inputs
+  const palette = paletteOf(shared.scheme)
   const isIos = device.platform !== 'android'
-  const summaries = Option.getOrElse(AsyncResult.value(model.list), () => [])
-  const items = listItems(summaries, model.nowMs, model.query)
-  const isLoading = AsyncResult.isInitial(model.list)
-  const failed = AsyncResult.isFailure(model.list) && summaries.length === 0
+  const summaries = Option.getOrElse(AsyncResult.value(inputs.list), () => [])
+  const items = listItems(summaries, shared.nowMs, model.query)
+  const isLoading = AsyncResult.isInitial(inputs.list)
+  const failed = AsyncResult.isFailure(inputs.list) && summaries.length === 0
 
   const chats = list(h, {
     id: CHAT_LIST_ID,
     items,
     key: item => item.key,
     row: (item, index) =>
-      item._tag === 'Header' ? headerRow(palette, item.title, index === 0) : chatRow(h, model, palette, item),
+      item._tag === 'Header' ? headerRow(palette, item.title, index === 0) : chatRow(h, palette, item),
     estimatedRowHeight: 66,
     attributes: [
       prop('testID', 'chat-list'),
       style({ flex: 1, backgroundColor: palette.bg }),
       prop('keyboardDismissMode', 'on-drag'),
-      prop('indicatorStyle', model.scheme === 'dark' ? 'white' : 'black'),
+      prop('indicatorStyle', shared.scheme === 'dark' ? 'white' : 'black'),
       // iOS: the list runs under the bar and the phone keeps the rows clear
       // of the large title, the search field and the home indicator.
       ...(isIos ? [prop('contentInsetAdjustmentBehavior', 'automatic')] : []),
@@ -207,7 +262,7 @@ export const listScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
     ...(summaries.length > 0 && items.length === 0 ? [noMatches(palette, model.query)] : []),
   ]
 
-  const body = view([style({ flex: 1, backgroundColor: palette.bg })], [chats, ...overlays])
+  const body = box([style({ flex: 1, backgroundColor: palette.bg })], [chats, ...overlays])
 
   return screen(
     [h.Key('chats'), prop('testID', 'screen-chats'), style({ backgroundColor: palette.bg })],
@@ -226,3 +281,5 @@ export const listScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
     ],
   )
 }
+
+export const view = Submodel.defineView<Model, Message, ViewInputs>(view_)
