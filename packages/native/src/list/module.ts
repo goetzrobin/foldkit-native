@@ -31,6 +31,8 @@ import { type VNode, h, init, onUnmountModule } from 'foldkit/renderTarget'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { type Handler, customEvent, handlersByNode, makeModules, nodeOf } from '../modules.js'
 import { makeNodeApi } from '../nodeApi.js'
+import { type Box, type ChatKeyboard, createChatKeyboard } from '../chat/vendor/kbc/chatKeyboard.js'
+import type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
 import { type AnchoredEndSpace, endOffset, endSpaceFor, isAtEnd } from './end.js'
 import { EMPTY_RANGE, Heights, type Range, chooseWindow, rowsBetween } from './window.js'
 
@@ -58,6 +60,14 @@ export type ListSpec = Readonly<{
   /** How close to the end counts as being at it, in screen heights. */
   atEndThreshold: number
   anchoredEndSpace: AnchoredEndSpace | undefined
+  /** Rows shorter than the list sit at its bottom. */
+  alignItemsAtEnd: boolean
+  /**
+   * Set when the list keeps clear of the composer and the keyboard with a
+   * bottom inset, not by being made shorter: what the messages do as the
+   * keyboard opens. See `../chat/chatScroll.ts`.
+   */
+  insetLift: KeyboardLiftBehavior | undefined
   /**
    * Runs a function that builds Foldkit elements as if it were called inside
    * the program's view, so the handlers in those elements send their Messages
@@ -76,7 +86,76 @@ export type ListStats = Readonly<{
   end: number
   /** How many items the list has. */
   count: number
+  /** The list's own numbers, or undefined when there is no list. */
+  numbers: ListNumbers | undefined
 }>
+
+/** What a list knows about itself, for showing on a real phone. In points. */
+export type ListNumbers = Readonly<{
+  /** The scroll view's own height. 0 before the phone has said. */
+  viewport: number
+  /** Every row together. */
+  rows: number
+  /** The blank space kept under the last row for `anchoredEndSpace`. */
+  blankSpace: number
+  /** The scroll view's bottom inset, or undefined for a list without one. */
+  inset: number | undefined
+  /** How much of the list's bottom the keyboard covers, as the list was told. */
+  keyboard: number
+  /** The composer's height, as the list was told. */
+  bar: number
+  /** Where the list is scrolled to, as last heard from the phone or asked of it. */
+  offset: number
+  /** The furthest it can scroll. */
+  furthest: number
+  /** The last place the phone was asked to scroll to. */
+  lastScroll:
+    | Readonly<{
+        target: number
+        animated: boolean
+        /** How often in a row the phone was asked for this same place. */
+        sends: number
+        /** Whether the phone has since reported being there. */
+        arrived: boolean
+      }>
+    | undefined
+  isAtEnd: boolean | undefined
+  /** On its way to the end and meant to arrive exactly. */
+  isHolding: boolean
+}>
+
+/** What a `composerDock` in `'inset'` mode tells a list. */
+export type ListKeyboardEvent =
+  /** The keyboard starts to move, and will stop at `height`. */
+  | Readonly<{ type: 'start'; height: number }>
+  /** The keyboard has stopped at `height`. */
+  | Readonly<{ type: 'end'; height: number }>
+  /** A finger is dragging the keyboard down. */
+  | Readonly<{ type: 'interactive' }>
+  /**
+   * The composer is `height` tall, the strip under it that the keyboard
+   * covers anyway (the home indicator's) included, and that strip is `rest`.
+   */
+  | Readonly<{ type: 'bar'; height: number; rest: number }>
+
+/** What a list with a bottom inset keeps for it. */
+type Inset = {
+  keyboard: ChatKeyboard
+  /** Read by `keyboard` on every event. */
+  options: { keyboardLiftBehavior: KeyboardLiftBehavior; offset: number }
+  scroll: Box<number>
+  layout: Box<{ width: number; height: number }>
+  size: Box<{ width: number; height: number }>
+  blankSpace: Box<number>
+  bar: Box<number>
+  /** What the phone's scroll view was last given, or undefined before the first time. */
+  sent: number | undefined
+  /** How tall the rows were when it was given. */
+  sentRows: number
+  sentIndicator: number | undefined
+  /** Between the keyboard's start and its end. */
+  isKeyboardMoving: boolean
+}
 
 export const LIST_DATA = 'foldkitList'
 /** On the list's content view: the same spec, so the module can find the
@@ -94,8 +173,11 @@ const REVEAL_AFTER_MS = 400
 /** How long a gliding scroll is trusted to still be on its way. */
 const GLIDE_MS = 700
 
+/** How near counts as there, in points. */
+const ARRIVED_WITHIN = 2
+
 /** What a label shows when no list with its id is on screen. */
-const NO_LIST: ListStats = { rowViews: 0, first: 0, end: 0, count: 0 }
+const NO_LIST: ListStats = { rowViews: 0, first: 0, end: 0, count: 0, numbers: undefined }
 
 /** Used until the scroll view has reported its own height. */
 const ASSUMED_VIEWPORT = 800
@@ -108,6 +190,10 @@ type ListState = {
   spec: ListSpec
   readonly engine: Engine
   readonly scroll: EngineNode
+  /** Set for a list with a bottom inset. */
+  readonly inset: Inset | undefined
+  /** The last place the phone was asked to scroll to, for `ListNumbers`. */
+  lastScroll: { target: number; animated: boolean; sends: number; arrived: boolean } | undefined
   keys: Array<RowKey>
   indexByKey: Map<RowKey, number>
   heights: Heights
@@ -127,6 +213,8 @@ type ListState = {
   pendingAnimated: boolean
   /** Where the phone's scroll view is, as last heard from it or sent to it. */
   native: number
+  /** Where the phone last said it is, since it was last asked to scroll. */
+  reported: number | undefined
   /** Blank space under the last row. See `AnchoredEndSpace`. */
   endSpace: number
   /** Whether the end of the list is on screen. Not known before the phone
@@ -182,6 +270,7 @@ const statsOf = (state: ListState): ListStats => ({
   first: state.range.first,
   end: state.range.end,
   count: state.keys.length,
+  numbers: numbersOf(state),
 })
 
 const writeLabel = (label: Label, stats: ListStats): boolean => {
@@ -212,11 +301,65 @@ const index = (state: ListState): void => {
   }
 }
 
-/** Every row, and the blank space under the last one. */
-const contentHeight = (state: ListState): number => state.heights.total() + state.endSpace
+/**
+ * How tall the rows' own view is. With a bottom inset and `alignItemsAtEnd`
+ * it is at least as tall as the list above the composer, so that a few rows
+ * sit on top of the composer and can still be lifted by the keyboard.
+ */
+const rowsHeight = (state: ListState): number => {
+  const total = state.heights.total()
+  if (state.inset === undefined || !state.spec.alignItemsAtEnd || state.viewport <= 0) return total
+  return Math.max(total, state.viewport - state.inset.bar.value)
+}
+
+/** Gives the keyboard arithmetic the list as it is now. */
+const syncInset = (state: ListState, inset: Inset): void => {
+  inset.scroll.value = state.offset
+  inset.layout.value = { width: 0, height: viewportOf(state) }
+  inset.size.value = { width: 0, height: rowsHeight(state) }
+  inset.blankSpace.value = state.endSpace
+}
+
+/**
+ * The bottom inset a list with one should have: the composer and the
+ * keyboard, or the blank space if that is larger. The keyboard is taken in
+ * by the blank space, not added to it.
+ */
+const insetOf = (state: ListState, inset: Inset): number => {
+  syncInset(state, inset)
+  return inset.keyboard.totalPadding()
+}
+
+/**
+ * How far the list reaches: every row and what comes under the last one.
+ * That is blank space inside the content, or, for a list with a bottom
+ * inset, the inset, which is outside the content.
+ */
+const contentHeight = (state: ListState): number =>
+  state.inset === undefined
+    ? state.heights.total() + state.endSpace
+    : rowsHeight(state) + insetOf(state, state.inset)
+
+/** How tall the view that holds the rows is. */
+const canvasHeight = (state: ListState): number =>
+  state.inset === undefined ? contentHeight(state) : rowsHeight(state)
 
 const furthestOffset = (state: ListState): number =>
   endOffset(contentHeight(state), viewportOf(state))
+
+const numbersOf = (state: ListState): ListNumbers => ({
+  viewport: state.viewport,
+  rows: state.heights.total(),
+  blankSpace: state.endSpace,
+  inset: state.inset === undefined ? undefined : insetOf(state, state.inset),
+  keyboard: state.inset?.keyboard.padding.value ?? 0,
+  bar: state.inset?.bar.value ?? 0,
+  offset: state.offset,
+  furthest: furthestOffset(state),
+  lastScroll: state.lastScroll === undefined ? undefined : { ...state.lastScroll },
+  isAtEnd: state.isAtEnd,
+  isHolding: state.holdEnd,
+})
 
 /** The key of the row `anchoredEndSpace` names, if there is such a row. */
 const anchoredKeyOf = (state: ListState): RowKey | undefined => {
@@ -275,6 +418,15 @@ const endGlide = (state: ListState): void => {
 /** Sends a scroll position to the phone, and remembers a glide is under way. */
 const sendScroll = (state: ListState, wanted: number, animated: boolean): void => {
   endGlide(state)
+  const last = state.lastScroll
+  const isAgain = last !== undefined && Math.abs(last.target - wanted) < 1
+  state.lastScroll = {
+    target: wanted,
+    animated,
+    sends: isAgain ? last.sends + 1 : 1,
+    arrived: false,
+  }
+  state.reported = undefined
   state.native = wanted
   state.engine.dispatchCommand(state.scroll, 'scrollTo', [0, wanted, animated])
   if (!animated) return
@@ -286,11 +438,31 @@ const sendScroll = (state: ListState, wanted: number, animated: boolean): void =
     timer: setTimeout(() => {
       if (state.glide !== glide || !state.isAlive) return
       state.glide = undefined
-      refreshAtEnd(state)
-      tellAtEnd(state)
+      // The phone was asked to glide and, as far as it has said, is not
+      // there: it reported other places, or nothing at all. A list must not
+      // be left short of where it was sent, so it is put there at once.
+      // Asked once only: this scroll does not glide and so has no timer.
+      const isShort =
+        state.reported === undefined || Math.abs(state.reported - wanted) >= ARRIVED_WITHIN
+      if (isShort) {
+        state.offset = wanted
+        takeAnchor(state)
+        if (chooseRows(state)) state.draw('own')
+        sendScroll(state, wanted, false)
+      }
+      afterGlide(state)
     }, GLIDE_MS),
   }
   state.glide = glide
+}
+
+/** A glide has ended, by arriving or by running out of time. */
+const afterGlide = (state: ListState): void => {
+  refreshAtEnd(state)
+  tellAtEnd(state)
+  // An inset that was waiting for the glide to end is given to the phone
+  // now, and the numbers on screen are brought up to date.
+  state.draw('own')
 }
 
 const sendPendingScroll = (state: ListState): void => {
@@ -340,6 +512,10 @@ const goToEnd = (state: ListState, animated: boolean): void => {
   // Before the phone has said how tall the list is, `wanted` is a guess.
   // It still picks the rows to draw, but is not worth sending.
   if (state.viewport <= 0 || Math.abs(wanted - state.native) < 1) return
+  // Already gliding there. Asking again would start the glide over from
+  // where it is now, slowly, and a list asked every few frames (rows being
+  // measured, the keyboard moving) would hardly get anywhere.
+  if (state.glide !== undefined && Math.abs(state.glide.target - wanted) < 1) return
   state.pendingScroll = wanted
   // A correction to a glide that is still under way glides as well.
   state.pendingAnimated = animated || state.glide !== undefined
@@ -387,6 +563,8 @@ const beginHold = (state: ListState): void => {
   state.holdEnd = true
   state.holdRepeats = 0
   state.isAtEnd = true
+  // The list places itself now. Closing the keyboard must not undo that.
+  state.inset?.keyboard.forgetLift()
 }
 
 /**
@@ -499,9 +677,14 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       {
         props: {
           collapsable: false,
-          style: state.spec.initialScrollAtEnd
-            ? { height: contentHeight(state), opacity: state.isHidden ? 0 : 1 }
-            : { height: contentHeight(state) },
+          style: {
+            height: canvasHeight(state),
+            ...(state.spec.initialScrollAtEnd ? { opacity: state.isHidden ? 0 : 1 } : {}),
+            // See `rowsHeight`: a few rows sit at the bottom of a taller view.
+            ...(state.inset !== undefined && state.spec.alignItemsAtEnd
+              ? { justifyContent: 'flex-end' }
+              : {}),
+          },
         },
       },
       [
@@ -514,10 +697,51 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     )
   }
 
+  /**
+   * Gives the phone's scroll view its bottom inset, when that has changed.
+   * It goes in the same commit as the rows, so the blank space under a
+   * growing answer shrinks in the same frame as the answer grows.
+   *
+   * A smaller inset waits while the keyboard is moving or the list is
+   * gliding. The list is then on its way to a place inside the smaller
+   * range, and UIKit puts a scroll view that is outside its range back in
+   * at once, with a jump, the moment the range shrinks.
+   */
+  const writeInset = (state: ListState): void => {
+    const inset = state.inset
+    if (inset === undefined) return
+    const wanted = insetOf(state, inset)
+    const rows = rowsHeight(state)
+    // The blank space under an answer shrinks as the answer grows by as
+    // much. The range does not get smaller then, so nothing has to wait.
+    const isWaiting =
+      inset.sent !== undefined &&
+      rows + wanted < inset.sentRows + inset.sent - 0.5 &&
+      (inset.isKeyboardMoving || state.glide !== undefined)
+    if (wanted !== inset.sent && !isWaiting) {
+      inset.sent = wanted
+      inset.sentRows = rows
+      engine.setProp(state.scroll, 'contentInset', { top: 0, left: 0, bottom: wanted, right: 0 })
+    }
+    // The scroll bar ends at the composer. The blank space is not in its way.
+    const indicator = inset.keyboard.indicatorPadding()
+    if (indicator !== inset.sentIndicator) {
+      inset.sentIndicator = indicator
+      engine.setProp(state.scroll, 'scrollIndicatorInsets', {
+        top: 0,
+        left: 0,
+        bottom: indicator,
+        right: 0,
+      })
+    }
+  }
+
   const makeDraw =
     (state: ListState) =>
     (during: 'foldkit' | 'own'): void => {
+      if (!state.isAlive) return
       state.canvas = patchRows(state.canvas, canvasVNode(state))
+      writeInset(state)
       announce(state)
       if (during === 'foldkit') {
         // Foldkit is in the middle of its own draw and commits when done.
@@ -543,8 +767,18 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     )?.nativeEvent
     state.offset = native?.contentOffset?.y ?? 0
     state.native = state.offset
-    if (state.glide !== undefined && Math.abs(state.offset - state.glide.target) < 2) {
+    state.reported = state.offset
+    const last = state.lastScroll
+    if (last !== undefined && Math.abs(state.offset - last.target) < ARRIVED_WITHIN) {
+      last.arrived = true
+    }
+    let hasGlideEnded = false
+    if (
+      state.glide !== undefined &&
+      Math.abs(state.offset - state.glide.target) < ARRIVED_WITHIN
+    ) {
       endGlide(state)
+      hasGlideEnded = true
     }
     repeatHold(state)
     takeAnchor(state)
@@ -554,7 +788,8 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       return
     }
     refreshAtEnd(state)
-    if (chooseRows(state)) state.draw('own')
+    // A glide that has arrived is also when a waiting inset is handed over.
+    if (chooseRows(state) || hasGlideEnded) state.draw('own')
     checkEnd(state)
     tellAtEnd(state)
   }
@@ -582,10 +817,21 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
 
   /** The phone says a glide or a fling has come to rest. */
   const cameToRest = (state: ListState): void => {
-    if (state.glide === undefined) return
+    if (state.glide === undefined) {
+      showNumbers(state)
+      return
+    }
     endGlide(state)
-    refreshAtEnd(state)
-    tellAtEnd(state)
+    afterGlide(state)
+  }
+
+  /** Brings the numbers on screen up to date, when a label shows them. */
+  const showNumbers = (state: ListState): void => {
+    let isChanged = false
+    for (const label of labelsById.get(state.spec.id) ?? []) {
+      if (writeLabel(label, statsOf(state))) isChanged = true
+    }
+    if (isChanged) engine.commit()
   }
 
   const laidOut = (state: ListState, event: unknown): void => {
@@ -598,6 +844,42 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   // Scroll views created in this draw whose content view has not been yet.
   const scrollBySpec = new Map<ListSpec, EngineNode>()
 
+  const makeInset = (lift: KeyboardLiftBehavior): Inset => {
+    const options = { keyboardLiftBehavior: lift, offset: 0 }
+    const boxes = {
+      scroll: { value: 0 },
+      layout: { value: { width: 0, height: 0 } },
+      size: { value: { width: 0, height: 0 } },
+      blankSpace: { value: 0 },
+      bar: { value: 0 },
+    }
+    // The library's options, with the two that may change read through.
+    const keyboard = createChatKeyboard({
+      inverted: false,
+      get keyboardLiftBehavior() {
+        return options.keyboardLiftBehavior
+      },
+      get offset() {
+        return options.offset
+      },
+      freeze: { value: false },
+      blankSpace: boxes.blankSpace,
+      extraContentPadding: boxes.bar,
+      scroll: boxes.scroll,
+      layout: boxes.layout,
+      size: boxes.size,
+    })
+    return {
+      keyboard,
+      options,
+      ...boxes,
+      sent: undefined,
+      sentRows: 0,
+      sentIndicator: undefined,
+      isKeyboardMoving: false,
+    }
+  }
+
   const createList = (scroll: EngineNode, content: EngineNode, spec: ListSpec): void => {
     // The row updater replaces the node it is given, so it gets a placeholder
     // inside the content view to replace with the canvas.
@@ -607,6 +889,9 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       spec,
       engine,
       scroll,
+      inset: spec.insetLift === undefined ? undefined : makeInset(spec.insetLift),
+      lastScroll: undefined,
+      reported: undefined,
       keys: [],
       indexByKey: new Map(),
       heights: new Heights([]),
@@ -648,6 +933,8 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       engine.setEventListener(scroll, 'topLayout', event => laidOut(state, event)),
       engine.setEventListener(scroll, 'topScrollBeginDrag', () => dragBegan(state)),
       engine.setEventListener(scroll, 'topMomentumScrollEnd', () => cameToRest(state)),
+      // A finger let go without a fling: the list is at rest as well.
+      engine.setEventListener(scroll, 'topScrollEndDrag', () => showNumbers(state)),
     ]
     lists.set(scroll, state)
     let sameId = listsById.get(spec.id)
@@ -674,6 +961,9 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   const updateList = (state: ListState, spec: ListSpec): void => {
     const before = state.spec
     state.spec = spec
+    if (state.inset !== undefined && spec.insetLift !== undefined) {
+      state.inset.options.keyboardLiftBehavior = spec.insetLift
+    }
     // The new `row` function may read newer parts of the Model, so every
     // row drawn is built again. Rows are few.
     state.rows = new Map()
@@ -828,4 +1118,101 @@ export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }
     state.draw('own')
     tellAtEnd(state)
   }
+}
+
+/**
+ * Moves a list with a bottom inset for the keyboard. Called once as the
+ * keyboard starts to move and once when it has stopped, never in between.
+ */
+const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent): void => {
+  if (event.type === 'interactive') {
+    inset.keyboard.handlers.onInteractive()
+    return
+  }
+  syncInset(state, inset)
+  // A list that is gliding somewhere for its own reasons is reckoned to be where
+  // it is going, not where the glide happens to be at this moment.
+  const from = state.glide?.target ?? state.offset
+  inset.scroll.value = from
+  if (event.type === 'end') {
+    inset.isKeyboardMoving = false
+    inset.keyboard.handlers.onEnd({ height: event.height })
+    // A list left beyond its end by a keyboard that went away under a finger
+    // is brought back with a glide. The inset waits for the glide (see
+    // `writeInset`), so the list does not jump there first.
+    const furthest = furthestOffset(state)
+    if (state.glide === undefined && !state.holdEnd && state.offset > furthest + 1) {
+      state.offset = furthest
+      takeAnchor(state)
+      chooseRows(state)
+      // The glide first: the draw then sees it and leaves the inset alone.
+      sendScroll(state, furthest, true)
+      state.draw('own')
+      return
+    }
+    state.draw('own')
+    refreshAtEnd(state)
+    tellAtEnd(state)
+    return
+  }
+  let target: number | undefined
+  if (event.type === 'start') {
+    inset.isKeyboardMoving = true
+    inset.keyboard.contentOffsetY.value = from
+    inset.keyboard.handlers.onStart({ height: event.height })
+    target = inset.keyboard.contentOffsetY.value
+  } else {
+    const before = inset.bar.value
+    const isRestChanged = event.rest !== inset.options.offset
+    if (before === event.height && !isRestChanged) return
+    // The strip the keyboard covers anyway is only measured with the
+    // keyboard down, when changing it changes nothing on screen.
+    if (inset.keyboard.padding.value === 0) inset.options.offset = event.rest
+    inset.bar.value = event.height
+    target = inset.keyboard.onExtraContentPadding(event.height, before)
+  }
+  // A list that is on its way to its end stays in charge of where it goes.
+  // The end has moved with the inset, and the list follows it.
+  if (state.holdEnd) {
+    resettle(state, true)
+    chooseRows(state)
+    state.draw('own')
+    return
+  }
+  if (target === undefined || Math.abs(target - from) < 1) {
+    state.draw('own')
+    refreshAtEnd(state)
+    tellAtEnd(state)
+    return
+  }
+  state.offset = target
+  takeAnchor(state)
+  chooseRows(state)
+  // The commit carries the larger inset. The phone is told where to go
+  // after it, because it will not scroll past the range it knows.
+  state.draw('own')
+  // With the keyboard, the phone glides. A composer that grew by a line of
+  // text moves the list at once, as the composer itself did.
+  sendScroll(state, target, event.type === 'start')
+}
+
+/**
+ * Tells every list with this id that has a bottom inset what the keyboard or
+ * the composer did. `composerDock` in `'inset'` mode calls it. Returns
+ * whether any list heard.
+ */
+export const tellListKeyboard = (id: string, event: ListKeyboardEvent): boolean => {
+  let isHeard = false
+  for (const state of listsById.get(id) ?? []) {
+    if (state.inset === undefined || !state.isAlive) continue
+    isHeard = true
+    keyboardMoved(state, state.inset, event)
+  }
+  return isHeard
+}
+
+/** The numbers of the newest list with this id, or undefined if there is none. */
+export const listNumbers = (id: string): ListNumbers | undefined => {
+  const state = [...(listsById.get(id) ?? [])].at(-1)
+  return state === undefined ? undefined : numbersOf(state)
 }

@@ -12,8 +12,13 @@
  *   - Scrolling up and pressing "Load older" adds messages above without
  *     moving what you are reading.
  *
- * The composer is a plain text field and a Send button. It is lifted by the
- * keyboard's height when the keyboard is up.
+ * The composer is a plain text field and a Send button. It is lifted by as
+ * much of the app's window as the keyboard covers, which on Android is
+ * nothing when the window made itself shorter.
+ *
+ * "Show numbers" writes the list's own numbers under the hint, for a
+ * screenshot when something is not where it should be. They are read when
+ * the button is pressed and again a moment after each Send.
  */
 import { Effect, type Layer, Schema } from 'effect'
 import { Command, Runtime, Subscription, type Update } from 'foldkit'
@@ -35,7 +40,7 @@ import {
   title,
   view as box,
 } from '../../src/index.js'
-import { legendList, scrollLegendListToEnd } from '../../src/legend/index.js'
+import { legendList, legendNumbers, scrollLegendListToEnd } from '../../src/legend/index.js'
 
 export type DemoEnv = Readonly<{
   device: Device
@@ -52,6 +57,8 @@ const THINK_MS = 700
 const ANCHOR_MAX_SIZE = 2 * 20 + 32
 const ANCHOR_OFFSET = 16
 const OLDER_BATCH = 10
+/** How long after Send the numbers are read again, in milliseconds. */
+const NUMBERS_AFTER_SEND_MS = 1500
 
 const ChatMessage = Schema.Struct({
   id: Schema.String,
@@ -73,7 +80,11 @@ export const Model = Schema.Struct({
   replyWords: Schema.Array(Schema.String),
   replyShown: Schema.Number,
   replyId: Schema.String,
+  /** How much of the app's window the keyboard covers. 0 on an Android
+   *  window that made itself shorter. The composer is raised by this. */
   keyboardHeight: Schema.Number,
+  /** The list's own numbers as text, or empty while they are not shown. */
+  numbers: Schema.String,
 })
 export type Model = typeof Model.Type
 
@@ -83,6 +94,8 @@ export const Message = defineMessageUnion({
   ChangedDraft: { text: Schema.String },
   PressedSend: {},
   PressedLatest: {},
+  PressedNumbers: {},
+  ReadNumbers: { text: Schema.String },
   PressedLoadOlder: {},
   CompletedScroll: {},
   StreamedWord: { replyId: Schema.String },
@@ -128,6 +141,15 @@ const makeUpdate = (env: DemoEnv) => {
     execute: ({ animated }) =>
       scrollLegendListToEnd(LIST_ID, { animated }).pipe(Effect.as(Message.CompletedScroll())),
   })
+  // Reads the list's numbers, after `wait` milliseconds for a scroll to settle.
+  const ReadNumbers = Command.define('ReadNumbers', {
+    args: { wait: Schema.Number },
+    messages: [Message.ReadNumbers],
+    execute: ({ wait }) =>
+      Effect.sleep(wait).pipe(
+        Effect.map(() => Message.ReadNumbers({ text: legendNumbers(LIST_ID) })),
+      ),
+  })
   // Stands in for the next piece of a reply arriving from a server.
   const StreamWord = Command.define('StreamWord', {
     args: { replyId: Schema.String, wait: Schema.Number },
@@ -163,6 +185,8 @@ const makeUpdate = (env: DemoEnv) => {
           commands: [
             ScrollToEnd({ animated: true }),
             StreamWord({ replyId, wait: THINK_MS }),
+            // After the scroll has had time to arrive.
+            ...(model.numbers === '' ? [] : [ReadNumbers({ wait: NUMBERS_AFTER_SEND_MS })]),
           ],
         }
       },
@@ -186,6 +210,10 @@ const makeUpdate = (env: DemoEnv) => {
         }
       },
       PressedLatest: () => ({ model, commands: [ScrollToEnd({ animated: true })] }),
+      PressedNumbers: () => ({ model, commands: [ReadNumbers({ wait: 0 })] }),
+      ReadNumbers: ({ text: numbers }) => ({
+        model: modifyFields(model, { numbers: () => numbers }),
+      }),
       PressedLoadOlder: () => ({
         model: modifyFields(model, {
           messages: messages => [
@@ -204,7 +232,7 @@ const makeUpdate = (env: DemoEnv) => {
         model: modifyFields(model, {
           keyboardHeight: height =>
             Keyboard.Message.match(keyboard, {
-              ShownKeyboard: ({ height: shown }) => shown,
+              ShownKeyboard: ({ covers }) => covers,
               HidKeyboard: () => 0,
               CompletedDismissKeyboard: () => height,
             }),
@@ -226,6 +254,7 @@ export const init: Runtime.ElementInit<Model, Message> = () => ({
     replyShown: 0,
     replyId: '',
     keyboardHeight: 0,
+    numbers: '',
   },
 })
 
@@ -350,6 +379,12 @@ const makeView =
                           button(h, 'exit', 'Exit', Message.PressedExit()),
                           button(h, 'latest', 'Go to latest', Message.PressedLatest()),
                           button(h, 'load-older', 'Load older', Message.PressedLoadOlder()),
+                          button(
+                            h,
+                            'numbers-button',
+                            model.numbers === '' ? 'Show numbers' : 'Read numbers again',
+                            Message.PressedNumbers(),
+                          ),
                         ],
                       ),
                       text(
@@ -367,6 +402,7 @@ const makeView =
                           'should move near the top and stay there while the reply is written under it. ' +
                           'Scroll up and press "Load older": what you are reading should not move.',
                       ),
+                      ...(model.numbers === '' ? [] : [note('numbers', model.numbers)]),
                     ],
                   ),
                   legendList(h, {

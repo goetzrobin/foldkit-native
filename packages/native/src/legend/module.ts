@@ -97,6 +97,8 @@ type ListState = {
   isInFoldkitDraw: boolean
   /** Scroll commands asked for before the scroll view reached the phone. */
   heldCommands: Array<() => void>
+  /** The last place the phone was asked to scroll to, for `legendNumbers`. */
+  lastScroll: { target: number; animated: boolean; sends: number } | undefined
   isAlive: boolean
   stops: Array<() => void>
 }
@@ -368,8 +370,19 @@ const legendModule: ModuleFactory = (engine, afterCommit) => {
     }
     const driver = createLegendDriver<unknown>(
       {
-        scrollTo: ({ animated, x, y }) =>
-          send(() => engine.dispatchCommand(scroll, 'scrollTo', [x ?? 0, y ?? 0, !!animated])),
+        scrollTo: ({ animated, x, y }) => {
+          const state = holder.state
+          if (state !== undefined) {
+            const last = state.lastScroll
+            const target = y ?? 0
+            state.lastScroll = {
+              target,
+              animated: !!animated,
+              sends: last !== undefined && Math.abs(last.target - target) < 1 ? last.sends + 1 : 1,
+            }
+          }
+          send(() => engine.dispatchCommand(scroll, 'scrollTo', [x ?? 0, y ?? 0, !!animated]))
+        },
         measureScroller: into => {
           const box = boxOf(scroll)
           if (box !== undefined && box.height > 0) into(box)
@@ -395,6 +408,7 @@ const legendModule: ModuleFactory = (engine, afterCommit) => {
       isFlushQueued: false,
       isInFoldkitDraw: false,
       heldCommands: [],
+      lastScroll: undefined,
       isAlive: true,
       stops: [],
     }
@@ -571,3 +585,26 @@ export const legendContainers = (id: string): Array<Array<LegendContainerInfo>> 
     }
     return found
   })
+
+/**
+ * One list's own numbers as two lines of text, for finding out on a real
+ * phone why it is not where it should be. Reads Legend's state as it is now.
+ */
+export const legendNumbers = (id: string): string => {
+  const state = [...(listsById.get(id) ?? [])].at(-1)
+  if (state === undefined) return 'No list on screen.'
+  const { ctx } = state.driver
+  const seen = state.driver.handle.getState()
+  const round = (value: number | undefined): number => Math.round(value ?? 0)
+  const last = state.lastScroll
+  const asked =
+    last === undefined
+      ? 'none'
+      : `${round(last.target)} ${last.animated ? 'gliding' : 'at once'}, sent ${last.sends}x`
+  return (
+    `list ${round(seen.scrollLength)} content ${round(seen.contentLength)} ` +
+    `blank ${round(peek$(ctx, 'anchoredEndSpaceSize'))}\n` +
+    `at ${round(seen.scroll)} of ${round(seen.contentLength - seen.scrollLength)}, ` +
+    `asked: ${asked}, at end: ${seen.isAtEnd ? 'yes' : 'no'}`
+  )
+}

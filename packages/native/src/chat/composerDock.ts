@@ -15,7 +15,24 @@
  * wrap that column in `chatSafeArea` (see `safeArea.ts`), not `safeArea`:
  * the dock deals with the bottom of the screen itself.
  *
- * There are two docks to choose from with `mode`.
+ * There are three docks to choose from with `mode`.
+ *
+ * `'inset'` is the one to use for a chat where the phone can do it (see
+ * `chatScroll.ts`): the list keeps its full height, the composer lies over
+ * its bottom edge and travels with the keyboard, and the list's scroll view
+ * makes room with a bottom inset. Pass the list as `above`, give the list
+ * `keyboardInset`, and name it here:
+ *
+ *   composerDock(h, {
+ *     mode: 'inset',
+ *     listId: 'messages',
+ *     keyboardHeight: model.keyboardHeight,
+ *     backgroundColor: '#fff',
+ *     above: [list(h, { id: 'messages', keyboardInset: { lift: 'whenAtEnd' }, ... })],
+ *     children: [composer],
+ *   })
+ *
+ * Where the phone cannot do it, `'inset'` is `'follow'`.
  *
  * `'simple'` (the default) needs nothing but what Expo Go has, and is the
  * rest of this comment. `'follow'` hands the work to `keyboardDock` in
@@ -58,15 +75,18 @@ import { element } from 'foldkit/renderTarget'
 
 import { prop, style } from '../attributes.js'
 import { keyboardDock } from '../keyboard/dock.js'
+import { chatInsetAvailable } from './chatScroll.js'
 
 const el = element<any>()
 
 /**
+ * `'inset'`: the composer lies over the list and travels with the keyboard,
+ * and the list makes room by scrolling, not by getting shorter.
  * `'follow'`: the composer travels with the keyboard where the phone can do
  * that, and eases to its place where it cannot. `'simple'`: it is padded by
  * the keyboard's height and jumps.
  */
-export type ComposerDockMode = 'follow' | 'simple'
+export type ComposerDockMode = 'inset' | 'follow' | 'simple'
 
 export type ComposerDock = Readonly<{
   /**
@@ -95,6 +115,8 @@ export type ComposerDock = Readonly<{
   above?: ReadonlyArray<Html>
   /** The dock's color, which also fills the strip beside the home indicator. */
   backgroundColor?: string
+  /** For `'inset'`: the id of the list in `above`, which has `keyboardInset`. */
+  listId?: string
 }>
 
 /** Tells the two docks apart when one replaces the other on screen. */
@@ -151,5 +173,8 @@ export const composerDock = <Message>(
         : [el('view')(config.attributes as never, config.children as never)],
     ...(config.above === undefined ? {} : { above: config.above }),
     ...(config.backgroundColor === undefined ? {} : { backgroundColor: config.backgroundColor }),
+    ...(config.mode === 'inset' && config.listId !== undefined && chatInsetAvailable()
+      ? { inset: { listId: config.listId } }
+      : {}),
   })
 }

@@ -11,8 +11,12 @@
  * - Once the answer is longer than the screen, it runs off the bottom and a
  *   round button appears that scrolls to the end.
  *
- * The button "Keyboard: following" / "Keyboard: simple" switches between the
- * two ways of keeping the composer above the keyboard (see `chatShared.ts`).
+ * The button "Keyboard: inset" / "following" / "simple" goes round the three
+ * ways of keeping the composer above the keyboard (see `chatShared.ts`). With
+ * "inset", the button "Lift: ..." chooses what the messages do as the
+ * keyboard opens, and a question at the top of the screen must not move when
+ * the keyboard opens or closes. "Show numbers" lays the list's own numbers
+ * over it, for a screenshot.
  *
  * The "Thinking..." wait is a Command. The stream is a Subscription that
  * ticks while an answer is being written, and each tick adds a word.
@@ -31,6 +35,7 @@ import { type Device, header, screen, stack, style, title, view as box } from '.
 import { list, scrollListToEnd } from '../../src/list/index.js'
 import {
   DockMode,
+  Lift,
   PAPER,
   bubble,
   bubbleNote,
@@ -38,8 +43,15 @@ import {
   dismissOnDrag,
   dockModeButton,
   dockModeNote,
+  isInset,
+  liftButton,
+  liftNote,
   messagesAndComposer,
-  otherDockMode,
+  nextDockMode,
+  nextLift,
+  numbersButton,
+  numbersOverlay,
+  roundButtonBottom,
   scrollToEndButton,
   smallButton,
   topStrip,
@@ -94,8 +106,15 @@ export const Model = Schema.Struct({
   isAtEnd: Schema.Boolean,
   /** 0 while the keyboard is hidden. */
   keyboardHeight: Schema.Number,
-  /** Which of the two docks holds the composer. A button switches it. */
+  /** How much of the app's window the keyboard covers. 0 on an Android
+   *  window that made itself shorter. The composer is raised by this. */
+  keyboardCovers: Schema.Number,
+  /** Which of the three docks holds the composer. A button goes round them. */
   dockMode: DockMode,
+  /** With "inset": what the messages do as the keyboard opens. */
+  lift: Lift,
+  /** Whether the list's own numbers are laid over it. */
+  showsNumbers: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -112,6 +131,8 @@ export const Message = defineMessageUnion({
   PressedScrollToEnd: {},
   CompletedScrollToEnd: {},
   PressedDockMode: {},
+  PressedLift: {},
+  PressedNumbers: {},
   GotKeyboardMessage: { message: Keyboard.Message },
 })
 export type Message = typeof Message.Type
@@ -286,16 +307,26 @@ const makeUpdate = (env: DemoEnv, options: AiChatOptions) => {
       CompletedScrollToEnd: () => ({ model }),
       PressedDockMode: () => ({
         model: modifyFields(model, {
-          dockMode: otherDockMode,
-          // The two docks are built from different views, so the list is
+          dockMode: nextDockMode,
+          // The docks are built from different views, so the list is
           // made again, and a new list opens at its end.
           isAtEnd: () => true,
         }),
         // The field is made again as well. The keyboard goes with the old one.
         commands: [Command.mapMessage(Keyboard.Dismiss(), fromKeyboard)],
       }),
+      PressedLift: () => ({ model: modifyFields(model, { lift: nextLift }) }),
+      PressedNumbers: () => ({
+        model: modifyFields(model, { showsNumbers: shows => !shows }),
+      }),
       GotKeyboardMessage: ({ message: keyboardMessage }) => ({
         model: modifyFields(model, {
+          keyboardCovers: covers =>
+            Keyboard.Message.match(keyboardMessage, {
+              ShownKeyboard: shown => shown.covers,
+              HidKeyboard: () => 0,
+              CompletedDismissKeyboard: () => covers,
+            }),
           keyboardHeight: height =>
             Keyboard.Message.match(keyboardMessage, {
               ShownKeyboard: shown => shown.height,
@@ -317,7 +348,10 @@ export const init: Runtime.ElementInit<Model, Message> = () => ({
     // The list opens at its end, and only reports when that changes.
     isAtEnd: true,
     keyboardHeight: 0,
-    dockMode: 'follow',
+    keyboardCovers: 0,
+    dockMode: 'inset',
+    lift: 'whenAtEnd',
+    showsNumbers: false,
   },
 })
 
@@ -386,22 +420,30 @@ const makeView =
                       smallButton(h, 'exit', 'Exit', Message.PressedExit()),
                       smallButton(h, 'sample', 'Ask a sample question', Message.PressedSample()),
                       dockModeButton(h, model.dockMode, Message.PressedDockMode()),
+                      ...(isInset(model.dockMode)
+                        ? [liftButton(h, model.lift, Message.PressedLift())]
+                        : []),
+                      numbersButton(h, model.showsNumbers, Message.PressedNumbers()),
                     ],
                     statusOf(model),
                     'Ask something. Your question should go to the top and stay still while ' +
                       'the answer is written under it. When the answer runs off the screen, ' +
                       'a round button appears.',
-                    dockModeNote(model.dockMode),
+                    isInset(model.dockMode)
+                      ? `${dockModeNote(model.dockMode)} ${liftNote(model.lift)}`
+                      : dockModeNote(model.dockMode),
                   ),
                   ...messagesAndComposer(h, {
                     draft: model.draft,
                     placeholder: 'Ask about lists',
-                    keyboardHeight: model.keyboardHeight,
+                    keyboardHeight: model.keyboardCovers,
                     dockMode: model.dockMode,
+                    listId: LIST_ID,
                     onChange: words => Message.ChangedDraft({ text: words }),
                     onSend: Message.PressedSend(),
                     messages: box(
-                      [style({ flex: 1 })],
+                      // A key per dock, so the list is made again with it.
+                      [h.Key(`messages-${model.dockMode}`), style({ flex: 1 })],
                       [
                         list(h, {
                           id: LIST_ID,
@@ -413,6 +455,12 @@ const makeView =
                           // The keyboard must not cover the last message. An
                           // answer that grows is left to run off the screen.
                           maintainScrollAtEnd: { onlyWhenResized: true },
+                          // "inset": the list is not made shorter at all. Its
+                          // scroll view makes the room. Ignored where the
+                          // phone cannot do that.
+                          ...(model.dockMode === 'inset'
+                            ? { keyboardInset: { lift: model.lift } }
+                            : {}),
                           ...Option.match(model.maybeAnchorIndex, {
                             onNone: () => ({}),
                             onSome: anchorIndex => ({
@@ -436,7 +484,14 @@ const makeView =
                         }),
                         ...(model.isAtEnd
                           ? []
-                          : [scrollToEndButton(h, Message.PressedScrollToEnd())]),
+                          : [
+                              scrollToEndButton(
+                                h,
+                                Message.PressedScrollToEnd(),
+                                roundButtonBottom(model.dockMode, model.keyboardHeight),
+                              ),
+                            ]),
+                        ...(model.showsNumbers ? [numbersOverlay(LIST_ID)] : []),
                       ],
                     ),
                   }),

@@ -7,9 +7,13 @@
  * "is the list at its end" and which dock is in use in its own Model and
  * passes them in.
  *
- * There are two docks (see `src/chat/composerDock.ts`), and a button in each
- * demo switches between them, so both can be tried on one phone:
+ * There are three docks (see `src/chat/composerDock.ts`), and a button in
+ * each demo goes round them, so all can be tried on one phone:
  *
+ * - "inset": the list keeps its full height and the composer lies over its
+ *   bottom edge and travels with the keyboard. The list makes room by
+ *   scrolling. This is how react-native-keyboard-controller and Legend List
+ *   do it, and what the demos open with.
  * - "following": the composer and the list travel with the keyboard where
  *   the phone can do that, and ease to their places where it cannot.
  * - "simple": the composer is padded by the keyboard's height and jumps.
@@ -18,8 +22,15 @@ import { Option, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent } from 'foldkit/renderTarget'
 
-import { type ComposerDockMode, composerDock } from '../../src/chat/index.js'
+import {
+  type ComposerDockMode,
+  type KeyboardLiftBehavior,
+  chatInsetAvailable,
+  chatInsetFallbackReason,
+  composerDock,
+} from '../../src/chat/index.js'
 import { prop, style, text, textInput, view as box } from '../../src/index.js'
+import { listNumbersLabel } from '../../src/list/index.js'
 import {
   dismissKeyboardOnDrag,
   keyboardDockFallbackReason,
@@ -117,7 +128,12 @@ export const bubbleNote = (side: 'mine' | 'theirs', words: string): Html =>
  * while the list is away from its end. Its parent must be the box that
  * holds the list.
  */
-export const scrollToEndButton = <Message>(h: HtmlBuilder<Message>, message: Message): Html =>
+export const scrollToEndButton = <Message>(
+  h: HtmlBuilder<Message>,
+  message: Message,
+  /** How far above the bottom of the list's box. */
+  bottom = 16,
+): Html =>
   box(
     [
       h.Attribute('testID', 'scroll-to-end'),
@@ -126,7 +142,7 @@ export const scrollToEndButton = <Message>(h: HtmlBuilder<Message>, message: Mes
       style({
         position: 'absolute',
         right: 16,
-        bottom: 16,
+        bottom,
         width: 44,
         height: 44,
         borderRadius: 22,
@@ -139,11 +155,62 @@ export const scrollToEndButton = <Message>(h: HtmlBuilder<Message>, message: Mes
   )
 
 /** Which dock a demo uses. Kept in its Model. */
-export const DockMode = Schema.Literals(['follow', 'simple'])
+export const DockMode = Schema.Literals(['inset', 'follow', 'simple'])
 export type DockMode = ComposerDockMode
 
-export const otherDockMode = (mode: DockMode): DockMode =>
-  mode === 'follow' ? 'simple' : 'follow'
+const DOCK_MODES: ReadonlyArray<DockMode> = ['inset', 'follow', 'simple']
+
+/** The mode the button goes to next: inset, following, simple, and round again. */
+export const nextDockMode = (mode: DockMode): DockMode =>
+  DOCK_MODES[(DOCK_MODES.indexOf(mode) + 1) % DOCK_MODES.length] ?? 'inset'
+
+/** Whether the list lies under the composer: "inset", on a phone that can do it. */
+export const isInset = (mode: DockMode): boolean => mode === 'inset' && chatInsetAvailable()
+
+const DOCK_MODE_LABEL: Record<DockMode, string> = {
+  inset: 'Keyboard: inset',
+  follow: 'Keyboard: following',
+  simple: 'Keyboard: simple',
+}
+
+/**
+ * How far the round button must stand above the bottom of the list's box.
+ * In "inset" the list runs under the composer and the keyboard, so the
+ * button is raised by a composer's height, and by the keyboard while it is
+ * up. The numbers are this demo's own composer and an iPhone's bottom strip.
+ */
+export const roundButtonBottom = (mode: DockMode, keyboardHeight: number): number => {
+  if (!isInset(mode)) return 16
+  const composer = 65
+  const strip = 34
+  return 16 + composer + (keyboardHeight > 0 ? keyboardHeight : strip)
+}
+
+/** What the messages do as the keyboard opens. Kept in a demo's Model. */
+export const Lift = Schema.Literals(['always', 'whenAtEnd', 'persistent', 'never'])
+export type Lift = KeyboardLiftBehavior
+
+const LIFTS: ReadonlyArray<Lift> = ['whenAtEnd', 'persistent', 'always', 'never']
+
+export const nextLift = (lift: Lift): Lift =>
+  LIFTS[(LIFTS.indexOf(lift) + 1) % LIFTS.length] ?? 'whenAtEnd'
+
+/** The button that says what the messages do as the keyboard opens, and goes to the next way. */
+export const liftButton = <Message>(h: HtmlBuilder<Message>, lift: Lift, message: Message): Html =>
+  smallButton(h, 'lift', `Lift: ${lift}`, message)
+
+/** One sentence on a way of lifting, for the strip at the top. */
+export const liftNote = (lift: Lift): string =>
+  ({
+    always: 'Lift "always": the messages rise with the keyboard and come back down with it.',
+    whenAtEnd:
+      'Lift "whenAtEnd" (as ChatGPT): the messages rise with the keyboard only when the ' +
+      'newest one is in view.',
+    persistent:
+      'Lift "persistent" (as Claude): the messages rise with the keyboard and stay up when ' +
+      'it closes.',
+    never: 'Lift "never": the messages stay and the keyboard covers them.',
+  })[lift]
 
 /** The button that says which dock is in use and switches to the other. */
 export const dockModeButton = <Message>(
@@ -151,26 +218,61 @@ export const dockModeButton = <Message>(
   mode: DockMode,
   message: Message,
 ): Html =>
-  smallButton(
-    h,
-    'dock-mode',
-    mode === 'follow' ? 'Keyboard: following' : 'Keyboard: simple',
-    message,
-  )
+  smallButton(h, 'dock-mode', DOCK_MODE_LABEL[mode], message)
 
 /** One sentence on what the text field should do in this mode, on this phone. */
 export const dockModeNote = (mode: DockMode): string => {
   if (mode === 'simple') return 'Keyboard: the text field jumps to its place above the keyboard.'
+  if (mode === 'inset') {
+    return chatInsetAvailable()
+      ? 'Keyboard: the text field travels up with the keyboard. The messages are not resized.'
+      : `Keyboard: "inset" is not possible here (${chatInsetFallbackReason()}), so the text ` +
+          'field eases up to the keyboard.'
+  }
   return keyboardDockMode() === 'native'
     ? 'Keyboard: the text field and the messages should travel up with the keyboard.'
     : `Keyboard: the text field eases up to the keyboard (${keyboardDockFallbackReason()}).`
 }
 
+/**
+ * A strip of the list's own numbers over the top of the list, for a
+ * screenshot when something is not where it should be. The adapter rewrites
+ * it when the list draws or comes to rest. Put it in the box that holds the
+ * list, after the list.
+ */
+export const numbersOverlay = (listId: string): Html =>
+  box(
+    [
+      prop('testID', 'numbers'),
+      prop('pointerEvents', 'none'),
+      style({
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        backgroundColor: 'rgba(17,17,17,0.85)',
+      }),
+    ],
+    [listNumbersLabel(listId, [style({ color: PAPER, fontSize: 11, lineHeight: 15 })])],
+  )
+
+/** The button that shows or hides the numbers. */
+export const numbersButton = <Message>(
+  h: HtmlBuilder<Message>,
+  isShown: boolean,
+  message: Message,
+): Html => smallButton(h, 'numbers-button', isShown ? 'Hide numbers' : 'Show numbers', message)
+
 export type Composer<Message> = Readonly<{
   draft: string
   placeholder: string
+  /** How much of the app's window the keyboard covers. From `ShownKeyboard`. */
   keyboardHeight: number
   dockMode: DockMode
+  /** The id of the list in `messages`, for "inset". */
+  listId: string
   /** The list of messages, in a box with `flex: 1`. */
   messages: Html
   onChange: (text: string) => Message
@@ -182,21 +284,22 @@ export type Composer<Message> = Readonly<{
  * above the keyboard. Spread the result into the screen's column.
  *
  * In "simple" mode these are the two views this demo has always drawn: the
- * list, then the dock. In "following" mode the dock is given the list, so
- * that it can move both.
+ * list, then the dock. In "following" and "inset" the dock is given the
+ * list, to move it or to lie over it.
  */
 export const messagesAndComposer = <Message>(
   h: HtmlBuilder<Message>,
   config: Composer<Message>,
 ): ReadonlyArray<Html> => {
   const canSend = config.draft.trim() !== ''
-  const isFollowing = config.dockMode === 'follow'
+  const isFollowing = config.dockMode !== 'simple'
   const dock = composerDock(h, {
     keyboardHeight: config.keyboardHeight,
     mode: config.dockMode,
     ...(isFollowing
       ? {
           above: [config.messages],
+          listId: config.listId,
           backgroundColor: PAPER,
           attributes: [
             h.Attribute('testID', 'dock'),
@@ -284,9 +387,9 @@ export const dismissOnDrag = <Message>(
   isKeyboardUp: boolean,
   message: Message,
 ): ReadonlyArray<unknown> => {
-  const isDraggedByFinger = dockMode === 'follow' && keyboardDockMode() === 'native'
+  const isDraggedByFinger = dockMode !== 'simple' && keyboardDockMode() === 'native'
   return [
-    dockMode === 'follow' ? dismissKeyboardOnDrag() : prop('keyboardDismissMode', 'on-drag'),
+    dockMode !== 'simple' ? dismissKeyboardOnDrag() : prop('keyboardDismissMode', 'on-drag'),
     OnCustomEvent<Message>({
       name: 'scrollBeginDrag',
       f: () => (isKeyboardUp && !isDraggedByFinger ? Option.some(message) : Option.none()),

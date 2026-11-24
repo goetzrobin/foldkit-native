@@ -72,81 +72,123 @@ Do this before anything else. It tells us which demos work at all.
 
 ## Chat and keyboard
 
-Three demos: Chat, AI chat and Keyboard dock. None of them has been seen on a
-phone.
+Three demos: Chat, AI chat and Keyboard dock, and the keyboard part of AI chat
+on Legend List. None of the answers below has been checked on a phone.
 
-Chat and AI chat have a button at the top that reads "Keyboard: following" or
-"Keyboard: simple". Pressing it switches between two ways of keeping the text
-field above the keyboard. Where a question says "both settings", try it once
-in each. If one setting is broken, tell us which one and carry on in the other.
+Chat and AI chat have a button at the top that reads "Keyboard: inset",
+"Keyboard: following" or "Keyboard: simple". Each press goes to the next one.
+They open on "inset", which is new: the messages keep their full height, the
+text field lies over the bottom of them, and the list scrolls to make room.
+Use "inset" unless a question names another setting.
+
+AI chat also has "Show numbers". Press it before you test. It puts two lines
+of small white text on a dark strip over the messages. If an answer below is
+no, take the screenshot with that strip showing.
+
+The six that tell us most, on an iPhone, in AI chat:
+
+C1. Type a question and press Send. Does your question move to near the top
+    of the screen? If no, screenshot it with the numbers strip showing.
+C2. Does the question stay still while the answer is written under it?
+C3. When the answer is finished, tap the text field. Does the question stay
+    exactly where it is while the keyboard comes up?
+C4. Drag the messages down a little to put the keyboard away. Does the
+    question stay exactly where it is?
+C5. Scroll up and down through the messages with the keyboard down, then with
+    it up. Is the scrolling smooth, with no shaking?
+C6. Does the last grey line at the top say "The messages are not resized"? If
+    it says "inset is not possible here", write down the words in brackets.
+    In that case this phone is using "following" and C3 to C5 test that.
+
+AI chat, more, on an iPhone:
+
+C7. Open AI chat. Is the end of the last answer at the bottom, just above the
+    text field, and not hidden behind it?
+C8. Is the text field clear of the thin bar at the very bottom of the screen?
+C9. Tap the text field before you send anything. Does it move up together
+    with the keyboard, as if stuck to it?
+C10. With the keyboard up, can you still see the end of the last answer above
+     the text field? Did it get there smoothly, without a jump?
+C11. Close the keyboard. Does the last answer come back down smoothly?
+C12. With the keyboard up, drag the messages down slowly. Does the keyboard
+     follow your finger, with the text field staying on top of it?
+C13. Press "Ask a sample question" and wait. When the answer gets longer than
+     the screen, does a round button appear at the bottom right, above the
+     text field and not behind it?
+C14. Touch the empty area under a short answer and drag. Do the messages
+     scroll?
+C15. Is there a blurred band across the messages just above the text field
+     or the keyboard? Say yes if you see one.
+C16. Scroll to the very end. Does the scroll bar at the right stop at the
+     text field, and not run behind it?
+
+The "Lift" button in AI chat. It only shows with "Keyboard: inset". Each
+press goes to the next: whenAtEnd, persistent, always, never.
+
+C17. "Lift: whenAtEnd". Scroll up into older messages and tap the text field.
+     Do the messages stay where they are, with the keyboard covering the
+     lower ones?
+C18. "Lift: persistent". Scroll up into older messages and tap the text
+     field. Do the messages move up with the keyboard? Close the keyboard. Do
+     they stay up?
+C19. "Lift: always". Same again. Do the messages move up with the keyboard
+     and come back down with it?
+C20. "Lift: never". Go to the end and tap the text field. Does the keyboard
+     cover the last messages, and can you scroll to see them?
+C21. In each of the four, repeat C3 and C4. Does the question at the top stay
+     still every time?
 
 Chat, on an iPhone:
 
-C1. Open Chat. Is the newest message ("Type below and press Send.") at the
-    bottom, just above the text field, with nothing cut off?
-C2. Is the text field clear of the thin bar at the very bottom of the screen?
-C3. Both settings: tap the text field. Does it end up right on top of the
-    keyboard, with no gap and no part hidden?
-C4. Both settings: with the keyboard up, is the newest message still just
-    above the text field?
-C5. Set the button to "Keyboard: following". Does the last grey line at the
-    top say the text field "should travel up with the keyboard"? If it says
-    "eases up" instead, write down the words in brackets. In that case a no
-    for C6 and C8 is expected and is not a fault.
-C6. Following: tap the text field. Does it move up together with the
-    keyboard, as if stuck to it?
-C7. Following: while the keyboard opens, do the messages at the top of the
-    list stay on screen the whole time? Say no if that area goes blank for a
-    moment.
-C8. Following: with the keyboard up, drag the messages down slowly. Does the
-    keyboard follow your finger, with the text field staying on top of it?
-C9. Both settings: with the keyboard up, type a message and press Send. Does
-    Send react to the tap, and does your message appear just above the text
-    field?
-C10. Both settings: a reply comes a second later. Can you see all of it above
-     the text field?
-C11. Both settings: drag the messages to put the keyboard away. Does the text
-     field go back to the bottom, with the newest message still just above it?
-C12. Press the "Keyboard:" button. Do its words change, and are your messages
+C22. Open Chat. Is the newest message ("Type below and press Send.") at the
+     bottom, just above the text field, with nothing cut off?
+C23. Tap the text field. With the keyboard up, is the newest message still
+     just above the text field?
+C24. Type a message and press Send. Does Send react to the tap, and does your
+     message appear just above the text field?
+C25. A reply comes a second later. Can you see all of it above the text
+     field?
+C26. Press "Short chat". Do the two messages sit just above the text field?
+     Tap the text field. Do they move up with the keyboard?
+C27. Press the "Keyboard:" button. Do its words change, and are your messages
      still there with the newest at the bottom?
-
-AI chat, on an iPhone:
-
-C13. Open AI chat. Is the end of the last answer at the bottom, just above the
-     text field?
-C14. Both settings: tap the text field. With the keyboard up, can you still
-     see the end of the last answer above the text field?
-C15. Both settings: type a question and press Send. Does the keyboard go away
-     and the question move to near the top of the screen?
-C16. Both settings: does the question stay still while the answer is written
-     under it?
-C17. Both settings: once the answer is finished, tap the text field. Does the
-     question stay where it is at the top?
-C18. Both settings: press "Ask a sample question" and wait. When the answer
-     gets longer than the screen, does a round button appear at the bottom
-     right, above the text field and not behind it?
+C28. Set it to "Keyboard: following", then "Keyboard: simple". In each, does
+     the text field end up right on top of the keyboard, with the newest
+     message just above it?
+C29. Which of the three feels best when the keyboard opens and when you
+     scroll? Tell us in your own words.
 
 Keyboard dock, on an iPhone:
 
-C19. Open Keyboard dock. Does the orange line say "Mode: following the
+C30. Open Keyboard dock. Does the orange line say "Mode: following the
      keyboard natively"? If not, write down what it says.
-C20. Tap the text field. Does the grey bar sit right on top of the keyboard,
+C31. Tap the text field. Does the grey bar sit right on top of the keyboard,
      with no gap?
-C21. With the keyboard up, scroll the list to its end. Can you see all of
+C32. With the keyboard up, scroll the list to its end. Can you see all of
      "Line 1" above the bar?
-C22. If there is a "Use the fallback" button, press it and tap the text field
+C33. If there is a "Use the fallback" button, press it and tap the text field
      again. Does the bar still end up on top of the keyboard?
 
-On an Android phone:
+On an Android phone. "Inset" is not built for Android, so the grey line will
+say it is not possible and the phone uses "following".
 
-C23. Chat, both settings: tap the text field. Does it sit right on top of the
-     keyboard? Say no if there is an empty gap between them. A gap about as
-     tall as the keyboard is worth a screenshot.
-C24. Chat and AI chat, both settings: with the keyboard up, is the newest
-     message just above the text field? Then drag the messages. Does the
-     keyboard go away?
-C25. Keyboard dock: tap the text field. Does the grey bar sit right on top of
-     the keyboard, with no gap?
+C34. Chat: tap the text field. Does it sit right on top of the keyboard, with
+     messages showing above it? Say no if there is an empty gap between the
+     text field and the keyboard, or if no messages show.
+C35. The same in AI chat, in AI chat on Legend List and in Keyboard dock.
+     Does the text field sit right on top of the keyboard each time, with
+     the list showing above it?
+C36. Press the "Keyboard:" button to "simple" and try C34 again. Still no
+     gap?
+C37. Chat and AI chat: with the keyboard up, is the newest message just above
+     the text field? Then drag the messages. Does the keyboard go away?
+C38. If the text field stays hidden behind the keyboard for a moment and then
+     jumps up, tell us. That is this phone not making room by itself.
+
+AI chat on Legend List, on an iPhone:
+
+C39. Press "Show numbers", type a question and press Send. Does your question
+     move to near the top? Wait two seconds, then screenshot it either way.
 
 ## Styling
 

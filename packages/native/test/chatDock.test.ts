@@ -21,11 +21,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Keyboard } from '../src/device/index.js'
 import { type NativeSurface, createNativeSurface, registerNavigation } from '../src/index.js'
 import { DOCK_CONTENT_ID } from '../src/keyboard/dock.js'
-import {
-  configureKeyboardDock,
-  forceKeyboardDockFallback,
-  keyboardDockMode,
-} from '../src/keyboard/index.js'
+import { configureKeyboardDock, forceKeyboardDockFallback, keyboardDockMode } from '../src/keyboard/index.js'
 import { configureMotion, stopMotion } from '../src/motion/index.js'
 import { makeDemo as makeAiChat } from './demos/aiChat.js'
 import { makeDemo as makeChat } from './demos/chat.js'
@@ -134,8 +130,8 @@ const start = async (
   )
   await settle()
   finishFrames()
-  // The demos open in "following". The button switches to "simple".
-  if (way === 'simple') {
+  // The demos open in "inset". The button goes on to "following", then "simple".
+  for (let presses = way === 'simple' ? 2 : 1; presses > 0; presses--) {
     await press(fabric, 'dock-mode')
     finishFrames()
   }
@@ -385,7 +381,7 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
       expect(status()).toContain('At the end: yes.')
     })
 
-    it('switches to the other dock and back with the button, keeping the messages', async () => {
+    it('goes to the next dock and round again with the button, keeping the messages', async () => {
       await start(demo, way)
       await open()
       // Scrolled up, so that the round button is showing.
@@ -399,8 +395,9 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
       const dismissed = keyboard.dismissCount()
       await press(fabric, 'dock-mode')
       finishFrames()
+      // After "following" comes "simple", and after "simple" comes "inset".
       expect(textOf(byTestId(fabric, 'dock-mode'))).toBe(
-        wasFollowing ? 'Keyboard: simple' : 'Keyboard: following',
+        wasFollowing ? 'Keyboard: simple' : 'Keyboard: inset',
       )
       expect(hasFollowingDock()).toBe(!wasFollowing)
       // The keyboard is put away, because the field is made again.
@@ -411,20 +408,20 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
       // The list was made again and opens at its end.
       expect(status()).toContain('At the end: yes.')
       expect(hasTestId(fabric, 'scroll-to-end')).toBe(false)
-      await open()
-      expect(scrolls().at(-1)).toEqual([0, endOf(VIEWPORT), false])
-      expect(canvasOf().props['opacity']).toBe(1)
-      // The new dock does its own job when the keyboard comes.
-      const other: Way = wasFollowing
-        ? 'simple'
-        : keyboardDockMode() === 'native'
-          ? 'follow-native'
-          : 'follow-fallback'
-      await scrollTo(endOf(VIEWPORT))
-      await openKeyboard(other)
-      expect(scrolls().at(-1)).toEqual([0, endOf(VIEWPORT - COVERED), false])
-      await closeKeyboard(other)
+      if (wasFollowing) {
+        await open()
+        expect(scrolls().at(-1)).toEqual([0, endOf(VIEWPORT), false])
+        expect(canvasOf().props['opacity']).toBe(1)
+        // The simple dock does its own job when the keyboard comes.
+        await scrollTo(endOf(VIEWPORT))
+        await openKeyboard('simple')
+        expect(scrolls().at(-1)).toEqual([0, endOf(VIEWPORT - COVERED), false])
+        await closeKeyboard('simple')
+      }
 
+      // Two more presses come round to where it started.
+      await press(fabric, 'dock-mode')
+      finishFrames()
       await press(fabric, 'dock-mode')
       finishFrames()
       expect(textOf(byTestId(fabric, 'dock-mode'))).toBe(
@@ -433,6 +430,7 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
       expect(hasFollowingDock()).toBe(wasFollowing)
       expect(animated.drivenViews().length).toBe(way === 'follow-native' ? 2 : 0)
       expect(named('KeyboardControllerView')).toHaveLength(way === 'follow-native' ? 1 : 0)
+      expect(byTestId(fabric, 'draft').props['text']).toBe('Half typed')
       await open()
       await scrollTo(endOf(VIEWPORT))
       await openKeyboard(way)
@@ -463,7 +461,7 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
     })
   })
 
-  it('opens in "following"', async () => {
+  it('goes to "following" with one press of the button', async () => {
     await start(demo, 'follow-fallback')
     expect(textOf(byTestId(fabric, 'dock-mode'))).toBe('Keyboard: following')
   })

@@ -43,7 +43,7 @@ import {
 import type { LegendPlatform } from './platform/Platform.js'
 import type { MaintainScrollAtEndOptions } from './vendor/types.base.js'
 
-export { legendContainers, legendHandles } from './module.js'
+export { legendContainers, legendHandles, legendNumbers } from './module.js'
 export type { LegendContainerInfo } from './module.js'
 export { setPixelRatio } from './platform/PixelRatio.js'
 export { setScreenReaderEnabled } from './platform/screenReader.js'

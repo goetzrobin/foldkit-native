@@ -38,6 +38,9 @@
  *   anchoredEndSpace      blank space under the last row, so a new message can
  *                         sit at the top while the reply streams in below it
  *   onAtEndChanged        a Message when the user leaves the end or returns
+ *   keyboardInset         the list keeps its full height under the composer
+ *                         and the keyboard, and scrolls clear of them with a
+ *                         bottom inset. See `../chat/chatScroll.ts`.
  *
  * A list that is not at its end always keeps what the user is reading in
  * place when rows above it change.
@@ -49,6 +52,8 @@ import { Effect, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
 
+import { chatInsetAvailable } from '../chat/chatScroll.js'
+import type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
 import type { AnchoredEndSpace } from './end.js'
 import {
   AT_END_CHANGED,
@@ -57,6 +62,7 @@ import {
   LABEL_DATA,
   LIST_DATA,
   type ListSpec,
+  type ListNumbers,
   type ListStats,
   type RowKey,
   scrollToEnd,
@@ -64,7 +70,9 @@ import {
 } from './module.js'
 import { type Refresh, scrollWithRefresh } from './refresh.js'
 
-export type { ListStats, RowKey } from './module.js'
+export type { ListKeyboardEvent, ListNumbers, ListStats, RowKey } from './module.js'
+export { listNumbers, tellListKeyboard } from './module.js'
+export type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
 export { refreshScrollView } from './refresh.js'
 export type { Refresh } from './refresh.js'
 export { Heights, chooseWindow, rowsBetween } from './window.js'
@@ -132,6 +140,27 @@ export type ListConfig<Item, Message> = Readonly<{
    * has `initialScrollAtEnd`, otherwise with `false`.
    */
   onAtEndChanged?: (isAtEnd: boolean) => Message
+  /**
+   * For a chat whose composer is a `composerDock` in `'inset'` mode with this
+   * list's id as `listId`. The list then runs the full height of the screen
+   * area, under the composer, and is never made shorter by the keyboard.
+   * Instead its scroll view gets a bottom inset: the composer's height plus
+   * the keyboard's, or the blank space of `anchoredEndSpace` if that is
+   * larger. So a question held at the top of the screen does not move when
+   * the keyboard opens or closes.
+   *
+   * `lift` says what the messages do as the keyboard opens:
+   *
+   *   'always'      they rise with it and come back down with it
+   *   'whenAtEnd'   the same, but only when the newest message is in view
+   *   'persistent'  they rise with it and stay up when it closes
+   *   'never'       they stay, and the keyboard covers them
+   *
+   * Default `'always'`. On a phone that cannot do this (see
+   * `chatInsetFallbackReason`), the option is ignored and the list behaves
+   * as it does without it.
+   */
+  keyboardInset?: Readonly<{ lift?: KeyboardLiftBehavior }>
   /** Pull to refresh. See `refresh.ts`. */
   refresh?: Refresh<Message>
   /** Attributes for the scroll view, such as `style({ flex: 1 })`. */
@@ -146,6 +175,10 @@ const tag = (vnode: VNode | null, name: string, value: unknown): void => {
 }
 
 const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
+  const insetLift =
+    config.keyboardInset !== undefined && chatInsetAvailable()
+      ? (config.keyboardInset.lift ?? 'always')
+      : undefined
   const spec: ListSpec = {
     id: config.id,
     items: config.items,
@@ -164,6 +197,8 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
       (config.maintainScrollAtEnd.onlyWhenResized ?? false),
     atEndThreshold: config.atEndThreshold ?? 0.1,
     anchoredEndSpace: config.anchoredEndSpace,
+    alignItemsAtEnd: config.alignItemsAtEnd ?? false,
+    insetLift,
     inFrame: inputs.inFrame,
   }
   const onEndReached = config.onEndReached
@@ -174,7 +209,9 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
       Prop({ key: 'collapsable', value: false }),
       // At least as tall as the list, with the rows pushed to its bottom:
       // what React Native apps do with `contentContainerStyle`.
-      ...(config.alignItemsAtEnd === true
+      // With `keyboardInset` the list module does this itself, because
+      // "as tall as the list" must then leave out the composer.
+      ...(config.alignItemsAtEnd === true && insetLift === undefined
         ? [Prop({ key: 'style', value: { flexGrow: 1, justifyContent: 'flex-end' } })]
         : []),
     ] as never,
@@ -213,10 +250,11 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
   tag(content, CONTENT_DATA, spec)
   // A key of its own, unless the caller gave one. Without a key the updater
   // may reuse this scroll view for a plain one next to it, or the other way
-  // round, and the rows would be left behind in the wrong view.
+  // round, and the rows would be left behind in the wrong view. A list with
+  // an inset is another kind of list: switching makes it again.
   for (const each of [root, scroll]) {
     if (each !== null && each.key === undefined) {
-      each.key = `foldkit-native-list:${config.id}`
+      each.key = `foldkit-native-list:${config.id}${insetLift === undefined ? '' : ':inset'}`
       ;(each.data ??= {}).key = each.key
     }
   }
@@ -253,6 +291,37 @@ export const listRowCount = (
   const label = el('text')(attributes as never, [])
   tag(label, LABEL_DATA, { id, format })
   return label
+}
+
+/**
+ * A text element with the list's own numbers, for finding out on a real
+ * phone why a list is not where it should be: how tall the list and its rows
+ * are, the blank space and bottom inset, where it is scrolled to, the last
+ * place it asked the phone to scroll to and how often, and whether it thinks
+ * it is at its end. Rewritten when the list draws and when a scroll comes to
+ * rest, not on every frame.
+ */
+export const listNumbersLabel = (id: string, attributes: ReadonlyArray<unknown> = []): Html =>
+  listRowCount(id, attributes, stats => formatListNumbers(stats.numbers))
+
+const round = (value: number): number => Math.round(value)
+
+export const formatListNumbers = (numbers: ListNumbers | undefined): string => {
+  if (numbers === undefined) return 'No list on screen.'
+  const { lastScroll } = numbers
+  const asked =
+    lastScroll === undefined
+      ? 'none'
+      : `${round(lastScroll.target)} ${lastScroll.animated ? 'gliding' : 'at once'}, ` +
+        `sent ${lastScroll.sends}x, ${lastScroll.arrived ? 'arrived' : 'not arrived'}`
+  return (
+    `list ${round(numbers.viewport)} rows ${round(numbers.rows)} blank ${round(numbers.blankSpace)} ` +
+    `inset ${numbers.inset === undefined ? 'off' : round(numbers.inset)} ` +
+    `keyboard ${round(numbers.keyboard)} bar ${round(numbers.bar)}\n` +
+    `at ${round(numbers.offset)} of ${round(numbers.furthest)}, asked: ${asked}, ` +
+    `at end: ${numbers.isAtEnd === undefined ? 'unknown' : numbers.isAtEnd ? 'yes' : 'no'}` +
+    `${numbers.isHolding ? ', holding' : ''}`
+  )
 }
 
 /**

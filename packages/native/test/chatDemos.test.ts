@@ -2,7 +2,8 @@
  * The two chat demos on the simulated phone: sending, replies, the streamed
  * answer, the scroll-to-end button and the composer above the keyboard.
  *
- * The demos open with the composer "following" the keyboard, which on this
+ * The demos open with the keyboard set to "inset", which on this phone is the
+ * same as the composer "following" the keyboard, which on this
  * simulated phone means the eased fallback. `chatDock.test.ts` goes through
  * every way of docking the composer.
  *
@@ -216,7 +217,9 @@ describe('the chat demo', () => {
   })
 
   it('in "simple" mode, pads the composer by the keyboard, and by the safe area when the keyboard is down', async () => {
-    // The demo opens in "following". `chatDock.test.ts` covers that mode.
+    // The demo opens in "inset", then comes "following". `chatInset.test.ts`
+    // and `chatDock.test.ts` cover those.
+    await press(phone.fabric, 'dock-mode')
     await press(phone.fabric, 'dock-mode')
     expect(dockParts().padding.props['paddingBottom']).toBe(0)
     expect(dockParts().safeArea.viewName).toBe('RNSSafeAreaView')
@@ -241,6 +244,7 @@ describe('the chat demo', () => {
   })
 
   it('in "simple" mode, puts the keyboard away when the user drags the list, only if it is up', async () => {
+    await press(phone.fabric, 'dock-mode')
     await press(phone.fabric, 'dock-mode')
     // Switching the dock put the keyboard away once already.
     const before = keyboard.dismissCount()
