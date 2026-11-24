@@ -242,7 +242,8 @@ const replyRow = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
   return view(
     [
       prop('testID', `row-${row.key}`),
-      ...(hasText && !isStreamingRow(row) ? onLongPress(Message.LongPressedMessage({ rowKey: row.key })) : []),
+      // Held while it streams too: the menu then offers Copy so far and Stop.
+      ...(hasText || isStreamingRow(row) ? onLongPress(Message.LongPressedMessage({ rowKey: row.key })) : []),
       style({ paddingHorizontal: SPACE.xl, paddingTop: SPACE.m, gap: SPACE.s, backgroundColor: palette.bg }),
     ],
     [

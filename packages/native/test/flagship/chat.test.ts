@@ -317,6 +317,66 @@ describe('holding a message', () => {
     expect(at.sheet.shown.at(-1)?.items.map(item => item.key)).toEqual(['copy', 'select', 'share'])
   })
 
+  /**
+   * A finger resting on a view while the reply keeps streaming: the clock
+   * moves on in steps, and every step draws the transcript again, until
+   * the finger has rested for longer than a hold.
+   */
+  const holdWhileStreaming = async (id: string): Promise<void> => {
+    const fabric = at.phone.fabric
+    const node = byTestId(fabric, id)
+    const point = { identifier: 0, target: node.reactTag, pageX: 0, pageY: 0, locationX: 0, locationY: 0, timestamp: Date.now() }
+    fabric.emit(node, 'topTouchStart', { ...point, touches: [point], changedTouches: [point] })
+    const started = Date.now()
+    let draws = 0
+    while (Date.now() - started < LONG_PRESS_MS + 120) {
+      const before = at.transcriptRows().join('|')
+      await at.advance(50)
+      if (at.transcriptRows().join('|') !== before) draws += 1
+    }
+    // The reply did change under the finger: this is a hold during streaming.
+    expect(draws).toBeGreaterThan(0)
+    fabric.emit(byTestId(fabric, id), 'topTouchEnd', { ...point, touches: [], changedTouches: [point] })
+    await at.advance(50)
+  }
+
+  it('holding the reply while it streams offers Copy so far and Stop; Stop stops it', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.until(() => at.transcriptRows().some(each => /Starting to run/.test(each)))
+    expect(at.has('stop')).toBe(true)
+    const key = replyKey()
+    at.sheet.answerWith('stop')
+    await holdWhileStreaming(`row-${key}`)
+    expect(at.sheet.shown.at(-1)?.items.map(item => item.title)).toEqual(['Copy so far', 'Stop'])
+    await at.advance(600)
+    expect(at.has(`${key}-stopped`)).toBe(true)
+    expect(at.server.log().filter(each => each.startsWith('StopTurn'))).toHaveLength(1)
+  })
+
+  it('holding the reply while it streams and choosing Copy so far copies what is there', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.until(() => at.transcriptRows().some(each => /Starting to run/.test(each)))
+    at.sheet.answerWith('copy')
+    await holdWhileStreaming(`row-${replyKey()}`)
+    expect(at.device.clipboard.contents()).toMatch(/^## Starting to run/)
+    // Still streaming: copying did not stop it.
+    expect(at.has('stop')).toBe(true)
+  })
+
+  it('holding your question while the reply streams opens its menu', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.until(() => at.transcriptRows().some(each => /Starting to run/.test(each)))
+    at.sheet.answerWith(null)
+    await holdWhileStreaming('row-c1')
+    expect(at.sheet.shown.at(-1)?.items.map(item => item.key)).toEqual(['copy', 'select', 'share'])
+  })
+
   it('a short touch is not a hold', async () => {
     at = await startChatPhone()
     await newChat()

@@ -450,6 +450,8 @@ export const makeChatApp = (
             return { model: modifyFields(closed, { sheet: () => Option.some({ _tag: 'SelectText' as const, rowKey: menu.rowKey }) }) }
           case 'regenerate':
             return regenerate(closed)
+          case 'stop':
+            return update(closed, Message.PressedStop())
           default:
             return { model: closed }
         }
@@ -713,19 +715,23 @@ export const makeChatApp = (
         const row = chatRows(model).find(each => each.key === rowKey)
         if (row === undefined) return { model }
         const canRegenerate = row.role === 'assistant' && row.isLastReply && !LiveTurnOps.isStreaming(model.live)
+        const text = textOf(row.parts)
+        // A reply still being written: what is there so far, and a way to end it.
+        const items =
+          row.role === 'assistant' && row.status === 'streaming'
+            ? [...(text === '' ? [] : [{ key: 'copy', title: 'Copy so far' }]), { key: 'stop', title: 'Stop' }]
+            : [
+                { key: 'copy', title: 'Copy' },
+                { key: 'select', title: 'Select text' },
+                { key: 'share', title: 'Share' },
+                ...(canRegenerate ? [{ key: 'regenerate', title: 'Regenerate' }] : []),
+              ]
         return {
-          model: modifyFields(model, { menu: () => Option.some({ rowKey, text: textOf(row.parts), canRegenerate }) }),
+          model: modifyFields(model, { menu: () => Option.some({ rowKey, text, canRegenerate }) }),
           commands: [
             haptic.medium(),
             Command.mapMessage(
-              ActionSheet.Show({
-                items: [
-                  { key: 'copy', title: 'Copy' },
-                  { key: 'select', title: 'Select text' },
-                  { key: 'share', title: 'Share' },
-                  ...(canRegenerate ? [{ key: 'regenerate', title: 'Regenerate' }] : []),
-                ],
-              }),
+              ActionSheet.Show({ items }),
               sheetMessage => Message.GotActionSheetMessage({ message: sheetMessage }),
             ),
           ],
