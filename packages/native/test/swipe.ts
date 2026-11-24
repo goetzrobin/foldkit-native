@@ -11,6 +11,7 @@ import { modifyFields } from 'foldkit/struct'
 
 import { scrollView, style, text, view as box } from '../src/index.js'
 import { list } from '../src/list/index.js'
+import { type GestureTag, uiThread } from '../src/worklets/index.js'
 import {
   type SwipeDriverName,
   type SwipeStyle,
@@ -35,6 +36,8 @@ export type SwipeFixtureOptions = Readonly<{
   separateGroups?: boolean
   /** Draw 200 rows in the virtualised list in place of three in a scroll view. */
   inList?: boolean
+  /** Name the scroll view's own gesture and make it wait for the swipe. */
+  scrollGesture?: GestureTag
 }>
 
 export const Model = Schema.Struct({
@@ -100,6 +103,7 @@ export const makeSwipeFixture = (container: HTMLElement, options: SwipeFixtureOp
         id,
         ...(options.separateGroups === true ? { group: id } : {}),
         driver: options.driver ?? 'auto',
+        ...(options.scrollGesture === undefined ? {} : { scrollGesture: options.scrollGesture }),
         style: options.style ?? tiles,
         rightToLeft: options.rightToLeft ?? false,
         reduceMotion: options.reduceMotion ?? false,
@@ -167,9 +171,12 @@ export const makeSwipeFixture = (container: HTMLElement, options: SwipeFixtureOp
               row: id => row(h, id),
               attributes: [h.Attribute('testID', 'scroll'), style({ flex: 1 })],
             })
-          : scrollView(
-              [h.Attribute('testID', 'scroll'), style({ flex: 1 })],
-              model.isHidden ? [] : model.rows.map(id => row(h, id)),
+          : uiThread(
+              options.scrollGesture === undefined ? {} : { nativeGesture: options.scrollGesture },
+              scrollView(
+                [h.Attribute('testID', 'scroll'), style({ flex: 1 })],
+                model.isHidden ? [] : model.rows.map(id => row(h, id)),
+              ),
             ),
       ],
     )

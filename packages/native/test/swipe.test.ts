@@ -42,8 +42,14 @@ import {
   PAN_END,
   PAN_FAILED,
   configureWorklets,
+  gestureTag,
+  readShared,
   requireCompiledWorklets,
   resetWorklets,
+  runOnUi,
+  shared,
+  springTo,
+  stopAnimation,
 } from '../src/worklets/index.js'
 import { makeDemos } from './demos/index.js'
 import { makeDemo } from './demos/swipe.js'
@@ -812,6 +818,36 @@ describe('the UI thread driver and gesture-handler', () => {
       failOffsetYStart: -10,
       failOffsetYEnd: 10,
     })
+  })
+
+  it('can make the scroll view wait for the swipe, when the program names its gesture', async () => {
+    const scrollGesture = gestureTag()
+    const { ui } = await start('ui-thread', { scrollGesture })
+    const calls = ui?.gestureCalls ?? []
+    expect(calls).toContainEqual(['create', 'NativeViewGestureHandler', scrollGesture.handlerTag, {}])
+    expect(calls).toContainEqual(['attach', scrollGesture.handlerTag, node('scroll').reactTag, 1])
+    const related = calls.filter(call => call[0] === 'relations')
+    expect(related.length).toBe(3)
+    expect(related[0]?.[2]).toEqual({
+      simultaneousHandlers: [],
+      waitFor: [],
+      blocksHandlers: [scrollGesture.handlerTag],
+    })
+  })
+
+  it('starts a spring at the speed the finger had', async () => {
+    const { ui } = await start('ui-thread')
+    const still = shared(0)
+    const moving = shared(0)
+    runOnUi(springTo, still, 100, { stiffness: 260, damping: 28 })
+    runOnUi(springTo, moving, 100, { stiffness: 260, damping: 28, velocity: 2000 })
+    ui?.flushUi()
+    ui?.frame(16)
+    ui?.frame(16)
+    expect(readShared(moving)).toBeGreaterThan(readShared(still) + 20)
+    runOnUi(stopAnimation, still)
+    runOnUi(stopAnimation, moving)
+    ui?.flushUi()
   })
 
   it('moves the row with no draw from JavaScript', async () => {

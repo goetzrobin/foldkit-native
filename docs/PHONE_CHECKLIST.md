@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show thirteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show fourteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass, Worklets, Server state?
+   Object tracking, Glass, Worklets, Server state, Swipe actions?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -374,3 +374,45 @@ S9. Press "Announce topic" so it says off. Change the name, press Save, wait
     right: this is what breaks without the topic.)
 S10. On the member screen with the keyboard open, can you see the name field
      and the Save button, and is the panel clear of the title bar?
+
+## Swipe actions
+
+Rows you drag sideways to show actions behind them. It has not been seen on
+a phone. Do SW1 first: it says which of the two ways of moving the rows the
+phone is using. Then do SW2 to SW11 once that way, press the other name at
+the top ("UI thread" or "JavaScript"), and do them again. See
+`docs/SWIPE_ACTIONS.md`.
+
+SW1. Open "Swipe actions". After a second, what does the line that starts
+     "In use:" say? Is there a red line under it? Write both down in full.
+SW2. In the Inbox, drag the first mail slowly to the left. Does the mail stay
+     under your finger, and do two separate rounded tiles (Flag, then a red
+     Delete) come out from under its right edge and spread apart?
+SW3. Let go when it is more than half open. Does it stay open with both tiles
+     fully showing and a gap between them, with no jump?
+SW4. Close it with a tap on the mail. Now flick it left with a short, quick
+     movement. Does it open? Flick it right the same way. Does it close?
+SW5. Tap the small "Tap" button in a mail. Does "Taps on the small buttons"
+     go up by one? Now put your finger on that button and drag left. Does the
+     mail swipe open, with the count staying the same?
+SW6. Put your finger on a mail and scroll the page up and down. Does the page
+     scroll with no mail moving sideways? Open a mail, then scroll the page.
+     Does the mail close?
+SW7. Open the first mail, then start dragging the second. Does the first one
+     close? Open one and tap an empty part of the page. Does it close?
+SW8. With "Full swipe: on", drag a mail left almost across the screen and
+     hold. Does the red tile grow over the grey one, with a small tap from
+     the phone as it does? Drag back a little. Does it shrink back?
+SW9. Drag across again and let go. Does the mail slide away, and does a line
+     with an Undo button appear? Press Undo. Is the mail back in its place,
+     closed?
+SW10. Under Tasks, drag a row left. Do three flat coloured blocks with no
+      gaps (Rename, Pin, Delete) fill the space behind it, each the full
+      height of the row?
+SW11. Under Chat, drag a bubble left. Does a time slide in on the right, and
+      does the bubble spring back when you let go, with "Last event" not
+      changing?
+SW12. Press "Right to left: off" so it says on. Does dragging a mail to the
+      right now show Flag and Delete on the left side? With VoiceOver on,
+      does a mail offer Read, Delete and Flag as actions? (Swipe up or down
+      on the mail to hear them.)
