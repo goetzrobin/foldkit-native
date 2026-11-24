@@ -13,6 +13,7 @@ import { makeNotes } from '../notes.js'
 import { makeDemo as makeAiChat } from './aiChat.js'
 import { makeDemo as makeChat } from './chat.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
+import { makeDemo as makeGlass } from './glass.js'
 import { makeDemo as makeKeyboard } from './keyboard.js'
 import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
@@ -99,5 +100,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Object tracking',
     blurb: 'A tracking game drawn every frame. Watch the orange dots, follow them, then tap them.',
     start: (container, env) => Runtime.embed(makeMot(container, env)),
+  },
+  {
+    id: 'glass',
+    title: 'Glass',
+    blurb: 'Liquid Glass over scrolling colours. A line says if it is real glass or the fallback.',
+    start: (container, env) => Runtime.embed(makeGlass(container, env)),
   },
 ]
