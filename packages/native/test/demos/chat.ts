@@ -10,7 +10,9 @@
  *   me in 3 s" is there to try this: press it, scroll up, and wait.
  * - Sending always goes to the end, wherever the user was.
  * - "Short chat" leaves two messages, which sit at the bottom of the list.
- * - The keyboard pushes the composer and the last message up.
+ * - The keyboard pushes the composer and the last message up. The button
+ *   "Keyboard: following" / "Keyboard: simple" switches between the two ways
+ *   of doing that (see `chatShared.ts`).
  *
  * Modelled on Legend List's chat example. The sample messages are our own.
  */
@@ -25,12 +27,16 @@ import { Keyboard } from '../../src/device/index.js'
 import { type Device, header, screen, stack, style, title, view as box } from '../../src/index.js'
 import { list, scrollListToEnd } from '../../src/list/index.js'
 import {
+  DockMode,
   PAPER,
   bubble,
   bubbleNote,
   bubbleText,
-  composer,
   dismissOnDrag,
+  dockModeButton,
+  dockModeNote,
+  messagesAndComposer,
+  otherDockMode,
   scrollToEndButton,
   smallButton,
   topStrip,
@@ -67,6 +73,8 @@ export const Model = Schema.Struct({
   isAtEnd: Schema.Boolean,
   /** 0 while the keyboard is hidden. */
   keyboardHeight: Schema.Number,
+  /** Which of the two docks holds the composer. A button switches it. */
+  dockMode: DockMode,
 })
 export type Model = typeof Model.Type
 
@@ -84,6 +92,7 @@ export const Message = defineMessageUnion({
   DraggedListWithKeyboardUp: {},
   PressedScrollToEnd: {},
   CompletedScrollToEnd: {},
+  PressedDockMode: {},
   GotKeyboardMessage: { message: Keyboard.Message },
 })
 export type Message = typeof Message.Type
@@ -110,7 +119,7 @@ const OPENING: ReadonlyArray<readonly ['me' | 'them', string]> = [
   ['them', 'And the keyboard?'],
   ['me', 'The composer sits on top of it and the last message stays in view.'],
   ['them', 'Does it slide up with the keyboard?'],
-  ['me', 'Not yet. It jumps into place. The sliding version is being built.'],
+  ['me', 'It should, with "Keyboard: following" at the top. Press that to compare with "simple".'],
   ['them', 'Fair. Send me something so I can see a reply come in.'],
   ['me', 'Type below and press Send.'],
 ]
@@ -218,6 +227,16 @@ const makeUpdate = (env: DemoEnv, options: ChatOptions) => {
       }),
       PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
       CompletedScrollToEnd: () => ({ model }),
+      PressedDockMode: () => ({
+        model: modifyFields(model, {
+          dockMode: otherDockMode,
+          // The two docks are built from different views, so the list is
+          // made again, and a new list opens at its end.
+          isAtEnd: () => true,
+        }),
+        // The field is made again as well. The keyboard goes with the old one.
+        commands: [Command.mapMessage(Keyboard.Dismiss(), fromKeyboard)],
+      }),
       GotKeyboardMessage: ({ message: keyboardMessage }) => ({
         model: modifyFields(model, {
           keyboardHeight: height =>
@@ -239,6 +258,7 @@ export const init: Runtime.ElementInit<Model, Message> = () => ({
     // The list opens at its end, and only reports when that changes.
     isAtEnd: true,
     keyboardHeight: 0,
+    dockMode: 'follow',
   },
 })
 
@@ -274,43 +294,50 @@ const makeView =
                       smallButton(h, 'short-chat', 'Short chat', Message.PressedShortChat()),
                       smallButton(h, 'long-chat', 'Long chat', Message.PressedLongChat()),
                       smallButton(h, 'message-me', 'Message me in 3 s', Message.PressedMessageMe()),
+                      dockModeButton(h, model.dockMode, Message.PressedDockMode()),
                     ],
                     `${model.messages.length} messages. At the end: ${model.isAtEnd ? 'yes' : 'no'}.`,
                     'Send a message: a reply comes in a second and the list stays at the end. ' +
                       'Press "Message me in 3 s" and scroll up: what you are reading should ' +
                       'not move, and a round button takes you back. "Short chat" leaves two ' +
                       'messages at the bottom.',
+                    dockModeNote(model.dockMode),
                   ),
-                  box(
-                    [style({ flex: 1 })],
-                    [
-                      list(h, {
-                        id: LIST_ID,
-                        items: model.messages,
-                        key: each => each.id,
-                        row,
-                        estimatedRowHeight: 72,
-                        alignItemsAtEnd: true,
-                        initialScrollAtEnd: true,
-                        maintainScrollAtEnd: true,
-                        onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
-                        attributes: [
-                          h.Attribute('testID', 'messages'),
-                          style({ flex: 1 }),
-                          ...dismissOnDrag(model.keyboardHeight > 0, Message.DraggedListWithKeyboardUp()),
-                        ],
-                      }),
-                      ...(model.isAtEnd
-                        ? []
-                        : [scrollToEndButton(h, Message.PressedScrollToEnd())]),
-                    ],
-                  ),
-                  composer(h, {
+                  ...messagesAndComposer(h, {
                     draft: model.draft,
                     placeholder: 'Message',
                     keyboardHeight: model.keyboardHeight,
+                    dockMode: model.dockMode,
                     onChange: words => Message.ChangedDraft({ text: words }),
                     onSend: Message.PressedSend(),
+                    messages: box(
+                      [style({ flex: 1 })],
+                      [
+                        list(h, {
+                          id: LIST_ID,
+                          items: model.messages,
+                          key: each => each.id,
+                          row,
+                          estimatedRowHeight: 72,
+                          alignItemsAtEnd: true,
+                          initialScrollAtEnd: true,
+                          maintainScrollAtEnd: true,
+                          onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
+                          attributes: [
+                            h.Attribute('testID', 'messages'),
+                            style({ flex: 1 }),
+                            ...dismissOnDrag(
+                              model.dockMode,
+                              model.keyboardHeight > 0,
+                              Message.DraggedListWithKeyboardUp(),
+                            ),
+                          ],
+                        }),
+                        ...(model.isAtEnd
+                          ? []
+                          : [scrollToEndButton(h, Message.PressedScrollToEnd())]),
+                      ],
+                    ),
                   }),
                 ],
               ),
