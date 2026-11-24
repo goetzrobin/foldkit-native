@@ -63,6 +63,7 @@ import { OnCustomEvent, element } from 'foldkit/renderTarget'
 import type { EngineNode } from '@ng-native/fabric'
 import type { VNode } from 'foldkit/renderTarget'
 
+import { SHEET_CONTENT, SHEET_FOOTER } from '../../host/navigation/tags.js'
 import { prop } from '../attributes.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { keyboardDock } from '../keyboard/dock.js'
@@ -213,8 +214,7 @@ export const sheet = <Message = never>(options: SheetOptions<Message> = {}) => {
 // ---- What goes inside ------------------------------------------------
 
 /** The names `registerNavigation` gives the native views of this file. */
-export const SHEET_CONTENT = 'sheet-content'
-export const SHEET_FOOTER = 'sheet-footer'
+export { SHEET_CONTENT, SHEET_FOOTER } from '../../host/navigation/tags.js'
 
 /** Fills the sheet's screen, above a footer if there is one. */
 const CONTENT_STYLE = { flex: 1 } as const

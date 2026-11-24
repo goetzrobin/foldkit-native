@@ -23,12 +23,13 @@
  * when the canvas goes away. In between it may ask for frames and draw as
  * often as it likes.
  */
-import { type Engine, type EngineNode, registerViewName } from '@ng-native/fabric'
+import type { Engine, EngineNode } from '@ng-native/fabric'
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
+import { SKIA_TAG, registerSkia } from '../../host/skia/views.js'
 import { type Handler, customEvent, handlersByNode, nodeOf } from '../modules.js'
 import { onNextFrame } from '../../host/motion/clock.js'
 import { type Painter, type Pen, type Size, makeSkiaPainter, makeViewPainter } from '../../host/skia/draw.js'
@@ -87,7 +88,6 @@ export type CanvasConfig<Props, Message> = Readonly<{
 }>
 
 const CANVAS_DATA = 'foldkitCanvas'
-const SKIA_TAG = 'skia-view'
 
 type Spec = Readonly<{
   scene: Scene<unknown>
@@ -97,18 +97,7 @@ type Spec = Readonly<{
 
 const el = element<any>()
 
-let isRegistered = false
-
-/**
- * Names Skia's native view for the engine. Call once at startup. Naming a
- * view does not need it to exist: only drawing one does, and a canvas draws
- * one in Skia mode alone.
- */
-export const registerSkia = (): void => {
-  if (isRegistered) return
-  isRegistered = true
-  registerViewName(SKIA_TAG, 'SkiaPictureView')
-}
+export { registerSkia }
 
 /** The renderer a canvas asked for `wanted` really gets in this build. */
 export const rendererFor = (wanted: Renderer | 'auto' = 'auto'): Renderer =>

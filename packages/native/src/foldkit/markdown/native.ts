@@ -36,13 +36,14 @@
  * opened does not fade in again: a view always starts with the fade off,
  * and turns it on after its first draw, only while the reply is streaming.
  */
-import { type EngineNode, nativePlatform, registerViewName } from '@ng-native/fabric'
+import { type EngineNode, nativePlatform } from '@ng-native/fabric'
 import type { VNode } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { onNextFrame } from '../../host/motion/clock.js'
 import { nodeOf } from '../modules.js'
 import { NATIVE_MARKDOWN_VIEW, remendOf } from '../../host/markdown/detect.js'
+import { NATIVE_MARKDOWN_TAG } from '../../host/markdown/views.js'
 import {
   ACCESSIBILITY_LABELS,
   LINK_RECOGNITION,
@@ -53,8 +54,7 @@ import {
 } from '../../host/markdown/nativeStyle.js'
 import type { MarkdownTheme } from '../../host/markdown/theme.js'
 
-/** The element name the engine knows the native view by. */
-export const NATIVE_MARKDOWN_TAG = 'enriched-markdown'
+export { NATIVE_MARKDOWN_TAG }
 
 /** remend's settings, as react-native-streamdown 0.3.0 sets them (`remendWorklet.ts`). */
 export const REMEND_OPTIONS = {
@@ -344,9 +344,7 @@ const nativeMarkdownModule: ModuleFactory = (engine, afterCommit) => {
   }
 }
 
-// Both at import time: a module only reaches surfaces made after it is
+// At import time: a module only reaches surfaces made after it is
 // registered, and the app makes its surface at startup. The view's name is
-// the same on both platforms and needs nothing from Expo, so it is given here
-// too. Where the build lacks the view, `markdown` never draws this element.
-registerViewName(NATIVE_MARKDOWN_TAG, { ios: NATIVE_MARKDOWN_VIEW, android: NATIVE_MARKDOWN_VIEW })
+// given at import too, in `src/host/markdown/views.ts`.
 registerModule(nativeMarkdownModule)

@@ -37,7 +37,6 @@
  * touch first, so a hold on that part does not open the menu.
  */
 import type { Engine, EngineNode } from '@ng-native/fabric'
-import { registerViewName } from '@ng-native/fabric'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
@@ -57,6 +56,7 @@ import {
   ui,
   uiText,
 } from '../controls/expoUi.js'
+import { ANCHOR_TAG, LIST_TAG } from '../../host/menus/views.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../modules.js'
 import {
@@ -143,11 +143,7 @@ export type MenuButtonSettings<Message> = MenuSettings<Message> &
 
 // THE VIEW AROUND A TRIGGER (routes 2 to 4)
 
-/** Plain views. The names let the module below find them. */
-const ANCHOR_TAG = 'fk-menu-anchor'
-const LIST_TAG = 'fk-menu-list'
-registerViewName(ANCHOR_TAG, 'View')
-registerViewName(LIST_TAG, 'View')
+// Plain views, named in `src/host/menus/views.ts` so the module below can find them.
 
 /** What the module needs to know about one menu. Sent as text so an unchanged menu is no change. */
 type Spec = Readonly<{

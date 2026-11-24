@@ -21,25 +21,16 @@
  * router uses (`packages/router/src/native-search-bar.ts`). Not seen on a
  * phone yet.
  */
-import { registerViewName } from '@ng-native/fabric'
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
+import { SEARCH_BAR, registerSearchBar } from '../../host/navigation/views.js'
 import { prop } from '../attributes.js'
 
 const el = element<any>()
 
-const SEARCH_BAR = 'native-search-bar'
-
-let isRegistered = false
-
-/** Names the search field's native view. Call once at startup. */
-export const registerSearchBar = (): void => {
-  if (isRegistered) return
-  isRegistered = true
-  registerViewName(SEARCH_BAR, 'RNSSearchBar')
-}
+export { registerSearchBar }
 
 export type SearchBarOptions<Message> = Readonly<{
   placeholder?: string

@@ -31,11 +31,11 @@
  * (`style` to place it among its neighbours).
  */
 import type { Engine, EngineNode } from '@ng-native/fabric'
-import { registerViewName } from '@ng-native/fabric'
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 
+import { RN_SWITCH_TAG } from '../../host/controls/views.js'
 import { type NativeStyle, onPress, prop, style } from '../attributes.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { menuButton, menuRouteName } from '../menus/menu.js'
@@ -157,9 +157,7 @@ const bar = (fraction: number): Html =>
 export type SwitchSettings<Message> = Shared &
   Readonly<{ value: boolean; onChanged: (isOn: boolean) => Message }>
 
-/** React Native's own switch: `Switch` on iOS, `AndroidSwitch` on Android. */
-const RN_SWITCH_TAG = 'fk-rn-switch'
-registerViewName(RN_SWITCH_TAG, { ios: 'Switch', android: 'AndroidSwitch' })
+// React Native's own switch (`RN_SWITCH_TAG`) is named in `src/host/controls/views.ts`.
 
 const booleanOf = (name: string) => (detail: Record<string, unknown>) =>
   typeof detail[name] === 'boolean' ? (detail[name] as boolean) : undefined

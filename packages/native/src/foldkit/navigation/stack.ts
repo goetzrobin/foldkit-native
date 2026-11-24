@@ -22,116 +22,22 @@
  * used. Expo Go includes the native half. An app built on its own needs
  * `react-native-screens` installed.
  */
-import type { Engine } from '@ng-native/fabric'
-import { registerViewName } from '@ng-native/fabric'
 import { Option } from 'effect'
 import type { Attribute, ChildAttribute, Html } from 'foldkit/html'
-import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
+import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
+import { MODAL_SCREEN } from '../../host/navigation/tags.js'
 import { prop } from '../attributes.js'
-import { registerModule } from '../extend.js'
-import { nodeOf } from '../modules.js'
-import { SHEET_CONTENT, SHEET_FOOTER } from './sheets.js'
+// Sheets first, then the native view names: the modal screen's hooks
+// register after the sheet's, as they did when both were in this folder.
+import './sheets.js'
+
+export { registerNavigation } from '../../host/navigation/views.js'
 
 const el = element<any>()
 
 /** What an element takes as its first argument. */
 export type Attributes<Message> = ReadonlyArray<Attribute<Message> | ChildAttribute>
-
-/** Asks React Native for react-native-screens' native module, which on
- *  Android installs the listener that animates a removed screen away. */
-const loadScreensModule = (): void => {
-  const host = globalThis as {
-    __turboModuleProxy?: (name: string) => unknown
-    nativeModuleProxy?: Record<string, unknown>
-  }
-  void (host.__turboModuleProxy?.('RNSModule') ?? host.nativeModuleProxy?.['RNSModule'])
-}
-
-const MODAL_SCREEN = 'modal-screen'
-
-/** Fills the stack, as the core does for `screen`. */
-const SCREEN_FILL = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } as const
-
-/** No limit on where a swipe may start. An edge left out is 0 natively. */
-const UNLIMITED_SWIPE = { start: -1, end: -1, top: -1, bottom: -1 } as const
-
-/** Set once and never lowered: react-native-screens rejects a decrease. */
-const ACTIVE = 2
-
-/**
- * A `modalScreen` needs the same three things before it joins the stack that
- * the core gives a `screen`. The core only knows the `screen` tag, so this
- * does it for the other one.
- */
-const modalScreenModule = (engine: Engine): Partial<Module> => ({
-  create: (_empty: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined || node.tag !== MODAL_SCREEN) return
-    engine.setDefaultStyle(node, SCREEN_FILL)
-    engine.setProp(node, 'activityState', ACTIVE)
-    engine.setProp(node, 'gestureResponseDistance', UNLIMITED_SWIPE)
-  },
-})
-
-registerModule(modalScreenModule)
-
-let isRegistered = false
-
-/** Call once at startup, before the first draw. */
-export const registerNavigation = (): void => {
-  if (isRegistered) return
-  isRegistered = true
-  loadScreensModule()
-  registerViewName('stack', 'RNSScreenStack', { flex: 1 })
-  registerViewName('screen', 'RNSScreen')
-  // react-native-screens' own JavaScript uses a second native view for a
-  // screen that is presented over the others on iOS (a modal or a sheet),
-  // because such a screen is not laid out inside the stack's frame. Android
-  // has one view for both.
-  registerViewName(MODAL_SCREEN, { ios: 'RNSModalScreen', android: 'RNSScreen' })
-  // The absolute position matters: without it the header takes part in the
-  // screen's layout and every page starts a header's height too far down.
-  registerViewName('native-header', 'RNSScreenStackHeaderConfig', {
-    position: 'absolute',
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  })
-  // A view placed in one of the navigation bar's slots. The styles are the
-  // ones react-native-screens' own wrapper gives it.
-  registerViewName('native-header-item', 'RNSScreenStackHeaderSubview', {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  })
-  registerViewName('screen-safe-area', 'RNSSafeAreaView', { flex: 1 })
-  // What goes inside a sheet: see `sheets.ts`. The footer is Android's. iOS
-  // has a view of that name that does nothing, and `sheetFooter` does not
-  // draw it there.
-  // No default styles here: the engine keeps one default per native view, not
-  // per name, and the content view needs two sets. `sheetContent` sends them.
-  registerViewName(SHEET_CONTENT, 'RNSScreenContentWrapper')
-  registerViewName(SHEET_FOOTER, 'RNSScreenFooter')
-  // Tabs have one native view per platform. The fills are the ones
-  // react-native-screens' wrappers give them. A tab's screen is absolute
-  // because all of them share one space, with one visible at a time.
-  registerViewName(
-    'tab-bar',
-    { ios: 'RNSTabsHostIOS', android: 'RNSTabsHostAndroid' },
-    { flex: 1, width: '100%', height: '100%' },
-  )
-  registerViewName(
-    'tab-screen',
-    { ios: 'RNSTabsScreenIOS', android: 'RNSTabsScreenAndroid' },
-    { position: 'absolute', flex: 1, width: '100%', height: '100%' },
-  )
-  // iOS 26 and later: the strip above the tab bar. See `bottomAccessory` in
-  // `tabs.ts`, which draws them on no other phone.
-  registerViewName('tab-bar-accessory', 'RNSTabsBottomAccessory')
-  registerViewName('tab-bar-accessory-content', 'RNSTabsBottomAccessoryContent')
-}
 
 /** The stack of screens. Its children are `screen`s, the last one on top. */
 export const stack = el('stack')
