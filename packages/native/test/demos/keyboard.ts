@@ -115,7 +115,9 @@ const makeUpdate = (env: DemoEnv) => {
         model: modifyFields(model, {
           keyboardHeight: height =>
             Keyboard.Message.match(keyboard, {
-              ShownKeyboard: shown => shown.height,
+              // What the bar must rise by, which on Android is 0 when
+              // the window made itself shorter.
+              ShownKeyboard: shown => shown.covers,
               HidKeyboard: () => 0,
               CompletedDismissKeyboard: () => height,
             }),

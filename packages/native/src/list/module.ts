@@ -1130,6 +1130,10 @@ const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent)
     return
   }
   syncInset(state, inset)
+  // A list that is gliding somewhere for its own reasons is reckoned to be where
+  // it is going, not where the glide happens to be at this moment.
+  const from = state.glide?.target ?? state.offset
+  inset.scroll.value = from
   if (event.type === 'end') {
     inset.isKeyboardMoving = false
     inset.keyboard.handlers.onEnd({ height: event.height })
@@ -1141,8 +1145,9 @@ const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent)
       state.offset = furthest
       takeAnchor(state)
       chooseRows(state)
-      state.draw('own')
+      // The glide first: the draw then sees it and leaves the inset alone.
       sendScroll(state, furthest, true)
+      state.draw('own')
       return
     }
     state.draw('own')
@@ -1153,7 +1158,7 @@ const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent)
   let target: number | undefined
   if (event.type === 'start') {
     inset.isKeyboardMoving = true
-    inset.keyboard.contentOffsetY.value = state.offset
+    inset.keyboard.contentOffsetY.value = from
     inset.keyboard.handlers.onStart({ height: event.height })
     target = inset.keyboard.contentOffsetY.value
   } else {
@@ -1174,7 +1179,7 @@ const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent)
     state.draw('own')
     return
   }
-  if (target === undefined || Math.abs(target - state.offset) < 1) {
+  if (target === undefined || Math.abs(target - from) < 1) {
     state.draw('own')
     refreshAtEnd(state)
     tellAtEnd(state)

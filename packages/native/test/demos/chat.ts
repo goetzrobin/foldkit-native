@@ -36,7 +36,8 @@ import {
   dockModeButton,
   dockModeNote,
   messagesAndComposer,
-  otherDockMode,
+  nextDockMode,
+  roundButtonBottom,
   scrollToEndButton,
   smallButton,
   topStrip,
@@ -73,7 +74,10 @@ export const Model = Schema.Struct({
   isAtEnd: Schema.Boolean,
   /** 0 while the keyboard is hidden. */
   keyboardHeight: Schema.Number,
-  /** Which of the two docks holds the composer. A button switches it. */
+  /** How much of the app's window the keyboard covers. 0 on an Android
+   *  window that made itself shorter. The composer is raised by this. */
+  keyboardCovers: Schema.Number,
+  /** Which of the three docks holds the composer. A button goes round them. */
   dockMode: DockMode,
 })
 export type Model = typeof Model.Type
@@ -229,8 +233,8 @@ const makeUpdate = (env: DemoEnv, options: ChatOptions) => {
       CompletedScrollToEnd: () => ({ model }),
       PressedDockMode: () => ({
         model: modifyFields(model, {
-          dockMode: otherDockMode,
-          // The two docks are built from different views, so the list is
+          dockMode: nextDockMode,
+          // The docks are built from different views, so the list is
           // made again, and a new list opens at its end.
           isAtEnd: () => true,
         }),
@@ -239,6 +243,12 @@ const makeUpdate = (env: DemoEnv, options: ChatOptions) => {
       }),
       GotKeyboardMessage: ({ message: keyboardMessage }) => ({
         model: modifyFields(model, {
+          keyboardCovers: covers =>
+            Keyboard.Message.match(keyboardMessage, {
+              ShownKeyboard: shown => shown.covers,
+              HidKeyboard: () => 0,
+              CompletedDismissKeyboard: () => covers,
+            }),
           keyboardHeight: height =>
             Keyboard.Message.match(keyboardMessage, {
               ShownKeyboard: shown => shown.height,
@@ -258,7 +268,8 @@ export const init: Runtime.ElementInit<Model, Message> = () => ({
     // The list opens at its end, and only reports when that changes.
     isAtEnd: true,
     keyboardHeight: 0,
-    dockMode: 'follow',
+    keyboardCovers: 0,
+    dockMode: 'inset',
   },
 })
 
@@ -306,12 +317,14 @@ const makeView =
                   ...messagesAndComposer(h, {
                     draft: model.draft,
                     placeholder: 'Message',
-                    keyboardHeight: model.keyboardHeight,
+                    keyboardHeight: model.keyboardCovers,
                     dockMode: model.dockMode,
+                    listId: LIST_ID,
                     onChange: words => Message.ChangedDraft({ text: words }),
                     onSend: Message.PressedSend(),
                     messages: box(
-                      [style({ flex: 1 })],
+                      // A key per dock, so the list is made again with it.
+                      [h.Key(`messages-${model.dockMode}`), style({ flex: 1 })],
                       [
                         list(h, {
                           id: LIST_ID,
@@ -322,6 +335,11 @@ const makeView =
                           alignItemsAtEnd: true,
                           initialScrollAtEnd: true,
                           maintainScrollAtEnd: true,
+                          // "inset": the messages always rise with the
+                          // keyboard, as in a messaging app.
+                          ...(model.dockMode === 'inset'
+                            ? { keyboardInset: { lift: 'always' as const } }
+                            : {}),
                           onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
                           attributes: [
                             h.Attribute('testID', 'messages'),
@@ -335,7 +353,13 @@ const makeView =
                         }),
                         ...(model.isAtEnd
                           ? []
-                          : [scrollToEndButton(h, Message.PressedScrollToEnd())]),
+                          : [
+                              scrollToEndButton(
+                                h,
+                                Message.PressedScrollToEnd(),
+                                roundButtonBottom(model.dockMode, model.keyboardHeight),
+                              ),
+                            ]),
                       ],
                     ),
                   }),

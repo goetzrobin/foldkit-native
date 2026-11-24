@@ -16,3 +16,4 @@ export {
   keyboardDockMode,
 } from './detect.js'
 export type { KeyboardDockMode, KeyboardDockOptions } from './detect.js'
+export { measureAppWindow } from './appWindow.js'

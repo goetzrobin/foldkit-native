@@ -59,6 +59,8 @@ const Remembered = Storage.persisted({ key: 'foldkit.demo.remembered', schema: S
 
 export const Model = Schema.Struct({
   keyboardHeight: Schema.Number,
+  /** How much of the app's window the keyboard covers. See `Keyboard`. */
+  keyboardCovers: Schema.Number,
   maybeAppStatus: Schema.Option(AppState.AppStatus),
   /** Every status seen, oldest first: leaving the app cannot be watched live. */
   appStatusHistory: Schema.Array(AppState.AppStatus),
@@ -339,6 +341,12 @@ export const makeUpdate = (exit: () => void) => {
 
       GotKeyboardMessage: ({ message }) => ({
         model: modifyFields(model, {
+          keyboardCovers: keyboardCovers =>
+            Keyboard.Message.match(message, {
+              ShownKeyboard: ({ covers }) => covers,
+              HidKeyboard: () => 0,
+              CompletedDismissKeyboard: () => keyboardCovers,
+            }),
           keyboardHeight: keyboardHeight =>
             Keyboard.Message.match(message, {
               ShownKeyboard: ({ height }) => height,
@@ -379,6 +387,7 @@ export const makeUpdate = (exit: () => void) => {
 export const init = (): Return => ({
   model: {
     keyboardHeight: 0,
+    keyboardCovers: 0,
     maybeAppStatus: Option.none(),
     appStatusHistory: [],
     maybeScheme: Option.none(),
@@ -586,7 +595,7 @@ export const makeView =
                         padding: 16,
                         gap: 14,
                         // Room to scroll a field clear of the keyboard.
-                        paddingBottom: 16 + model.keyboardHeight,
+                        paddingBottom: 16 + model.keyboardCovers,
                       }),
                     ],
                     [

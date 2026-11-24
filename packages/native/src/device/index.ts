@@ -44,6 +44,7 @@ import * as AppState from './appState.js'
 import * as Clipboard from './clipboard.js'
 import * as ColorScheme from './colorScheme.js'
 import * as Haptics from './haptics.js'
+import { measureAppWindow } from '../keyboard/appWindow.js'
 import * as Keyboard from './keyboard.js'
 import * as Linking from './linking.js'
 import * as Network from './network.js'
@@ -175,6 +176,8 @@ export const live = (modules: LiveModules): Layer.Layer<Services> => {
     Keyboard.live(reactNative.Keyboard, {
       platform: reactNative.Platform.OS,
       ...(modules.blurFocused !== undefined && { blurFocused: modules.blurFocused }),
+      // Android: learns on the phone whether the window makes its own room.
+      measureWindow: measureAppWindow,
     }),
     AppState.live(reactNative.AppState),
     ColorScheme.live(reactNative.Appearance),

@@ -39,6 +39,13 @@
  * the bar's content is from the bottom of the window while the keyboard is
  * down.
  *
+ * INSET. A third way, for a chat, on top of native mode: give `inset` and
+ * `above`. The content above is then not moved and not padded at all. It
+ * keeps its full height and the bar lies over its bottom edge. The list
+ * named by `inset.listId` is told when the keyboard starts and stops, and
+ * makes room with its scroll view's bottom inset (`../chat/chatScroll.ts`).
+ * Outside native mode `inset` is ignored.
+ *
  * Android always uses the fallback. ng-native does not use
  * react-native-keyboard-controller there either: it has a native view of its
  * own for Android, in a package this project does not install.
@@ -55,6 +62,7 @@ import { type VNode, element } from 'foldkit/renderTarget'
 
 import { prop, style } from '../attributes.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
+import { tellListKeyboard } from '../list/module.js'
 import { bagOf, nodeOf } from '../modules.js'
 import { keepMoving } from '../motion/clock.js'
 import { dockAnimated, keyboardDockMode, noteEngine } from './detect.js'
@@ -94,6 +102,12 @@ export type KeyboardDock = Readonly<{
   offset?: number
   /** The bar's color, which also fills the strip beside the home indicator. */
   backgroundColor?: string
+  /**
+   * Lay the bar over the bottom of `above` and leave `above` alone. The list
+   * with this id (one with `keyboardInset`) is told about the keyboard and
+   * the bar's height. See INSET at the top of this file.
+   */
+  inset?: Readonly<{ listId: string }>
 }>
 
 const DOCK_DATA = 'foldkitKeyboardDock'
@@ -107,6 +121,8 @@ type Marker = Readonly<{
   offset: number | undefined
   isNative: boolean
   hasAbove: boolean
+  /** The list to tell, when the bar lies over the content. */
+  insetListId: string | undefined
 }>
 
 /** A native view the dock draws for itself, out of the way of the layout. */
@@ -151,6 +167,33 @@ export const keyboardDock = <Message>(
   // up. With these two left out, the bar's nearest native parent is the
   // caller's own container, which is as tall as the screen area.
   const seat = box([], [controller, gesture, bar].filter(part => part !== null) as never)
+  const insetListId =
+    isNative && config.above !== undefined ? config.inset?.listId : undefined
+  if (insetListId !== undefined) {
+    // The content fills the whole area and the bar is laid over its bottom
+    // edge. Neither view around the bar becomes a native view (see below),
+    // so the bar still takes touches where it is drawn.
+    const over = box(
+      [style({ position: 'absolute', left: 0, right: 0, bottom: 0 })] as never,
+      [seat],
+    )
+    const whole = box([style({ flex: 1 })] as never, [
+      box([style({ flex: 1 })] as never, config.above as never),
+      over,
+    ])
+    if (whole !== null) {
+      const marker: Marker = {
+        keyboardHeight: Math.max(0, config.keyboardHeight),
+        offset: config.offset,
+        isNative,
+        hasAbove: true,
+        insetListId,
+      }
+      ;(whole.data ??= {})[DOCK_DATA] = marker
+      whole.key = 'keyboard-dock-inset'
+    }
+    return whole
+  }
   const host = box([], [seat])
 
   // Also styled by the module alone. Kept as a real view, for the phone to move.
@@ -177,6 +220,7 @@ export const keyboardDock = <Message>(
       offset: config.offset,
       isNative,
       hasAbove: lift !== null,
+      insetListId: undefined,
     }
     ;(outer.data ??= {})[DOCK_DATA] = marker
     // The two modes are built from different views. If the mode is switched
@@ -230,6 +274,10 @@ type Dock = {
   measuredRest: number | undefined
   /** Native mode: the keyboard's height as the phone last reported it. */
   reported: number
+  /** Inset: how tall the bar's content is, once the phone has said. */
+  contentHeight: number | undefined
+  /** Inset: a finger is dragging the keyboard, and the list has been told. */
+  isDragged: boolean
   /** Fallback mode: how far the bar is padded up now, or null before the first time. */
   pad: number | null
   /** Fallback mode: no measuring before this time, because the bar is still easing. */
@@ -278,7 +326,10 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       content: childAt(childAt(bar, 0), 0),
       controller: marker.isNative ? childAt(seat, 0) : undefined,
       gesture: marker.isNative ? childAt(seat, 1) : undefined,
-      lift: marker.hasAbove ? childAt(childAt(outer, 0), 0) : undefined,
+      lift:
+        marker.hasAbove && marker.insetListId === undefined
+          ? childAt(childAt(outer, 0), 0)
+          : undefined,
     }
   }
 
@@ -326,6 +377,8 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
    * keyboard overlaps in the layout draws a frosted edge over that part.
    */
   const settleNative = (dock: Dock): void => {
+    // With an inset nothing is laid out again: the list makes its own room.
+    if (dock.marker.insetListId !== undefined) return
     const covered = Math.max(0, dock.reported - restOf(dock))
     if (dock.lift !== undefined) {
       engine.setProp(dock.lift, 'style', { flex: 1, paddingBottom: covered })
@@ -378,18 +431,39 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     const range = rangeFor(restOf(dock))
     dock.barDrive = drive(dock, dock.bar, controller, range, null)
     if (dock.lift !== undefined) dock.liftDrive = drive(dock, dock.lift, controller, range, 0)
-    const moved = (event: unknown): void => {
-      const height = (event as NativeEvent | undefined)?.nativeEvent?.height
-      if (!dock.isAlive || typeof height !== 'number') return
-      dock.reported = height
-      settleNative(dock)
-      engine.commit()
-    }
+    const moved =
+      (phase: 'start' | 'end') =>
+      (event: unknown): void => {
+        const height = (event as NativeEvent | undefined)?.nativeEvent?.height
+        if (!dock.isAlive || typeof height !== 'number') return
+        dock.reported = height
+        const listId = dock.marker.insetListId
+        if (listId !== undefined) {
+          if (phase === 'end') dock.isDragged = false
+          // The list commits what it changes, and scrolls after that.
+          tellListKeyboard(listId, { type: phase, height })
+          return
+        }
+        settleNative(dock)
+        engine.commit()
+      }
     dock.stops.push(
       // The start says where the keyboard is going, the end where it stopped.
-      engine.setEventListener(controller, 'topKeyboardMoveStart', moved),
-      engine.setEventListener(controller, 'topKeyboardMoveEnd', moved),
+      engine.setEventListener(controller, 'topKeyboardMoveStart', moved('start')),
+      engine.setEventListener(controller, 'topKeyboardMoveEnd', moved('end')),
     )
+    if (dock.marker.insetListId !== undefined) {
+      dock.stops.push(
+        // Sent on every frame of a drag on the keyboard. The first one of a
+        // drag is passed on, as a flag and no more. The rest do nothing.
+        engine.setEventListener(controller, 'topKeyboardMoveInteractive', () => {
+          const listId = dock.marker.insetListId
+          if (!dock.isAlive || dock.isDragged || listId === undefined) return
+          dock.isDragged = true
+          tellListKeyboard(listId, { type: 'interactive' })
+        }),
+      )
+    }
   }
 
   /**
@@ -429,11 +503,20 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       ? dock.reported === 0
       : dock.marker.keyboardHeight === 0 && (dock.pad ?? 0) === 0 && Date.now() >= dock.quietAfter
 
+  /** Inset: the list makes room for the bar, so it is told how tall the bar is. */
+  const tellBar = (dock: Dock): void => {
+    const listId = dock.marker.insetListId
+    if (listId === undefined || dock.contentHeight === undefined) return
+    const rest = restOf(dock)
+    tellListKeyboard(listId, { type: 'bar', height: dock.contentHeight + rest, rest })
+  }
+
   const useRest = (dock: Dock): void => {
     if (dock.controller === undefined) {
       padFallback(dock, false)
       return
     }
+    tellBar(dock)
     const range = rangeFor(restOf(dock))
     dock.barDrive?.update(range)
     dock.liftDrive?.update(range)
@@ -497,6 +580,8 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       lift: nodeFor(parts.lift),
       measuredRest: undefined,
       reported: 0,
+      contentHeight: undefined,
+      isDragged: false,
       pad: null,
       quietAfter: 0,
       barDrive: null,
@@ -519,6 +604,10 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
         // A drag takes the keyboard from the top of the bar, as Messages does.
         if (dock.gesture !== undefined && typeof height === 'number') {
           engine.setProp(dock.gesture, 'offset', height)
+        }
+        if (typeof height === 'number') {
+          dock.contentHeight = height
+          tellBar(dock)
         }
         measureRest(dock)
       }),
@@ -548,6 +637,8 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     // The bar's children are drawn after this runs, so look once they are.
     afterCommit(() => {
       if (!dock.isAlive) return
+      // A list made again since the last time hears the bar's height anew.
+      tellBar(dock)
       nameField(dock, partsOf(vnode, marker).content)
       if (before.offset !== marker.offset) measureRest(dock)
     })
