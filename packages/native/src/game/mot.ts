@@ -232,6 +232,38 @@ export const drawnPositions = (state: MotState, spec: TrialSpec): Array<Point> =
   }))
 }
 
+/**
+ * How far each dot was drawn to move between two moments, for measuring
+ * speed on screen. A dot that turned in between (it bounced), or that is
+ * drawn held against a wall, has no straight line to measure and answers
+ * undefined.
+ */
+export const straightDistances = (
+  before: MotState,
+  after: MotState,
+  spec: TrialSpec,
+): Array<number | undefined> => {
+  const r = spec.dotRadius
+  const right = Math.max(r, spec.width - r)
+  const bottom = Math.max(r, spec.height - r)
+  const place = (state: MotState, index: number): Point | undefined => {
+    const dot = state.dots[index] as Dot
+    const carry = Math.max(0, state.elapsedMs - state.steps * STEP_MS) / 1000
+    const x = dot.x + dot.vx * carry
+    const y = dot.y + dot.vy * carry
+    return x < r || x > right || y < r || y > bottom ? undefined : { x, y }
+  }
+  return after.dots.map((dot, index) => {
+    const was = before.dots[index]
+    if (was === undefined || was.vx !== dot.vx || was.vy !== dot.vy) return undefined
+    const from = place(before, index)
+    const to = place(after, index)
+    return from === undefined || to === undefined
+      ? undefined
+      : Math.hypot(to.x - from.x, to.y - from.y)
+  })
+}
+
 /** The whole trial in one go: where the dots are `ms` after they start moving. */
 export const stateAt = (spec: TrialSpec, ms: number): MotState =>
   step(initialState(spec), ms, spec)
@@ -286,7 +318,11 @@ export type Timing = Readonly<{
   medianFrameMs: number
   /** The longest gap between two frames. */
   worstFrameMs: number
-  /** How fast the dots moved on screen, in points per second, averaged over all dots. */
+  /**
+   * How fast the dots were drawn to move, in points per second: distance on
+   * screen over time on the phone's clock, averaged over dots and frames.
+   * Frames in which a dot bounced are left out for that dot.
+   */
   measuredSpeed: number
   /** How long the dots moved, by the phone's clock. */
   actualDurationMs: number
@@ -296,12 +332,11 @@ export type Timing = Readonly<{
 
 /**
  * Sums up a trial's frames. `gaps` are the times between one frame and the
- * next while the dots moved. `pathLength` is how far the dots travelled on
- * screen, averaged over the dots.
+ * next while the dots moved.
  */
 export const summarise = (
   gaps: ReadonlyArray<number>,
-  pathLength: number,
+  measuredSpeed: number,
   actualDurationMs: number,
   actualCueMs: number,
 ): Timing => {
@@ -318,7 +353,7 @@ export const summarise = (
     dropped: gaps.filter(gap => gap > 1.5 * median).length,
     medianFrameMs: median,
     worstFrameMs: sorted.length === 0 ? 0 : (sorted[sorted.length - 1] as number),
-    measuredSpeed: actualDurationMs > 0 ? pathLength / (actualDurationMs / 1000) : 0,
+    measuredSpeed,
     actualDurationMs,
     actualCueMs,
   }

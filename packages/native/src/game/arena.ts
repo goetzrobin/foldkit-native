@@ -38,6 +38,7 @@ import {
   isTarget,
   stateAt,
   step,
+  straightDistances,
   summarise,
 } from './mot.js'
 
@@ -117,8 +118,9 @@ type Run = {
   lastFrame: number
   /** Milliseconds between each frame and the one before, while moving. */
   gaps: Array<number>
-  /** How far the dots have gone on screen, averaged over the dots. */
-  path: number
+  /** Distance drawn, and the time it took, summed over dots moving straight. */
+  measuredPoints: number
+  measuredMs: number
 }
 
 const start = (surface: CanvasSurface, first: ArenaProps) => {
@@ -180,16 +182,16 @@ const start = (surface: CanvasSurface, first: ArenaProps) => {
     const gap = now - run.lastFrame
     run.lastFrame = now
     run.gaps.push(gap)
-    run.state = step(run.state, gap, run.spec)
-    const next = drawnPositions(run.state, run.spec)
-    let moved = 0
-    next.forEach((dot, index) => {
-      const before = run?.drawn[index] ?? dot
-      moved += Math.hypot(dot.x - before.x, dot.y - before.y)
-    })
-    run.path += next.length === 0 ? 0 : moved / next.length
-    run.drawn = next
+    const before = run.state
+    run.state = step(before, gap, run.spec)
+    run.drawn = drawnPositions(run.state, run.spec)
     if (!isFinished(run.state, run.spec)) {
+      // The last frame is left out: the dots stop part of the way through it.
+      for (const distance of straightDistances(before, run.state, run.spec)) {
+        if (distance === undefined) continue
+        run.measuredPoints += distance
+        run.measuredMs += gap
+      }
       draw()
       surface.frame(tick)
       return
@@ -198,7 +200,12 @@ const start = (surface: CanvasSurface, first: ArenaProps) => {
     draw()
     surface.emit('movementEnded', {
       runId: run.runId,
-      timing: summarise(run.gaps, run.path, now - run.moveStart, run.actualCueMs),
+      timing: summarise(
+        run.gaps,
+        run.measuredMs > 0 ? run.measuredPoints / (run.measuredMs / 1000) : 0,
+        now - run.moveStart,
+        run.actualCueMs,
+      ),
     } satisfies MovementEnded)
   }
 
@@ -215,7 +222,8 @@ const start = (surface: CanvasSurface, first: ArenaProps) => {
       moveStart: 0,
       lastFrame: 0,
       gaps: [],
-      path: 0,
+      measuredPoints: 0,
+      measuredMs: 0,
     }
     draw()
     surface.frame(tick)
@@ -235,7 +243,8 @@ const start = (surface: CanvasSurface, first: ArenaProps) => {
       moveStart: 0,
       lastFrame: 0,
       gaps: [],
-      path: 0,
+      measuredPoints: 0,
+      measuredMs: 0,
     }
     draw()
   }

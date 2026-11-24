@@ -16,6 +16,7 @@ import {
   scoreTrial,
   stateAt,
   step,
+  straightDistances,
   summarise,
 } from '../src/game/index.js'
 import { Message, type Model, initialModel, makeUpdateForTest } from './demos/mot.js'
@@ -174,6 +175,28 @@ describe('the movement', () => {
     }
   })
 
+  it('measures the set speed on screen at any frame rate, leaving out dots that bounced', () => {
+    for (const frameMs of [16, 1000 / 60, 1000 / 120, 33.4]) {
+      let state = initialState(SPEC)
+      let points = 0
+      let ms = 0
+      let skipped = 0
+      for (let frame = 0; frame < 150; frame++) {
+        const next = step(state, frameMs, SPEC)
+        for (const distance of straightDistances(state, next, SPEC)) {
+          if (distance === undefined) skipped += 1
+          else {
+            points += distance
+            ms += frameMs
+          }
+        }
+        state = next
+      }
+      expect(points / (ms / 1000)).toBeCloseTo(SPEC.speed, 6)
+      expect(skipped).toBeGreaterThan(0)
+    }
+  })
+
   it('makes dots that bounce off each other go other ways than dots that do not', () => {
     const spec = { ...SPEC, dotCount: 20, durationMs: 10_000 }
     expect(stateAt({ ...spec, collide: true }, 10_000).dots).not.toEqual(
@@ -226,7 +249,7 @@ describe('scoring and the timing summary', () => {
 
   it('counts frames, the usual and the worst gap, and late frames', () => {
     const gaps = [16, 17, 16, 16, 40, 16, 17, 16, 33, 16]
-    const timing = summarise(gaps, 960, 6000, 2004)
+    const timing = summarise(gaps, 160, 6000, 2004)
     expect(timing.frames).toBe(10)
     expect(timing.medianFrameMs).toBe(16)
     expect(timing.worstFrameMs).toBe(40)

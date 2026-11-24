@@ -226,6 +226,7 @@ export const makeViewPainter = (engine: Engine, parent: EngineNode): Painter => 
 
   /** A box whose top left corner is moved to `x`, `y`. */
   const boxStyle = (x: number, y: number, width: number, height: number, paint: Paint) => ({
+    display: 'flex',
     position: 'absolute',
     left: 0,
     top: 0,
@@ -249,6 +250,7 @@ export const makeViewPainter = (engine: Engine, parent: EngineNode): Painter => 
       const length = Math.hypot(x2 - x1, y2 - y1)
       const thickness = paint.stroke ?? 1
       show(take('line'), {
+        display: 'flex',
         position: 'absolute',
         left: 0,
         top: 0,
@@ -269,6 +271,7 @@ export const makeViewPainter = (engine: Engine, parent: EngineNode): Painter => 
         engine.setText(pooled.textNode, value)
       }
       show(pooled, {
+        display: 'flex',
         position: 'absolute',
         left: 0,
         top: 0,

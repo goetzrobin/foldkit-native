@@ -16,6 +16,7 @@ export {
   makeRandom,
   scoreTrial,
   stateAt,
+  straightDistances,
   step,
   summarise,
 } from './mot.js'
