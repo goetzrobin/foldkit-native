@@ -29,6 +29,7 @@ Foldkit program.
 | Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |
 | Object tracking | A tracking game drawn every frame with Skia, or with plain views where Skia is missing. Shows frame timing after each trial. |
 | Glass | Liquid Glass over scrolling colours: a card, a pill, a round button, two shapes that flow into one. A line says if it is real glass or the plain fallback. A second screen shows the tab bar options iOS 26 added. |
+| Server state | A crew list from a pretend server, kept in a cache outside the Model. A panel says what was loaded, when and why. Buttons slow the server, fail a request, and edit from "another device". See `docs/SERVER_STATE.md`. |
 
 Chat and AI chat have a button, "Keyboard: following" or "Keyboard: simple",
 that switches between two ways of keeping the text field above the keyboard.

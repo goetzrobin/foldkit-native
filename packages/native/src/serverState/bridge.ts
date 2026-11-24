@@ -114,6 +114,11 @@ export type ServerStateHandle<R> = Readonly<{
   isRunning: () => boolean
 }>
 
+/**
+ * Make one of these for each program, next to its `Atom.runtime`. The handle
+ * points at the registry of the program that is running, so two programs
+ * running at once must not share a handle.
+ */
 export const makeServerState = <R, ER>(
   runtime: Atom.AtomRuntime<R, ER>,
   options: ServerStateOptions = {},
