@@ -4,6 +4,9 @@
  * keyboard in its "inset" way, rows that grow as their text arrives, and a
  * scroll view that puts itself back inside its range when that shrinks.
  *
+ * - After Send, the question stays where it was put, to the half point,
+ *   while the reply grows under it, and the list does not follow the reply
+ *   past the bottom of the screen.
  * - The round button takes the list to the end and the list then follows
  *   the reply, until a finger drags it up. Scrolling back to the end by
  *   hand follows again.
@@ -12,13 +15,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.setConfig({ testTimeout: 90000 })
 
-import { type ChatPhone, breathe, startChatPhone } from '../support/flagship.js'
+import { type ChatPhone, TIMING, breathe, startChatPhone } from '../support/flagship.js'
+import { hold } from '../support/expoUi.js'
 import { makeNativeAnimated } from '../support/nativeAnimated.js'
 import { byTestId, flatten, textOf } from '../support/phone.js'
 import { type ScrollPhone, startScrollPhone } from '../support/scrollPhone.js'
 import { DOCK_CONTENT_ID } from '../../src/keyboard/dock.js'
 import { configureKeyboardDock } from '../../src/keyboard/index.js'
 import { listNumbers } from '../../src/list/index.js'
+import { LONG_PRESS_MS } from '../../flagship/longPress.js'
 
 const RUNNING = 'How do I start running?'
 const VIEWPORT = 700
@@ -48,7 +53,8 @@ const rowHeight = (row: ReturnType<typeof byTestId>): number | undefined => {
 /** A new chat with the keyboard's "inset" way, its first question answered. */
 const openChat = async (): Promise<void> => {
   configureKeyboardDock({ controller: true, nativeAnimated: makeNativeAnimated().native })
-  at = await startChatPhone()
+  // Quicker than the other tests, so a reply runs off the screen in a few seconds of clock.
+  at = await startChatPhone({ timing: { ...TIMING, tokensPerSecond: 400 } })
   const fabric = at.phone.fabric
   fabric.frames.set('View', WINDOW)
   fabric.frames.set(DOCK_CONTENT_ID, { x: 0, y: WINDOW.height - HOME_INDICATOR - COMPOSER, width: 402, height: COMPOSER })
@@ -73,9 +79,45 @@ const untilRunsOff = async (): Promise<void> => {
   expect(at.has('stop')).toBe(true)
 }
 
+describe('a question at the top while its reply streams', () => {
+  it('stays where it was put, to the half point, as the reply grows', async () => {
+    await openChat()
+    // The developer's numbers, held open on the chat's title.
+    await hold(at.phone.fabric, 'chat-title', LONG_PRESS_MS + 80)
+    expect(at.has('numbers')).toBe(true)
+    await at.ask(RUNNING)
+    // The question rises to its place, 16 points from the top, and the reply starts under it.
+    await at.until(() => /Starting to run/.test(growing()))
+    await at.advance(200)
+    const pinned = phone.topOf('row-c2')
+    expect(pinned).toBe(16)
+    const tops: Array<number> = []
+    let steps = 0
+    while (at.has('stop') && steps < 400) {
+      await at.advance(50)
+      tops.push(phone.topOf('row-c2'))
+      steps += 1
+    }
+    expect(steps).toBeGreaterThan(10)
+    const worst = Math.max(...tops.map(top => Math.abs(top - pinned)))
+    expect(worst).toBeLessThanOrEqual(0.5)
+    expect(phone.clamps).toEqual([])
+    // The reply ran past the bottom of the screen, and the list did not follow it there.
+    expect(at.has('scroll-to-end')).toBe(true)
+    expect(listNumbers('transcript')?.isAtEnd).toBe(false)
+    // The numbers say the same: where the question is, and that it has not moved.
+    expect(listNumbers('transcript')?.anchor).toMatchObject({ top: 16, step: 0, drift: 0 })
+    expect(at.shown('numbers')).toContain('question y 16.0 (step +0.0, drift +0.0)')
+  })
+})
+
 describe('following the reply', () => {
-  /** Whether the list is at its end, as the phone has it. */
-  const atEnd = (): boolean => Math.abs(phone.phone.offset - phone.furthest()) < 1
+  /**
+   * Whether the phone shows the last line of the reply just above the
+   * composer. (Its range may reach a little further for a moment while an
+   * inset is held back: see `writeInset` in src/list/module.ts.)
+   */
+  const atEnd = (): boolean => phone.phone.offset >= phone.phone.size + COMPOSER + HOME_INDICATOR - VIEWPORT - 1
 
   it('the round button goes to the end and then follows the reply, until a finger drags up', async () => {
     await openChat()

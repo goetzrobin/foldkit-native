@@ -178,8 +178,11 @@ type Inset = {
   /** How tall the rows were when it was given. */
   sentRows: number
   sentIndicator: number | undefined
-  /** How tall the rows' view was in the last commit. See `writeInset`. */
-  drawnRows: number | undefined
+  /**
+   * How tall the rows' view was in the commits the phone may not have taken
+   * in yet, oldest first, and in the last one it surely has. See `writeInset`.
+   */
+  drawnRows: Array<{ rows: number; at: number }>
   /** A draw that hands the phone an inset that was held back for one commit. */
   settleTimer: ReturnType<typeof setTimeout> | undefined
   /** Between the keyboard's start and its end. */
@@ -387,6 +390,35 @@ const syncInset = (state: ListState, inset: Inset): void => {
 const insetOf = (state: ListState, inset: Inset): number => {
   syncInset(state, inset)
   return inset.keyboard.totalPadding()
+}
+
+/**
+ * The least bottom inset that keeps the phone where it is, whichever of the
+ * recent rows' heights it still has when it takes this inset (see
+ * `writeInset`). A position already outside the range (a finger pulling
+ * past the end) is not kept.
+ */
+const insetKeepingPlace = (state: ListState, inset: Inset, rows: number): number => {
+  const newest = inset.drawnRows.at(-1)
+  // Only while the phone may still have other rows than these. Otherwise
+  // the inset is taken whole, and a smaller range is a real one.
+  if (inset.sent === undefined || newest === undefined || inset.drawnRows.length < 2 || state.viewport <= 0) return 0
+  const furthestNow = newest.rows + inset.sent - state.viewport
+  const place = Math.min(state.native, furthestNow)
+  const lowest = Math.min(rows, ...inset.drawnRows.map(each => each.rows))
+  return place + state.viewport - lowest
+}
+
+/** Notes the rows' height this commit gives the phone, and forgets what it surely has taken in. */
+const noteDrawnRows = (inset: Inset, rows: number, now: number): void => {
+  const history = inset.drawnRows
+  if (history.at(-1)?.rows !== rows) history.push({ rows, at: now })
+  // Keep the newest commit old enough to be on the phone, and every one after it.
+  let surely = -1
+  for (let at = 0; at < history.length; at++) {
+    if (now - (history[at] as { at: number }).at >= INSET_SETTLE_MS) surely = at
+  }
+  if (surely > 0) history.splice(0, surely)
 }
 
 /**
@@ -842,29 +874,46 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   /**
    * Gives the phone's scroll view its bottom inset, when that has changed.
    * It goes in the same commit as the rows, so the blank space under a
-   * growing answer shrinks in the same frame as the answer grows.
+   * growing answer shrinks as the answer grows.
    *
    * A smaller inset waits while the keyboard is moving or the list is
    * gliding. The list is then on its way to a place inside the smaller
    * range, and UIKit puts a scroll view that is outside its range back in
    * at once, with a jump, the moment the range shrinks.
+   *
+   * And a smaller inset never goes in the same commit as taller rows when
+   * together they would leave the phone outside its range for a moment.
+   * React Native hands a commit to the scroll view as its props first (the
+   * inset), then its state (the content size, the rows' height):
+   * `RCTMountingManager.mm` calls `updateProps` before `updateState`. In
+   * between, the range is the old rows with the new inset. While a reply
+   * grows under a question held at the top, the list rests at the very end
+   * of its range, and the rows grow by as much as the inset shrinks: in
+   * between, the range is short by the growth, and UIKit pulls the list
+   * back by that much. The question then moved down by every line the
+   * reply grew (and by a row's estimated height when the reply first
+   * appeared). Now the inset that commit carries is the larger of the two,
+   * and the smaller one follows in a commit of its own (`settleInset`).
    */
   const writeInset = (state: ListState): void => {
     const inset = state.inset
     if (inset === undefined) return
     const wanted = insetOf(state, inset)
     const rows = rowsHeight(state)
+    noteDrawnRows(inset, rows, Date.now())
+    const toSend = Math.max(wanted, insetKeepingPlace(state, inset, rows))
     // The blank space under an answer shrinks as the answer grows by as
     // much. The range does not get smaller then, so nothing has to wait.
     const isWaiting =
       inset.sent !== undefined &&
-      rows + wanted < inset.sentRows + inset.sent - 0.5 &&
+      rows + toSend < inset.sentRows + inset.sent - 0.5 &&
       (inset.isKeyboardMoving || state.glide !== undefined)
-    if (wanted !== inset.sent && !isWaiting) {
-      inset.sent = wanted
+    if (toSend !== inset.sent && !isWaiting) {
+      inset.sent = toSend
       inset.sentRows = rows
-      engine.setProp(state.scroll, 'contentInset', { top: 0, left: 0, bottom: wanted, right: 0 })
+      engine.setProp(state.scroll, 'contentInset', { top: 0, left: 0, bottom: toSend, right: 0 })
     }
+    if (toSend > wanted) settleInset(state, inset)
     // The scroll bar ends at the composer. The blank space is not in its way.
     const indicator = inset.keyboard.indicatorPadding()
     if (indicator !== inset.sentIndicator) {
@@ -876,6 +925,19 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
         right: 0,
       })
     }
+  }
+
+  /**
+   * An inset held back for one commit (see `writeInset`) is handed over a
+   * moment later, in a commit that leaves the rows as they are, unless a
+   * draw in between has done it already.
+   */
+  const settleInset = (state: ListState, inset: Inset): void => {
+    if (inset.settleTimer !== undefined) return
+    inset.settleTimer = setTimeout(() => {
+      inset.settleTimer = undefined
+      if (state.isAlive) state.draw('own')
+    }, INSET_SETTLE_MS)
   }
 
   const makeDraw =
@@ -1084,7 +1146,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       sent: undefined,
       sentRows: 0,
       sentIndicator: undefined,
-      drawnRows: undefined,
+      drawnRows: [],
       settleTimer: undefined,
       isKeyboardMoving: false,
     }
