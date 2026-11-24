@@ -11,6 +11,7 @@ export { dismissKeyboardOnDrag, keyboardDock } from './dock.js'
 export type { KeyboardDock } from './dock.js'
 export {
   configureKeyboardDock,
+  forceKeyboardDockFallback,
   keyboardDockFallbackReason,
   keyboardDockMode,
 } from './detect.js'

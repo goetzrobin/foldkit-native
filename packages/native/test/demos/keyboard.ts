@@ -33,6 +33,7 @@ import {
 } from '../../src/index.js'
 import {
   dismissKeyboardOnDrag,
+  forceKeyboardDockFallback,
   keyboardDock,
   keyboardDockFallbackReason,
   keyboardDockMode,
@@ -52,6 +53,8 @@ export const Model = Schema.Struct({
   draft: Schema.String,
   /** From the phone's keyboard events. The dock reads it in fallback mode. */
   keyboardHeight: Schema.Number,
+  /** The demo's own switch, for comparing the two modes on one phone. */
+  isFallbackForced: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -60,6 +63,8 @@ export const Message = defineMessageUnion({
   CompletedExit: {},
   ChangedDraft: { text: Schema.String },
   PressedSend: {},
+  PressedSwitchMode: {},
+  CompletedSwitchMode: { isFallbackForced: Schema.Boolean },
   GotKeyboardMessage: { message: Keyboard.Message },
 })
 export type Message = typeof Message.Type
@@ -67,7 +72,19 @@ export type Message = typeof Message.Type
 const makeUpdate = (env: DemoEnv) => {
   const Exit = Command.define('Exit', {
     messages: [Message.CompletedExit],
-    execute: Effect.sync(() => env.exit()).pipe(Effect.as(Message.CompletedExit())),
+    execute: Effect.sync(() => {
+      // The switch is for this demo. The rest of the app gets its dock back.
+      forceKeyboardDockFallback(false)
+      env.exit()
+    }).pipe(Effect.as(Message.CompletedExit())),
+  })
+  const SwitchMode = Command.define('SwitchMode', {
+    args: { isFallbackForced: Schema.Boolean },
+    messages: [Message.CompletedSwitchMode],
+    execute: ({ isFallbackForced }) =>
+      Effect.sync(() => forceKeyboardDockFallback(isFallbackForced)).pipe(
+        Effect.as(Message.CompletedSwitchMode({ isFallbackForced })),
+      ),
   })
 
   return (model: Model, message: Message) =>
@@ -85,6 +102,15 @@ const makeUpdate = (env: DemoEnv) => {
           }),
         }
       },
+      PressedSwitchMode: () => ({
+        model,
+        commands: [SwitchMode({ isFallbackForced: !model.isFallbackForced })],
+      }),
+      // The Model changes only once the switch is made, so the draw that
+      // follows builds the dock in its new mode.
+      CompletedSwitchMode: ({ isFallbackForced }) => ({
+        model: modifyFields(model, { isFallbackForced: () => isFallbackForced }),
+      }),
       GotKeyboardMessage: ({ message: keyboard }) => ({
         model: modifyFields(model, {
           keyboardHeight: height =>
@@ -103,6 +129,7 @@ const init: Runtime.ElementInit<Model, Message> = () => ({
     lines: Array.from({ length: FIRST_LINES }, (_, index) => `Line ${FIRST_LINES - index}`),
     draft: '',
     keyboardHeight: 0,
+    isFallbackForced: false,
   },
 })
 
@@ -171,7 +198,20 @@ const panel = (model: Model, h: HtmlBuilder<Message>): Html =>
     [
       box(
         [style({ flexDirection: 'row', gap: 8 })],
-        [button(h, 'exit', 'Exit', Message.PressedExit())],
+        [
+          button(h, 'exit', 'Exit', Message.PressedExit()),
+          // Only where there are two modes to compare.
+          ...(model.isFallbackForced || keyboardDockMode() === 'native'
+            ? [
+                button(
+                  h,
+                  'switch-mode',
+                  model.isFallbackForced ? 'Use native following' : 'Use the fallback',
+                  Message.PressedSwitchMode(),
+                ),
+              ]
+            : []),
+        ],
       ),
       text(
         [prop('testID', 'dock-mode'), style({ color: ACCENT, fontSize: 15, fontWeight: '600' })],

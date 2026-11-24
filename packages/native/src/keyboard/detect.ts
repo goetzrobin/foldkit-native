@@ -80,6 +80,17 @@ export const configureKeyboardDock = (options: KeyboardDockOptions): void => {
   if (options.nativeAnimated !== undefined) animated = options.nativeAnimated
 }
 
+let isFallbackForced = false
+
+/**
+ * Switches every dock to the fallback, or back to what the build allows. For
+ * comparing the two modes on one phone: the showcase has a button for it.
+ * Redraw after calling it.
+ */
+export const forceKeyboardDockFallback = (isForced: boolean): void => {
+  isFallbackForced = isForced
+}
+
 /** The animation module the app handed over for the dock, if it did. */
 export const dockAnimated = (): NativeAnimated | null => animated
 
@@ -108,6 +119,7 @@ const platform = (): string => {
  * phone. Empty when the mode is `native`.
  */
 export const keyboardDockFallbackReason = (): string => {
+  if (isFallbackForced) return 'switched to the fallback by the app'
   if (platform() !== 'ios') return 'native following is built for iOS only'
   if (!hasController()) return 'react-native-keyboard-controller is not in this build'
   if (!engineDrives && animated === null) {

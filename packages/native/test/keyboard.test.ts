@@ -32,6 +32,7 @@ import {
 import { DOCK_CONTENT_ID } from '../src/keyboard/dock.js'
 import {
   configureKeyboardDock,
+  forceKeyboardDockFallback,
   keyboardDock,
   keyboardDockFallbackReason,
   keyboardDockMode,
@@ -154,6 +155,7 @@ describe('the keyboard dock', () => {
     await stop()
     surface.dispose()
     configureKeyboardDock({ controller: 'detect', nativeAnimated: null })
+    forceKeyboardDockFallback(false)
     registerPlatformComponents('ios')
   })
 
@@ -355,6 +357,43 @@ describe('the keyboard dock', () => {
       await settle()
       finishFrames()
       expect(seat().props['paddingBottom']).toBe(KEYBOARD)
+    })
+  })
+
+  describe('the demo, where both modes are possible', () => {
+    it('switches to the fallback and back with a button', async () => {
+      await startDemo(NATIVE)
+      await press(fabric, 'switch-mode')
+      expect(textOf(byTestId(fabric, 'dock-mode'))).toBe(
+        'Mode: fallback (switched to the fallback by the app)',
+      )
+      expect(named('KeyboardControllerView')).toHaveLength(0)
+      expect(animated.drivenViews()).toEqual([])
+      device.keyboard.show(KEYBOARD)
+      await settle()
+      finishFrames()
+      expect(seat().props['paddingBottom']).toBe(KEYBOARD)
+
+      await press(fabric, 'switch-mode')
+      expect(textOf(byTestId(fabric, 'dock-mode'))).toBe(
+        'Mode: following the keyboard natively',
+      )
+      expect(named('KeyboardControllerView')).toHaveLength(1)
+      expect(animated.translateY(bar().reactTag, KEYBOARD)).toBe(-KEYBOARD)
+      expect(seat().props['paddingBottom'] ?? 0).toBe(0)
+    })
+
+    it('gives the rest of the app its dock back on Exit', async () => {
+      await startDemo(NATIVE)
+      await press(fabric, 'switch-mode')
+      expect(keyboardDockMode()).toBe('fallback')
+      await press(fabric, 'exit')
+      expect(keyboardDockMode()).toBe('native')
+    })
+
+    it('has no switch where only the fallback is possible', async () => {
+      await startDemo(WITHOUT_VIEWS)
+      expect(hasTestId(fabric, 'switch-mode')).toBe(false)
     })
   })
 

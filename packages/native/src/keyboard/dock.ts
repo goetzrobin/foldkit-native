@@ -167,6 +167,9 @@ export const keyboardDock = <Message>(
       hasAbove: lift !== null,
     }
     ;(outer.data ??= {})[DOCK_DATA] = marker
+    // The two modes are built from different views. If the mode is switched
+    // while a dock is on screen, the dock is made again, not patched.
+    outer.key = isNative ? 'keyboard-dock-native' : 'keyboard-dock-fallback'
   }
   return outer
 }
