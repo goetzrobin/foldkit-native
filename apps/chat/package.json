@@ -5,8 +5,8 @@
   "main": "index.ts",
   "scripts": {
     "start": "npm run sync && expo start",
-    "ios": "expo run:ios",
-    "android": "expo run:android",
+    "ios": "npm run sync && expo run:ios",
+    "android": "npm run sync && expo run:android",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/make-icons.mjs",
     "postinstall": "npm run sync && node metro.config.js",
