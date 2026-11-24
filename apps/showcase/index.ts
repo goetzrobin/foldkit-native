@@ -39,6 +39,7 @@ import {
 import { registerExpoUi } from './native/src/controls'
 import { registerGlass } from './native/src/glass'
 import { configureKeyboardDock } from './native/src/keyboard'
+import { configureSheets } from './native/src/menus'
 import { configureSkia, registerSkia } from './native/src/skia'
 import { configureWorklets } from './native/src/worklets'
 import { makeDemos } from './native/test/demos'
@@ -68,6 +69,9 @@ registerGlass()
 // not have it, the demo uses React Native's own sheet and switch, or plain
 // views, and says so. Like registerGlass, this must run after `import 'expo'`.
 registerExpoUi()
+// The action sheet (iOS) and the list dialog (Android) are React Native's
+// own native modules. They are asked for by name, as Skia's is above.
+configureSheets({ nativeModule: name => TurboModuleRegistry.get(name) })
 
 // For the Worklets demo: code that runs on the phone's UI thread. Only
 // `react-native-worklets` is loaded as JavaScript, and it imports no React.
