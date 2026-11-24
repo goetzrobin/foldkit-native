@@ -22,6 +22,7 @@ import { makeDemo as makeNavigation } from './navigation.js'
 import { makeDemo as makeServerState } from './serverState.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
+import { makeDemo as makeVoice } from './voice.js'
 import { makeDemo as makeWorklets } from './worklets.js'
 
 export type DemoResources = Readonly<{
@@ -121,5 +122,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     blurb: 'A crew list from a pretend server. A panel says what was loaded, when, and why.',
     start: (container, env) =>
       Runtime.embed(makeServerState(container, env, resources.device)),
+  },
+  {
+    id: 'voice',
+    title: 'Voice notes',
+    blurb: 'Record a note with a live level meter, keep it on the phone, play it back at 1x, 1.5x or 2x.',
+    start: (container, env) => Runtime.embed(makeVoice(container, env, resources.device)),
   },
 ]
