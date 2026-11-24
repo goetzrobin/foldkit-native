@@ -10,6 +10,7 @@ import { Runtime } from 'foldkit'
 
 import type { BackSource, Phone } from '../../src/index.js'
 import { makeNotes } from '../notes.js'
+import { makeDemo as makeAiBackend } from './aiBackend.js'
 import { makeDemo as makeAiChat } from './aiChat.js'
 import { makeDemo as makeChat } from './chat.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
@@ -176,5 +177,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Voice notes',
     blurb: 'Record a note with a live level meter, keep it on the phone, play it back at 1x, 1.5x or 2x.',
     start: (container, env) => Runtime.embed(makeVoice(container, env, resources.device)),
+  },
+  {
+    id: 'ai-backend',
+    title: 'AI backend',
+    blurb: 'A pretend AI server inside the app. Ask, stop, regenerate, switch on chaos. Shows every Message.',
+    start: (container, env) => Runtime.embed(makeAiBackend(container, env, resources.device)),
   },
 ]
