@@ -15,6 +15,11 @@
  * The bar keeps clear of the home indicator by itself. Put it in a screen
  * whose own safe area leaves the bottom edge alone, or the gap is doubled.
  *
+ * Put it directly in a container that is as tall as the area the bar may
+ * move over, such as the screen's content. The bar is drawn outside its own
+ * place in the layout while the keyboard is up, and on iOS a view only takes
+ * touches inside its parent's frame.
+ *
  * There are two modes, chosen once per app (see `detect.ts`).
  *
  * NATIVE. react-native-keyboard-controller has a native view that reports
@@ -138,8 +143,15 @@ export const keyboardDock = <Message>(
     : null
   const gesture = isNative ? gestureArea([style(OUT_OF_FLOW as never)] as never, []) : null
   // The module below writes this view's style. Nothing else may.
+  //
+  // This view and the one around it carry layout only: no color, no
+  // listeners. The phone therefore makes no native view for them, and that
+  // matters. On iOS a native view ignores touches outside its own frame, and
+  // the bar is drawn far above where the layout has it once the keyboard is
+  // up. With these two left out, the bar's nearest native parent is the
+  // caller's own container, which is as tall as the screen area.
   const seat = box([], [controller, gesture, bar].filter(part => part !== null) as never)
-  const host = box(background as never, [seat])
+  const host = box([], [seat])
 
   // Also styled by the module alone. Kept as a real view, for the phone to move.
   const lift =
@@ -510,8 +522,6 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
         }
         measureRest(dock)
       }),
-      // A rotation moves the bar without changing its content's size.
-      engine.setEventListener(dock.seat, 'topLayout', () => measureRest(dock)),
     )
     // Connecting and the first measurement need the views to be on the phone.
     afterCommit(() => {
