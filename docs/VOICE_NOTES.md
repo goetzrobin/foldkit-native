@@ -3,8 +3,9 @@
 Record a note, keep it on the phone, play it back. The first part is for a
 reader who does not code. The appendix is for engineers.
 
-The code is in `packages/native/src/device/` (`recorder.ts`, `player.ts`,
-`voiceNotes.ts`, `audioNative.ts`). The demo is "Voice notes" in the showcase
+The code is in `packages/native/src/host/device/` (`recorder.ts`, `player.ts`,
+`voiceNotes.ts`, `audioNative.ts`), with the Commands and Subscriptions in
+`packages/native/src/foldkit/device/`. The demo is "Voice notes" in the showcase
 menu. Nothing here has been seen or heard on a real phone yet. The questions
 for a phone are V1 to V12 in `docs/PHONE_CHECKLIST.md`.
 
@@ -150,7 +151,7 @@ construct them, listen to them, and call `release()` on unmount
 | Files | `globalThis.expo.modules.FileSystem`: `documentDirectory`, `new FileSystemFile(uri)` (`exists`, `size`, `textSync()`, `writeSync()`, `moveSync()`, `delete()`), `new FileSystemDirectory(uri)` (`exists`, `create()`) |
 | Settings | `Linking.openSettings()` from `react-native` |
 
-`src/device/audioNative.ts` holds these as TypeScript interfaces, the two
+`src/host/device/audioNative.ts` holds these as TypeScript interfaces, the two
 `...FromGlobal()` finders, and the test double `makeFakeAudio()`.
 
 The entry file of `expo-audio` also wraps a few native methods. Skipping the

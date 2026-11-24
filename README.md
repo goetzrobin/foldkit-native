@@ -23,7 +23,7 @@ Foldkit program.
 | Lists and motion | 5,000 rows with about 40 drawn, pull to refresh, fades, and a card you can drag. |
 | Chat | A list that opens at the newest message and stays there, with a text field above the keyboard. |
 | AI chat | Your question goes to the top and the answer is written under it, word by word. |
-| AI chat on Legend List | The same AI chat, built on Legend List's own list code (MIT, copied into `packages/native/src/legend/vendor`) with no React. |
+| AI chat on Legend List | The same AI chat, built on Legend List's own list code (MIT, copied into `packages/native/src/host/legend/vendor`) with no React. |
 | Styling | Tailwind classes, with colors that change when the phone goes to dark mode. |
 | Phone features | Haptics, clipboard, saved text, share sheet, alerts, keyboard, network, rotation. |
 | Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |
@@ -96,7 +96,7 @@ supplies ones that call the ng-native engine.
 
 | Path | What it is |
 |---|---|
-| `packages/native/` | The adapter, with its demos and tests that run on a simulated phone |
+| `packages/native/` | The adapter, with its demos and tests that run on a simulated phone. `src/host` knows nothing of Foldkit; `src/foldkit` is the binding. See `docs/EFFECT_UI.md` |
 | `apps/showcase/` | The app with every demo in a menu |
 | `apps/chat/` | Fold Chat, the flagship: one finished AI chat app. Its program is in `packages/native/flagship`, its look in `docs/flagship/DESIGN.md`, how to build it in `apps/chat/README.md` |
 | `apps/devloop/` | A small app for trying reload that keeps your state |
