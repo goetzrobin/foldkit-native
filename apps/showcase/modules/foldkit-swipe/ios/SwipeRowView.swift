@@ -279,14 +279,19 @@ public final class SwipeRowView: ExpoView, UIGestureRecognizerDelegate {
     guard isSwipeEnabled, !isSlidAway else {
       return false
     }
-    let velocity = pan.velocity(in: self)
-    guard abs(velocity.x) > abs(velocity.y) else {
+    // Which way the finger is going: its speed, or where there is no speed
+    // yet, how far it has come.
+    var heading = pan.velocity(in: self)
+    if heading == .zero {
+      heading = pan.translation(in: self)
+    }
+    guard abs(heading.x) > abs(heading.y) else {
       return false
     }
     if openSide != nil || animator != nil {
       return true
     }
-    let towards: Side = velocity.x * directionSign > 0 ? .leading : .trailing
+    let towards: Side = heading.x * directionSign > 0 ? .leading : .trailing
     return !actions(for: towards).isEmpty
   }
 
@@ -399,8 +404,8 @@ public final class SwipeRowView: ExpoView, UIGestureRecognizerDelegate {
     }
   }
 
-  /// The finger has lifted. `velocity` is in points per second, more than
-  /// zero towards the trailing edge.
+  /// The finger has lifted. `velocity` is in points per second and logical,
+  /// like `offset`: more than zero moves towards showing the leading actions.
   private func finishPan(velocity: CGFloat) {
     guard let side = revealedSide(at: offset) else {
       settle(to: nil, velocity: velocity)
