@@ -9,7 +9,7 @@
  *
  * The second part tests the pieces in `src/serverState` on their own.
  */
-import { Clock, Effect, Exit, Layer, Option, Scope, Stream } from 'effect'
+import { Clock, Context, Data, Effect, Exit, Layer, Option, Scope, Stream } from 'effect'
 import * as AsyncResult from 'effect/reactivity/AsyncResult'
 import * as Atom from 'effect/reactivity/Atom'
 import * as Reactivity from 'effect/reactivity/Reactivity'
@@ -19,8 +19,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as Device from '../src/device/index.js'
 import { registerNavigation } from '../src/index.js'
-import { Optimistic, makeSync } from '../src/serverState/index.js'
-import { Model, makeServerStateDemo } from './demos/serverState.js'
+import {
+  Optimistic,
+  type ServerState,
+  type WriteFailure,
+  makeServerState,
+  makeSync,
+  runWrite,
+} from '../src/serverState/index.js'
+import { Message, Model, makeServerStateDemo } from './demos/serverState.js'
 import { type CrewServer, MemberKey, makeCrewServer } from './demos/serverStateCrew.js'
 import {
   type Phone,
@@ -548,12 +555,15 @@ describe('the server state demo on the simulated phone', () => {
 
     it('ignores an answer that arrives for a member that is no longer open', async () => {
       await start()
-      await advance(600)
-      await press(phone.fabric, 'member-3')
-      await press(phone.fabric, 'back')
-      await press(phone.fabric, 'member-4')
-      await advance(600)
-      expect(shown('member-name')).toBe('Dov Marlow')
+      // Straight through `update`: the answer for member 3 was already in
+      // the queue when member 4 was opened.
+      const opened = demo.update(demo.init().model, Message.PressedMember({ id: 4 })).model
+      const late = AsyncResult.success({ id: 3, name: 'Cleo Marlow', role: 'Cook', notes: 2 })
+      const after = demo.update(opened, Message.ChangedMember({ id: 3, result: late })).model
+      expect(AsyncResult.isInitial(after.member)).toBe(true)
+      const right = AsyncResult.success({ id: 4, name: 'Dov Marlow', role: 'Medic', notes: 3 })
+      const shownNow = demo.update(after, Message.ChangedMember({ id: 4, result: right })).model
+      expect(AsyncResult.isSuccess(shownNow.member) && shownNow.member.value.id).toBe(4)
     })
 
     it('drops a closed member from the cache after its idle time', async () => {
@@ -716,10 +726,76 @@ describe('the optimistic layer', () => {
   })
 })
 
-describe('atoms', () => {
-  it('are plain values: making one starts nothing', () => {
-    // Guards the demo's claim that atoms can be defined before a program runs.
-    const atom = Atom.make(0)
-    expect(Atom.isAtom(atom)).toBe(true)
+describe('a write, as a Command sees it', () => {
+  class Vault extends Context.Service<Vault, { readonly stored: Array<string> }>()('test/Vault') {}
+  class Refused extends Data.TaggedError('Refused')<{ readonly why: string }> {}
+
+  const setUp = () => {
+    const stored: Array<string> = []
+    const runtime = Atom.runtime(Layer.succeed(Vault, { stored }))
+    const server = makeServerState(runtime)
+    const store = runtime.fn((item: string) =>
+      item === ''
+        ? Effect.fail(new Refused({ why: 'nothing to store' }))
+        : Vault.use(vault => Effect.sync(() => vault.stored.push(item))),
+    )
+    /** Runs a Command's Effect the way Foldkit does: with `server.layer` built around it. */
+    const run = <A>(effect: Effect.Effect<A, never, ServerState>): Promise<A> =>
+      Effect.runPromise(Effect.provide(effect, server.layer))
+    return { stored, server, store, run }
+  }
+
+  const answer = {
+    onSuccess: (value: unknown) => ({ _tag: 'Succeeded' as const, value }),
+    onFailure: (failure: WriteFailure<Refused>) => ({ _tag: 'Failed' as const, failure }),
+  }
+
+  it('answers with the success Message, for an atom and for a plain Effect', async () => {
+    const { stored, server, store, run } = setUp()
+    expect(await run(runWrite(server, { fn: store, arg: 'rope', ...answer }))).toEqual({
+      _tag: 'Succeeded',
+      value: 1,
+    })
+    const plain = Vault.use(vault => Effect.sync(() => vault.stored.push('lamp')))
+    expect(await run(runWrite(server, { effect: plain, ...answer }))).toEqual({
+      _tag: 'Succeeded',
+      value: 2,
+    })
+    // Each `run` is a program of its own, with its own registry. The Vault
+    // is one object, given to both.
+    expect(stored).toEqual(['rope', 'lamp'])
+  })
+
+  it('answers with the typed error when the write refuses', async () => {
+    const { server, store, run } = setUp()
+    const viaAtom = await run(runWrite(server, { fn: store, arg: '', ...answer }))
+    expect(viaAtom).toEqual({
+      _tag: 'Failed',
+      failure: { _tag: 'Rejected', error: new Refused({ why: 'nothing to store' }) },
+    })
+    const viaEffect = await run(
+      runWrite(server, { effect: Effect.fail(new Refused({ why: 'full' })), ...answer }),
+    )
+    expect(viaEffect).toEqual({
+      _tag: 'Failed',
+      failure: { _tag: 'Rejected', error: new Refused({ why: 'full' }) },
+    })
+  })
+
+  it('answers with Crashed, not a crash, when the write has a bug', async () => {
+    const { server, run } = setUp()
+    const result = await run(
+      runWrite(server, { effect: Effect.die(new Error('off by one')), ...answer }),
+    )
+    expect(result._tag).toBe('Failed')
+    expect(result._tag === 'Failed' && result.failure._tag).toBe('Crashed')
+    expect(JSON.stringify(result)).toContain('off by one')
+  })
+
+  it('has no registry before the program starts or after it ends', async () => {
+    const { server, run } = setUp()
+    expect(server.isRunning()).toBe(false)
+    expect(await run(Effect.sync(() => server.isRunning()))).toBe(true)
+    expect(server.isRunning()).toBe(false)
   })
 })

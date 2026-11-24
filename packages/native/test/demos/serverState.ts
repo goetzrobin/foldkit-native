@@ -704,7 +704,7 @@ export const makeServerStateDemo = (
     container,
   })
 
-  return { program, server, api, crew }
+  return { program, server, api, crew, init, update }
 }
 
 export const makeDemo = (
