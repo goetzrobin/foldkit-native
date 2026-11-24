@@ -214,8 +214,15 @@ A real model would answer anything. This one picks a reply by keywords and sends
 The server and the wire are built with [Effect](https://effect.website/), like a real one would be.`
 }
 
+/** Whether a word starts somewhere in the text: "rain" is in "rainy", not in "train". */
 const has = (text: string, words: ReadonlyArray<string>): boolean =>
-  words.some(word => text.includes(word))
+  words.some(word => {
+    const at = text.indexOf(word.trim())
+    for (let index = at; index >= 0; index = text.indexOf(word.trim(), index + 1)) {
+      if (index === 0 || !/[a-z0-9]/.test(text[index - 1] as string)) return true
+    }
+    return false
+  })
 
 const cityIn = (question: string): string => {
   const match = /\b(?:in|for|at)\s+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?)/.exec(question)
@@ -230,7 +237,7 @@ const topicOf = (question: string): string => {
 /** The reply to a question. The same question always gets the same reply. */
 export const pickReply = (question: string): Script => {
   const text = question.toLowerCase()
-  const wantsThought = has(text, ['should', 'think', 'why', 'compare', ' vs', 'versus', 'which is better'])
+  const wantsThought = has(text, ['should', 'think', 'why', 'compare', 'vs', 'versus', 'which is better'])
 
   if (has(text, ['weather', 'rain', 'umbrella', 'forecast', 'temperature'])) {
     const city = cityIn(question)
@@ -251,7 +258,7 @@ export const pickReply = (question: string): Script => {
       answer: notes.answer,
     }
   }
-  if (has(text, ['train', 'drive', 'car ', 'travel', 'trip'])) {
+  if (has(text, ['train', 'drive', 'car', 'travel', 'trip'])) {
     return { kind: 'travel', reasoning: TRAVEL_REASONING, answer: TRAVEL }
   }
   if (has(text, ['code', 'function', 'typescript', 'debounce', 'javascript'])) {

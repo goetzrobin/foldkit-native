@@ -133,12 +133,14 @@ export type Timing = Readonly<{
   pauseMs: number
   /** How long a tool takes to answer. */
   toolMs: number
+  /** How long each request takes to reach the server and be answered, as on a network. */
+  latencyMs: number
 }>
 
 export const SPEEDS = {
-  slow: { firstTokenMs: 1500, tokensPerSecond: 12, jitter: 0.5, pauseChance: 0.03, pauseMs: 700, toolMs: 1800 },
-  normal: { firstTokenMs: 700, tokensPerSecond: 45, jitter: 0.4, pauseChance: 0.01, pauseMs: 400, toolMs: 1000 },
-  fast: { firstTokenMs: 250, tokensPerSecond: 160, jitter: 0.3, pauseChance: 0, pauseMs: 0, toolMs: 300 },
+  slow: { firstTokenMs: 1500, tokensPerSecond: 12, jitter: 0.5, pauseChance: 0.03, pauseMs: 700, toolMs: 1800, latencyMs: 400 },
+  normal: { firstTokenMs: 700, tokensPerSecond: 45, jitter: 0.4, pauseChance: 0.01, pauseMs: 400, toolMs: 1000, latencyMs: 150 },
+  fast: { firstTokenMs: 250, tokensPerSecond: 160, jitter: 0.3, pauseChance: 0, pauseMs: 0, toolMs: 300, latencyMs: 40 },
 } as const satisfies Record<string, Timing>
 export type Speed = keyof typeof SPEEDS
 
@@ -149,9 +151,16 @@ export type Chaos = Readonly<{
   dropConnection: boolean
   /** The first word takes at least four seconds. */
   slowFirstToken: boolean
+  /** Every new message is refused, as a server that is down would. */
+  refuseSend: boolean
 }>
 
-export const NO_CHAOS: Chaos = { failMidStream: false, dropConnection: false, slowFirstToken: false }
+export const NO_CHAOS: Chaos = {
+  failMidStream: false,
+  dropConnection: false,
+  slowFirstToken: false,
+  refuseSend: false,
+}
 
 export type AiServerOptions = Readonly<{
   disk?: Disk
@@ -593,7 +602,12 @@ export const makeAiServer = (options: AiServerOptions = {}): AiServer => {
           ? Effect.void
           : Effect.fail(new TurnInProgress({ conversationId: held.id, turnId: held.activeTurnId }))
 
-      const note = (line: string) => Effect.sync(() => void log.push(line))
+      /** Writes the request down, then waits as a network would. */
+      const note = (line: string) =>
+        Effect.andThen(
+          Effect.sync(() => void log.push(line)),
+          Effect.suspend(() => sleep(timing.latencyMs)),
+        )
 
       return AiChatRpcs.of({
         ListConversations: () =>
@@ -659,6 +673,9 @@ export const makeAiServer = (options: AiServerOptions = {}): AiServer => {
               yield* note(`SendMessage ${conversationId}`)
               const held = yield* find(conversationId)
               yield* busy(held)
+              if (chaos.refuseSend) {
+                return yield* new BadRequest({ reason: 'The server is not taking messages right now (pretend 503).' })
+              }
               if (text.trim() === '' && (attachments ?? []).length === 0) {
                 return yield* new BadRequest({ reason: 'A message needs some text.' })
               }
