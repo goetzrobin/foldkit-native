@@ -36,8 +36,10 @@ import {
   stylingOptions,
   watchStyling,
 } from './native/src'
+import { registerExpoUi } from './native/src/controls'
 import { registerGlass } from './native/src/glass'
 import { configureKeyboardDock } from './native/src/keyboard'
+import { configureSheets } from './native/src/menus'
 import { configureSkia, registerSkia } from './native/src/skia'
 import { registerNativeSwipe } from './native/src/swipeNative'
 import { configureWorklets } from './native/src/worklets'
@@ -67,6 +69,17 @@ registerGlass()
 // Go does not have it: there the demo draws plain rows and says so. This
 // line only gives the view its name. It must run after `import 'expo'`.
 registerNativeSwipe()
+
+// For the Menus and controls demo. @expo/ui's React components are not used
+// and its package is not imported: only its native SwiftUI and Compose views
+// are, found by name. Expo Go includes them. The package is in package.json
+// so an app built on its own gets the native code too. Where a build does
+// not have it, the demo uses React Native's own sheet and switch, or plain
+// views, and says so. Like registerGlass, this must run after `import 'expo'`.
+registerExpoUi()
+// The action sheet (iOS) and the list dialog (Android) are React Native's
+// own native modules. They are asked for by name, as Skia's is above.
+configureSheets({ nativeModule: name => TurboModuleRegistry.get(name) })
 
 // For the Worklets demo: code that runs on the phone's UI thread. Only
 // `react-native-worklets` is loaded as JavaScript, and it imports no React.

@@ -17,6 +17,7 @@ import { makeDemo as makeGlass } from './glass.js'
 import { makeDemo as makeKeyboard } from './keyboard.js'
 import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
+import { makeDemo as makeMenus } from './menus.js'
 import { makeDemo as makeMot } from './mot.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import { makeDemo as makeServerState } from './serverState.js'
@@ -162,5 +163,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
           resources.device,
         ),
       ),
+  },
+  {
+    id: 'menus',
+    title: 'Menus and controls',
+    blurb: "The phone's own menus, action sheet, switch, slider and pickers. Lines at the top say what is real.",
+    start: (container, env) => Runtime.embed(makeMenus(container, env)),
   },
 ]

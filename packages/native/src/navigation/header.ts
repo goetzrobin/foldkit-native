@@ -25,6 +25,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
 import { prop, style } from '../attributes.js'
+import { type MenuItem, barMenuData } from '../menus/items.js'
+import { menuButton } from '../menus/menu.js'
 import { type Attributes, type Device, header, title } from './stack.js'
 
 const el = element<any>()
@@ -49,10 +51,25 @@ export const backTitle = (value: string) => prop('backTitle', value)
 /** Takes the back button away. Swipe-back still works. */
 export const backButtonHidden = (isHidden: boolean) => prop('hideBackButton', isHidden)
 
+/**
+ * A menu that opens from a bar button. Its entries are the same data the
+ * menus on views take (see `menus/items.ts`).
+ */
+export type BarButtonMenu = Readonly<{
+  /** A small heading at the top of the menu. */
+  title?: string
+  items: ReadonlyArray<MenuItem>
+}>
+
 /** One native button in the bar, as iOS reads it. */
 export type BarButton = Readonly<{
   /** Comes back in `onBarButtonPressed`. Unique within the bar. */
   id: string
+  /**
+   * A press opens this menu, and no longer reports the button's `id`. The
+   * chosen entry's `key` comes back in `onBarMenuItemPressed`.
+   */
+  menu?: BarButtonMenu
   label?: string
   /** An SF Symbol name, such as `plus`. Shown in place of the label. */
   symbol?: string
@@ -76,7 +93,10 @@ export type BarButton = Readonly<{
 
 const barButtonData = (buttons: ReadonlyArray<BarButton>) =>
   buttons.map((button, index) => {
-    const data: Record<string, unknown> = { buttonId: button.id, index }
+    // A button with both an action and a menu only opens the menu on a
+    // long press, so a menu button is given no action.
+    const data: Record<string, unknown> =
+      button.menu === undefined ? { buttonId: button.id, index } : { index, menu: barMenuData(button.menu) }
     if (button.label !== undefined) data['title'] = button.label
     if (button.symbol !== undefined) data['sfSymbolName'] = button.symbol
     if (button.isDisabled !== undefined) data['disabled'] = button.isDisabled
@@ -107,6 +127,19 @@ export const onBarButtonPressed = <Message>(toMessage: (id: string) => Option.Op
     },
   })
 
+/**
+ * iOS only: an entry of a bar button's menu was chosen. Put it on the
+ * `header`. Keys must be unique across the bar's menus.
+ */
+export const onBarMenuItemPressed = <Message>(toMessage: (key: string) => Option.Option<Message>) =>
+  OnCustomEvent<Message>({
+    name: 'pressHeaderBarButtonMenuItem',
+    f: event => {
+      const key = (event.detail as { menuId?: unknown } | undefined)?.menuId
+      return typeof key === 'string' ? toMessage(key) : Option.none()
+    },
+  })
+
 export type NavigationBarOptions<Message> = Readonly<{
   title: string
   isLargeTitle?: boolean
@@ -123,6 +156,11 @@ export type NavigationBarOptions<Message> = Readonly<{
     onPress: Message
     /** Android: the label's colour. The bar there does not tint a view. */
     color?: string
+    /**
+     * A press opens this menu and `onPress` is not sent. iOS: the bar
+     * button's own menu. Android: the menu a `menuButton` opens.
+     */
+    menu?: BarButtonMenu & Readonly<{ onSelected: (key: string) => Message }>
   }>
   /** Anything else for the bar: more `prop`s, a `testID`. */
   attributes?: Attributes<Message>
@@ -154,38 +192,55 @@ export const navigationBar = <Message>(
   // bar that is not inside another one.
   if (isAndroid) attributes.push(prop('consumeTopInset', !isHidden))
   if (button !== undefined && !isAndroid) {
-    const data: BarButton = { id: RIGHT_BUTTON_ID, label: button.label }
+    const menu = button.menu
+    const data: BarButton = {
+      id: RIGHT_BUTTON_ID,
+      label: button.label,
+      ...(menu === undefined ? {} : { menu }),
+    }
     attributes.push(
       rightBarButtons([button.symbol === undefined ? data : { ...data, symbol: button.symbol }]),
       onBarButtonPressed<Message>(id =>
         id === RIGHT_BUTTON_ID ? Option.some(button.onPress) : Option.none(),
       ),
     )
+    if (menu !== undefined) {
+      attributes.push(onBarMenuItemPressed<Message>(key => Option.some(menu.onSelected(key))))
+    }
     // The bar's own button is not a view, so a test cannot find it by id.
     // The id goes on the bar instead.
     if (button.testID !== undefined) attributes.push(prop('testID', button.testID))
   }
   attributes.push(...(options.attributes ?? []))
+  const androidLabel = (color: string | undefined, label: string) =>
+    text([style({ fontSize: 16, fontWeight: '600', color: color ?? '#0a66d8' })], [label])
   const children =
     button !== undefined && isAndroid
       ? [
           headerItem(
             [prop('type', 'right')],
             [
-              view(
-                [
-                  ...(button.testID === undefined ? [] : [prop('testID', button.testID)]),
-                  prop('accessibilityRole', 'button'),
-                  h.OnClick(button.onPress),
-                  style({ paddingVertical: 8, paddingHorizontal: 12 }),
-                ] as never,
-                [
-                  text(
-                    [style({ fontSize: 16, fontWeight: '600', color: button.color ?? '#0a66d8' })],
-                    [button.label],
-                  ),
-                ],
-              ),
+              button.menu === undefined
+                ? view(
+                    [
+                      ...(button.testID === undefined ? [] : [prop('testID', button.testID)]),
+                      prop('accessibilityRole', 'button'),
+                      h.OnClick(button.onPress),
+                      style({ paddingVertical: 8, paddingHorizontal: 12 }),
+                    ] as never,
+                    [androidLabel(button.color, button.label)],
+                  )
+                : menuButton<Message>({
+                    ...button.menu,
+                    ...(button.testID === undefined ? {} : { testID: button.testID }),
+                    trigger: view(
+                      [
+                        prop('accessibilityRole', 'button'),
+                        style({ paddingVertical: 8, paddingHorizontal: 12 }),
+                      ],
+                      [androidLabel(button.color, button.label)],
+                    ),
+                  }),
             ],
           ),
         ]
