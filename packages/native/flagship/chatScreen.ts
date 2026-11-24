@@ -29,7 +29,9 @@ import { markdown } from '../src/markdown/index.js'
 import { animated } from '../src/motion/index.js'
 import { type Device, onDismissed, screen } from '../src/navigation/stack.js'
 import { LiveTurnOps, MAX_RECONNECTS, type Part, type ReasoningPart, type ToolCallPart } from '../src/aiChat/index.js'
+import { fieldName } from './focus.js'
 import { onLongPress } from './longPress.js'
+import { onTapAway } from './tapAway.js'
 import { type ChatRow, Message, type Model, chatRows, clockOf, textOf, thoughtFor } from './model.js'
 import { thinkingLabel } from './shimmer.js'
 import { EASE_OUT_EXPO, ENTER_RISE, MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
@@ -51,6 +53,8 @@ import {
 } from './ui.js'
 
 export const TRANSCRIPT_ID = 'transcript'
+/** The composer's text field, by the name `focus.ts` knows it by. */
+export const DRAFT_FIELD = 'draft'
 
 /** A question taller than this shows only its last lines at the top, so the reply has room. */
 const ANCHOR_MAX_SIZE = 3 * TYPE.message.lineHeight + 20
@@ -242,7 +246,10 @@ const replyRow = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
   return view(
     [
       prop('testID', `row-${row.key}`),
-      ...(hasText && !isStreamingRow(row) ? onLongPress(Message.LongPressedMessage({ rowKey: row.key })) : []),
+      // Held while it streams too: the menu then offers Copy so far and Stop.
+      ...(hasText || isStreamingRow(row)
+        ? onLongPress<Message>(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript())
+        : []),
       style({ paddingHorizontal: SPACE.xl, paddingTop: SPACE.m, gap: SPACE.s, backgroundColor: palette.bg }),
     ],
     [
@@ -277,7 +284,7 @@ const questionRow = (h: HtmlBuilder<Message>, palette: Palette, row: ChatRow, is
   const bubble = view(
     [
       prop('testID', `row-${row.key}`),
-      ...onLongPress(Message.LongPressedMessage({ rowKey: row.key })),
+      ...onLongPress<Message>(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript()),
       style({
         maxWidth: '84%',
         paddingVertical: 10,
@@ -419,6 +426,7 @@ const composer = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
     [
       h.Key('draft'),
       prop('testID', 'draft'),
+      fieldName(DRAFT_FIELD),
       h.Attribute('value', model.draft),
       h.Placeholder(model.isOnline ? 'Ask anything' : 'Offline'),
       prop('placeholderTextColor', palette.ink3),
@@ -426,8 +434,8 @@ const composer = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
       prop('cursorColor', palette.accent),
       prop('multiline', true),
       prop('editable', true),
-      // A new chat opens ready to type, as in other chat apps.
-      prop('autoFocus', Option.isNone(model.openId) && model.pending.length === 0),
+      // No `autoFocus`: a new chat focuses this field by a Command once its
+      // push has finished, so the keyboard comes up once. See `focus.ts`.
       prop('keyboardAppearance', model.scheme),
       h.OnInput(words => Message.ChangedDraft({ text: words })),
       style({
@@ -557,9 +565,12 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
         row: rowView(h, device, model, palette),
         estimatedRowHeight: 120,
         initialScrollAtEnd: true,
-        // Stays at the end when the keyboard opens or closes. A reply that
-        // grows is left to run off the screen, as in other AI apps.
-        maintainScrollAtEnd: { onlyWhenResized: true },
+        // Stays at the end when the keyboard opens or closes. After Send the
+        // reply is left to run off the screen under the question, as in other
+        // AI apps. Once the user asks for the end (the round button, or
+        // scrolling there by hand) the list follows the reply as it is
+        // written, until a drag up. See `Following` in src/list/module.ts.
+        maintainScrollAtEnd: { onlyWhenResized: true, followOnReturn: true },
         ...(isInset ? { keyboardInset: { lift: 'whenAtEnd' as const } } : {}),
         ...Option.match(anchorIndex, {
           onNone: () => ({}),
@@ -571,6 +582,10 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
           style({ flex: 1 }),
           prop('indicatorStyle', model.scheme === 'dark' ? 'white' : 'black'),
           dismissKeyboardOnDrag(),
+          // A tap that no row or button takes puts the keyboard away, as in
+          // Messages. A drag is not a tap, and the keyboard still follows the
+          // finger down. See `tapAway.ts`.
+          ...onTapAway(Message.TappedTranscript()),
           // Android's scroll view cannot put the keyboard away by itself.
           OnCustomEvent<Message>({
             name: 'scrollBeginDrag',
@@ -598,7 +613,14 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
       ]
 
   return screen(
-    [h.Key('chat'), prop('testID', 'screen-chat'), onDismissed(() => Message.PoppedChat()), style({ backgroundColor: palette.bg })],
+    [
+      h.Key('chat'),
+      prop('testID', 'screen-chat'),
+      onDismissed(() => Message.PoppedChat()),
+      // The push has finished. A new chat raises its keyboard then.
+      OnCustomEvent<Message>({ name: 'appear', f: () => Option.some(Message.AppearedChat()) }),
+      style({ backgroundColor: palette.bg }),
+    ],
     [
       navBar(h, device, palette, {
         title: chatTitle(model),

@@ -57,6 +57,11 @@ export type ListSpec = Readonly<{
   maintainScrollAtEndAnimated: boolean
   /** Follow the end only when the list itself changes height (the keyboard). */
   maintainScrollAtEndOnlyWhenResized: boolean
+  /**
+   * With `maintainScrollAtEndOnlyWhenResized`: follow rows that grow or
+   * arrive too, while the follow state is on. See `Following` below.
+   */
+  maintainScrollAtEndFollowOnReturn: boolean
   /** How close to the end counts as being at it, in screen heights. */
   atEndThreshold: number
   anchoredEndSpace: AnchoredEndSpace | undefined
@@ -122,6 +127,26 @@ export type ListNumbers = Readonly<{
   isAtEnd: boolean | undefined
   /** On its way to the end and meant to arrive exactly. */
   isHolding: boolean
+  /** Keeping up with the end as rows grow or arrive. See `Following`. */
+  isFollowing: boolean
+  /**
+   * Where the anchored row (the question after Send) is, while there is
+   * one: its top from the list's top edge, as the list works it out from
+   * where the phone last said it is (`top`), and in the window as the phone
+   * measured it (`windowY`, once the phone has answered). `step` is how far
+   * it moved in the last draw, `drift` how far since the list last moved on
+   * purpose (a scroll it asked for, or a finger). Both should stay at 0.
+   */
+  anchor:
+    | Readonly<{
+        top: number
+        step: number
+        drift: number
+        windowY: number | undefined
+        windowStep: number | undefined
+        windowDrift: number | undefined
+      }>
+    | undefined
 }>
 
 /** What a `composerDock` in `'inset'` mode tells a list. */
@@ -153,6 +178,13 @@ type Inset = {
   /** How tall the rows were when it was given. */
   sentRows: number
   sentIndicator: number | undefined
+  /**
+   * How tall the rows' view was in the commits the phone may not have taken
+   * in yet, oldest first, and in the last one it surely has. See `writeInset`.
+   */
+  drawnRows: Array<{ rows: number; at: number }>
+  /** A draw that hands the phone an inset that was held back for one commit. */
+  settleTimer: ReturnType<typeof setTimeout> | undefined
   /** Between the keyboard's start and its end. */
   isKeyboardMoving: boolean
 }
@@ -175,6 +207,15 @@ const GLIDE_MS = 700
 
 /** How near counts as there, in points. */
 const ARRIVED_WITHIN = 2
+
+/**
+ * How long after a finger lets go to wait for the phone to say a fling has
+ * started. Without one the user's scroll is over. The phone says it at once.
+ */
+const FLING_WAIT_MS = 80
+
+/** How long an inset held back for one commit waits before it is handed over. */
+const INSET_SETTLE_MS = 48
 
 /** What a label shows when no list with its id is on screen. */
 const NO_LIST: ListStats = { rowViews: 0, first: 0, end: 0, count: 0, numbers: undefined }
@@ -232,6 +273,24 @@ type ListState = {
   holdEnd: boolean
   /** How often the phone has been told again during this hold. */
   holdRepeats: number
+  /** See `Following`. */
+  isFollowing: boolean
+  /** A finger is on the list, or a fling it started is still running. */
+  isUserScrolling: boolean
+  /** Waits, after a finger lets go, for the phone to say a fling started. */
+  flingTimer: ReturnType<typeof setTimeout> | undefined
+  /** Where the anchored row was at the last draw, for `ListNumbers.anchor`. */
+  anchorSeen:
+    | {
+        key: RowKey
+        top: number
+        step: number
+        baseline: number | undefined
+        windowY: number | undefined
+        windowStep: number | undefined
+        windowBaseline: number | undefined
+      }
+    | undefined
   /** A gliding scroll this module started that has not arrived yet. */
   glide: { target: number; timer: ReturnType<typeof setTimeout> } | undefined
   /** Not shown yet: a list that opens at its end, before it is there. */
@@ -282,7 +341,10 @@ const writeLabel = (label: Label, stats: ListStats): boolean => {
 }
 
 const announce = (state: ListState): void => {
-  for (const label of labelsById.get(state.spec.id) ?? []) writeLabel(label, statsOf(state))
+  const labels = labelsById.get(state.spec.id)
+  if (labels === undefined || labels.size === 0) return
+  noteAnchor(state)
+  for (const label of labels) writeLabel(label, statsOf(state))
 }
 
 /** Reads the items again: their keys, and a height for each. */
@@ -331,6 +393,35 @@ const insetOf = (state: ListState, inset: Inset): number => {
 }
 
 /**
+ * The least bottom inset that keeps the phone where it is, whichever of the
+ * recent rows' heights it still has when it takes this inset (see
+ * `writeInset`). A position already outside the range (a finger pulling
+ * past the end) is not kept.
+ */
+const insetKeepingPlace = (state: ListState, inset: Inset, rows: number): number => {
+  const newest = inset.drawnRows.at(-1)
+  // Only while the phone may still have other rows than these. Otherwise
+  // the inset is taken whole, and a smaller range is a real one.
+  if (inset.sent === undefined || newest === undefined || inset.drawnRows.length < 2 || state.viewport <= 0) return 0
+  const furthestNow = newest.rows + inset.sent - state.viewport
+  const place = Math.min(state.native, furthestNow)
+  const lowest = Math.min(rows, ...inset.drawnRows.map(each => each.rows))
+  return place + state.viewport - lowest
+}
+
+/** Notes the rows' height this commit gives the phone, and forgets what it surely has taken in. */
+const noteDrawnRows = (inset: Inset, rows: number, now: number): void => {
+  const history = inset.drawnRows
+  if (history.at(-1)?.rows !== rows) history.push({ rows, at: now })
+  // Keep the newest commit old enough to be on the phone, and every one after it.
+  let surely = -1
+  for (let at = 0; at < history.length; at++) {
+    if (now - (history[at] as { at: number }).at >= INSET_SETTLE_MS) surely = at
+  }
+  if (surely > 0) history.splice(0, surely)
+}
+
+/**
  * How far the list reaches: every row and what comes under the last one.
  * That is blank space inside the content, or, for a list with a bottom
  * inset, the inset, which is outside the content.
@@ -359,7 +450,59 @@ const numbersOf = (state: ListState): ListNumbers => ({
   lastScroll: state.lastScroll === undefined ? undefined : { ...state.lastScroll },
   isAtEnd: state.isAtEnd,
   isHolding: state.holdEnd,
+  isFollowing: state.spec.maintainScrollAtEndFollowOnReturn && state.isFollowing,
+  anchor: anchorNumbersOf(state),
 })
+
+const anchorNumbersOf = (state: ListState): ListNumbers['anchor'] => {
+  const seen = state.anchorSeen
+  if (seen === undefined || seen.key !== state.anchoredKey) return undefined
+  return {
+    top: seen.top,
+    step: seen.step,
+    drift: seen.baseline === undefined ? 0 : seen.top - seen.baseline,
+    windowY: seen.windowY,
+    windowStep: seen.windowStep,
+    windowDrift:
+      seen.windowY === undefined || seen.windowBaseline === undefined
+        ? undefined
+        : seen.windowY - seen.windowBaseline,
+  }
+}
+
+/** Nothing is moving the list on purpose: no glide, no hold, no finger, no scroll waiting to go. */
+const isSettled = (state: ListState): boolean =>
+  !state.holdEnd && state.glide === undefined && !state.isUserScrolling && state.pendingScroll === undefined
+
+/**
+ * Notes where the anchored row is now, for the numbers on screen: from the
+ * list's own heights and the place the phone last reported or was sent to.
+ */
+const noteAnchor = (state: ListState): void => {
+  const key = state.anchoredKey
+  const at = key === undefined ? undefined : state.indexByKey.get(key)
+  if (key === undefined || at === undefined) {
+    state.anchorSeen = undefined
+    return
+  }
+  const top = state.heights.offsetOf(at) - state.native
+  let seen = state.anchorSeen
+  if (seen === undefined || seen.key !== key) {
+    seen = { key, top, step: 0, baseline: undefined, windowY: undefined, windowStep: undefined, windowBaseline: undefined }
+    state.anchorSeen = seen
+  } else {
+    seen.step = top - seen.top
+    seen.top = top
+  }
+  if (seen.baseline === undefined && isSettled(state)) seen.baseline = top
+}
+
+/** The list moves on purpose: drift is counted again from where it comes to rest. */
+const restartDrift = (state: ListState): void => {
+  if (state.anchorSeen === undefined) return
+  state.anchorSeen.baseline = undefined
+  state.anchorSeen.windowBaseline = undefined
+}
 
 /** The key of the row `anchoredEndSpace` names, if there is such a row. */
 const anchoredKeyOf = (state: ListState): RowKey | undefined => {
@@ -418,6 +561,7 @@ const endGlide = (state: ListState): void => {
 /** Sends a scroll position to the phone, and remembers a glide is under way. */
 const sendScroll = (state: ListState, wanted: number, animated: boolean): void => {
   endGlide(state)
+  restartDrift(state)
   const last = state.lastScroll
   const isAgain = last !== undefined && Math.abs(last.target - wanted) < 1
   state.lastScroll = {
@@ -458,6 +602,7 @@ const sendScroll = (state: ListState, wanted: number, animated: boolean): void =
 
 /** A glide has ended, by arriving or by running out of time. */
 const afterGlide = (state: ListState): void => {
+  catchUp(state)
   refreshAtEnd(state)
   tellAtEnd(state)
   // An inset that was waiting for the glide to end is given to the phone
@@ -502,7 +647,32 @@ const followsEnd = (state: ListState, isResize: boolean): boolean =>
   state.holdEnd ||
   (state.spec.maintainScrollAtEnd &&
     state.isAtEnd === true &&
-    (isResize || !state.spec.maintainScrollAtEndOnlyWhenResized))
+    (isResize || !state.spec.maintainScrollAtEndOnlyWhenResized)) ||
+  isFollowingNow(state)
+
+/**
+ * FOLLOWING. For an AI chat (`onlyWhenResized` with `followOnReturn`), a
+ * list is either following the end or not. While following, a row that
+ * grows or arrives moves the list to the new end, as Claude's app follows
+ * a reply being written.
+ *
+ * - On: `scrollToEnd` (the round button), or the user's own scroll coming
+ *   to rest at the end. A list that opens at its end starts on.
+ * - Off: the user's own scroll leaving the end (a drag up), a new anchored
+ *   row (the question after Send, which is held at the top while its reply
+ *   runs on below it: the list does not chase that reply), `scrollToRow`.
+ * - While a finger is on the list it is never moved, following or not.
+ * - A glide on its way to the end is not started over as the end moves:
+ *   the list catches up when it arrives.
+ */
+const isFollowingNow = (state: ListState): boolean =>
+  state.spec.maintainScrollAtEndFollowOnReturn && state.isFollowing && !state.isUserScrolling
+
+/** A list following the end goes to where the end is now, at once. */
+const catchUp = (state: ListState): void => {
+  if (!isFollowingNow(state) || state.holdEnd || state.viewport <= 0) return
+  goToEnd(state, false)
+}
 
 /** Aims the list at its end. The phone is told after the next commit. */
 const goToEnd = (state: ListState, animated: boolean): void => {
@@ -547,8 +717,12 @@ const reveal = (state: ListState): void => {
  */
 const resettle = (state: ListState, animated = false, isResize = false): void => {
   state.endSpace = endSpaceFor(state.heights, state.viewport, state.spec.anchoredEndSpace)
-  if (followsEnd(state, isResize)) goToEnd(state, animated)
-  else holdAnchor(state)
+  if (followsEnd(state, isResize)) {
+    // Following a reply while a glide is under way: the glide is left to
+    // arrive, and the list catches up then (`afterGlide`).
+    const waitsForGlide = state.glide !== undefined && !state.holdEnd && !isResize && isFollowingNow(state)
+    if (!waitsForGlide) goToEnd(state, animated)
+  } else holdAnchor(state)
   if (state.holdEnd && isEndMeasured(state)) {
     state.holdEnd = false
     reveal(state)
@@ -700,29 +874,46 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   /**
    * Gives the phone's scroll view its bottom inset, when that has changed.
    * It goes in the same commit as the rows, so the blank space under a
-   * growing answer shrinks in the same frame as the answer grows.
+   * growing answer shrinks as the answer grows.
    *
    * A smaller inset waits while the keyboard is moving or the list is
    * gliding. The list is then on its way to a place inside the smaller
    * range, and UIKit puts a scroll view that is outside its range back in
    * at once, with a jump, the moment the range shrinks.
+   *
+   * And a smaller inset never goes in the same commit as taller rows when
+   * together they would leave the phone outside its range for a moment.
+   * React Native hands a commit to the scroll view as its props first (the
+   * inset), then its state (the content size, the rows' height):
+   * `RCTMountingManager.mm` calls `updateProps` before `updateState`. In
+   * between, the range is the old rows with the new inset. While a reply
+   * grows under a question held at the top, the list rests at the very end
+   * of its range, and the rows grow by as much as the inset shrinks: in
+   * between, the range is short by the growth, and UIKit pulls the list
+   * back by that much. The question then moved down by every line the
+   * reply grew (and by a row's estimated height when the reply first
+   * appeared). Now the inset that commit carries is the larger of the two,
+   * and the smaller one follows in a commit of its own (`settleInset`).
    */
   const writeInset = (state: ListState): void => {
     const inset = state.inset
     if (inset === undefined) return
     const wanted = insetOf(state, inset)
     const rows = rowsHeight(state)
+    noteDrawnRows(inset, rows, Date.now())
+    const toSend = Math.max(wanted, insetKeepingPlace(state, inset, rows))
     // The blank space under an answer shrinks as the answer grows by as
     // much. The range does not get smaller then, so nothing has to wait.
     const isWaiting =
       inset.sent !== undefined &&
-      rows + wanted < inset.sentRows + inset.sent - 0.5 &&
+      rows + toSend < inset.sentRows + inset.sent - 0.5 &&
       (inset.isKeyboardMoving || state.glide !== undefined)
-    if (wanted !== inset.sent && !isWaiting) {
-      inset.sent = wanted
+    if (toSend !== inset.sent && !isWaiting) {
+      inset.sent = toSend
       inset.sentRows = rows
-      engine.setProp(state.scroll, 'contentInset', { top: 0, left: 0, bottom: wanted, right: 0 })
+      engine.setProp(state.scroll, 'contentInset', { top: 0, left: 0, bottom: toSend, right: 0 })
     }
+    if (toSend > wanted) settleInset(state, inset)
     // The scroll bar ends at the composer. The blank space is not in its way.
     const indicator = inset.keyboard.indicatorPadding()
     if (indicator !== inset.sentIndicator) {
@@ -734,6 +925,19 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
         right: 0,
       })
     }
+  }
+
+  /**
+   * An inset held back for one commit (see `writeInset`) is handed over a
+   * moment later, in a commit that leaves the rows as they are, unless a
+   * draw in between has done it already.
+   */
+  const settleInset = (state: ListState, inset: Inset): void => {
+    if (inset.settleTimer !== undefined) return
+    inset.settleTimer = setTimeout(() => {
+      inset.settleTimer = undefined
+      if (state.isAlive) state.draw('own')
+    }, INSET_SETTLE_MS)
   }
 
   const makeDraw =
@@ -748,13 +952,34 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
         afterCommit(() => {
           runRowJobs()
           sendPendingScroll(state)
+          measureAnchor(state)
         })
         return
       }
       engine.commit()
       runRowJobs()
       sendPendingScroll(state)
+      measureAnchor(state)
     }
+
+  /**
+   * Asks the phone where the anchored row is in the window, for the numbers
+   * on screen. Only while a label shows them.
+   */
+  const measureAnchor = (state: ListState): void => {
+    const seen = state.anchorSeen
+    if (seen === undefined || (labelsById.get(state.spec.id)?.size ?? 0) === 0) return
+    const vnode = state.rows.get(seen.key)
+    const node = vnode === undefined ? undefined : nodeOf(vnode)
+    if (node === undefined) return
+    engine.measure(node, frame => {
+      if (!state.isAlive || state.anchorSeen !== seen) return
+      seen.windowStep = seen.windowY === undefined ? 0 : frame.y - seen.windowY
+      seen.windowY = frame.y
+      if (seen.windowBaseline === undefined && isSettled(state)) seen.windowBaseline = frame.y
+      showNumbers(state)
+    })
+  }
 
   const scrolled = (state: ListState, event: unknown): void => {
     const native = (
@@ -788,7 +1013,14 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       return
     }
     refreshAtEnd(state)
-    // A glide that has arrived is also when a waiting inset is handed over.
+    // A finger that takes the list away from the end stops it following.
+    if (state.isUserScrolling && state.isAtEnd === false) state.isFollowing = false
+    // A glide that has arrived: a list following a reply catches up with
+    // what came in meanwhile, and a waiting inset is handed over.
+    if (hasGlideEnded) {
+      catchUp(state)
+      refreshAtEnd(state)
+    }
     if (chooseRows(state) || hasGlideEnded) state.draw('own')
     checkEnd(state)
     tellAtEnd(state)
@@ -810,13 +1042,51 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
 
   const dragBegan = (state: ListState): void => {
     letGo(state)
+    state.isUserScrolling = true
+    clearTimeout(state.flingTimer)
+    state.flingTimer = undefined
+    restartDrift(state)
     if (!state.isHidden) return
     reveal(state)
     state.draw('own')
   }
 
+  /** The finger has let go. A fling may follow; the phone says so at once if it does. */
+  const dragEnded = (state: ListState): void => {
+    showNumbers(state)
+    if (!state.isUserScrolling) return
+    clearTimeout(state.flingTimer)
+    state.flingTimer = setTimeout(() => userScrollEnded(state), FLING_WAIT_MS)
+  }
+
+  const flingBegan = (state: ListState): void => {
+    clearTimeout(state.flingTimer)
+    state.flingTimer = undefined
+  }
+
+  /**
+   * The user's own scroll is over. Ending at the end turns following on,
+   * anywhere else off (see `Following`).
+   */
+  const userScrollEnded = (state: ListState): void => {
+    clearTimeout(state.flingTimer)
+    state.flingTimer = undefined
+    if (!state.isAlive || !state.isUserScrolling) return
+    state.isUserScrolling = false
+    refreshAtEnd(state)
+    if (state.spec.maintainScrollAtEndFollowOnReturn) state.isFollowing = state.isAtEnd === true
+    catchUp(state)
+    refreshAtEnd(state)
+    state.draw('own')
+    tellAtEnd(state)
+  }
+
   /** The phone says a glide or a fling has come to rest. */
   const cameToRest = (state: ListState): void => {
+    if (state.isUserScrolling) {
+      userScrollEnded(state)
+      return
+    }
     if (state.glide === undefined) {
       showNumbers(state)
       return
@@ -876,6 +1146,8 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       sent: undefined,
       sentRows: 0,
       sentIndicator: undefined,
+      drawnRows: [],
+      settleTimer: undefined,
       isKeyboardMoving: false,
     }
   }
@@ -908,6 +1180,11 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       toldAtEnd: spec.initialScrollAtEnd,
       holdEnd: spec.initialScrollAtEnd,
       holdRepeats: 0,
+      // A list that opens at its end follows it (see `Following`).
+      isFollowing: spec.initialScrollAtEnd,
+      isUserScrolling: false,
+      flingTimer: undefined,
+      anchorSeen: undefined,
       glide: undefined,
       isHidden: spec.initialScrollAtEnd,
       revealTimer: undefined,
@@ -932,9 +1209,10 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       engine.setEventListener(scroll, 'topScroll', event => scrolled(state, event)),
       engine.setEventListener(scroll, 'topLayout', event => laidOut(state, event)),
       engine.setEventListener(scroll, 'topScrollBeginDrag', () => dragBegan(state)),
+      engine.setEventListener(scroll, 'topMomentumScrollBegin', () => flingBegan(state)),
       engine.setEventListener(scroll, 'topMomentumScrollEnd', () => cameToRest(state)),
       // A finger let go without a fling: the list is at rest as well.
-      engine.setEventListener(scroll, 'topScrollEndDrag', () => showNumbers(state)),
+      engine.setEventListener(scroll, 'topScrollEndDrag', () => dragEnded(state)),
     ]
     lists.set(scroll, state)
     let sameId = listsById.get(spec.id)
@@ -977,7 +1255,11 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     const anchoredKey = anchoredKeyOf(state)
     const isNewAnchor = anchoredKey !== undefined && anchoredKey !== state.anchoredKey
     state.anchoredKey = anchoredKey
-    if (isNewAnchor) beginHold(state)
+    if (isNewAnchor) {
+      // The new question is held at the top while its reply runs on below.
+      state.isFollowing = false
+      beginHold(state)
+    }
     if (isReindexed || isNewAnchor || spec.anchoredEndSpace !== before.anchoredEndSpace) {
       const isLonger = spec.items.length > before.items.length
       resettle(
@@ -998,6 +1280,8 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   const destroyList = (state: ListState): void => {
     state.isAlive = false
     clearTimeout(state.revealTimer)
+    clearTimeout(state.flingTimer)
+    clearTimeout(state.inset?.settleTimer)
     endGlide(state)
     for (const stop of state.stops) stop()
     // An empty canvas, so every row's own clean-up runs.
@@ -1091,6 +1375,7 @@ export const scrollToRow = (
       furthestOffset(state),
     )
     letGo(state)
+    state.isFollowing = false
     reveal(state)
     state.offset = wanted
     takeAnchor(state)
@@ -1111,6 +1396,12 @@ export const scrollToRow = (
 export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }> = {}): void => {
   for (const state of listsById.get(id) ?? []) {
     letGo(state)
+    // Asked for the end: the list follows it from now on (see `Following`).
+    // A fling still running is over: the glide there takes its place.
+    state.isFollowing = true
+    state.isUserScrolling = false
+    clearTimeout(state.flingTimer)
+    state.flingTimer = undefined
     reveal(state)
     beginHold(state)
     resettle(state, options.animated ?? false)

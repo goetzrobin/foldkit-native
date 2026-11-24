@@ -110,6 +110,11 @@ export const Model = Schema.Struct({
   joiningTurnId: Schema.Option(Schema.String),
   nextClientId: Schema.Number,
   draft: Schema.String,
+  /**
+   * A new chat raises the keyboard once its push has finished: set by the
+   * pencil, cleared when the field is focused or the chat is left.
+   */
+  isDraftFocusPending: Schema.Boolean,
   attachment: Schema.Option(Attachment),
   recording: Schema.Option(Recording),
   /** The question held near the top of the screen, by its row key. */
@@ -154,6 +159,10 @@ export const Message = defineMessageUnion({
   ArmedFullSwipe: { isArmed: Schema.Boolean },
 
   // One chat
+  /** The phone says the chat's push has finished. */
+  AppearedChat: {},
+  /** Long enough for any push to have finished, in case the phone never says. */
+  WaitedForPush: {},
   PoppedChat: {},
   ChangedConversation: { id: Schema.String, result: ConversationResult },
   SelectedChatMenu: { key: Schema.String },
@@ -174,6 +183,8 @@ export const Message = defineMessageUnion({
   ChangedAtEnd: { isAtEnd: Schema.Boolean },
   PressedScrollToEnd: {},
   DraggedListWithKeyboardUp: {},
+  /** A tap on the transcript that no button, link or hold took. */
+  TappedTranscript: {},
   LongPressedMessage: { rowKey: Schema.String },
   /** One of the small buttons under a finished reply: copy, share, regenerate. */
   PressedReplyAction: { rowKey: Schema.String, key: Schema.String },

@@ -9,8 +9,10 @@
  * does (`src/menus/menu.ts`): half a second without moving more than ten
  * points. A scroll that starts takes the touch away and cancels the hold.
  *
- * Only the hold is handled here. A view that is also pressed for something
- * else keeps its own `onPress` on a child.
+ * A short touch that is not a hold can send a second Message, `onTap`:
+ * Fold Chat puts the keyboard away when a message is tapped, as it does for
+ * a tap anywhere else on the transcript. A view that is also pressed for
+ * something else keeps its own `onPress` on a child.
  */
 import type { Engine, EngineNode, ResponderEvent } from '@ng-native/fabric'
 import { Option } from 'effect'
@@ -27,6 +29,7 @@ const SLOP = 10
 
 const MARK = 'flagshipLongPress'
 const EVENT = 'flagshipLongPressed'
+const TAP_EVENT = 'flagshipTappedNotHeld'
 
 type Point = Readonly<{ x: number; y: number }>
 
@@ -37,10 +40,11 @@ const pointOf = (event: ResponderEvent | unknown): Point | undefined => {
     : undefined
 }
 
-/** Attributes for a view that sends `message` when held. */
-export const onLongPress = <Message>(message: Message) => [
+/** Attributes for a view that sends `message` when held, and `onTap` when only tapped. */
+export const onLongPress = <Message>(message: Message, onTap?: Message) => [
   prop(MARK, true),
   OnCustomEvent<Message>({ name: EVENT, f: () => Option.some(message) }),
+  ...(onTap === undefined ? [] : [OnCustomEvent<Message>({ name: TAP_EVENT, f: () => Option.some(onTap) })]),
 ]
 
 const longPressModule: ModuleFactory = (engine: Engine) => {
@@ -49,14 +53,21 @@ const longPressModule: ModuleFactory = (engine: Engine) => {
   const wire = (node: EngineNode): void => {
     let timer: ReturnType<typeof setTimeout> | undefined
     let start: Point | undefined
+    /** Still a tap: not held long enough, not moved, not taken by a scroll. */
+    let isTap = false
     const cancel = (): void => {
       if (timer !== undefined) clearTimeout(timer)
       timer = undefined
+      isTap = false
+    }
+    const send = (name: string): void => {
+      const handler = handlersByNode.get(node)?.[name] as Handler | undefined
+      handler?.(customEvent(name, {}))
     }
     const fire = (): void => {
       timer = undefined
-      const handler = handlersByNode.get(node)?.[EVENT] as Handler | undefined
-      handler?.(customEvent(EVENT, {}))
+      isTap = false
+      send(EVENT)
     }
     const stop = engine.setResponder(node, {
       onStartShouldSetResponder: () => true,
@@ -65,6 +76,7 @@ const longPressModule: ModuleFactory = (engine: Engine) => {
       onResponderGrant: event => {
         start = pointOf(event)
         cancel()
+        isTap = true
         timer = setTimeout(fire, LONG_PRESS_MS)
       },
       onResponderMove: event => {
@@ -73,7 +85,11 @@ const longPressModule: ModuleFactory = (engine: Engine) => {
         if (Math.hypot(now.x - start.x, now.y - start.y) > SLOP) cancel()
       },
       onResponderTerminate: cancel,
-      onResponderRelease: cancel,
+      onResponderRelease: () => {
+        const wasTap = isTap
+        cancel()
+        if (wasTap) send(TAP_EVENT)
+      },
     })
     stops.set(node, () => {
       cancel()

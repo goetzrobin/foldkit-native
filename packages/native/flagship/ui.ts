@@ -4,13 +4,17 @@
  *
  * The icons are drawn from boxes, not taken from a font or an icon set, so
  * they look the same on both phones and need nothing from the build. The
- * bar buttons on iOS are the phone's own, with SF Symbols.
+ * two arrows (Send, scroll to end) are the phone's own SF Symbols where the
+ * build has Expo UI's SwiftUI views. The bar buttons on iOS are the phone's
+ * own, with SF Symbols. `test/flagship/icons.test.ts` checks that each
+ * turned bar stays inside its icon and that bars meant to meet do.
  */
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { element } from 'foldkit/renderTarget'
 
 import { type NativeStyle, prop, pressedStyle, style } from '../src/attributes.js'
+import { expoUiHost, expoUiKind, modifiers, swiftUi } from '../src/controls/expoUi.js'
 import { text, view } from '../src/elements.js'
 import { type BarButton, leftBarButtons, onBarButtonPressed, rightBarButtons } from '../src/navigation/header.js'
 import { onBarMenuItemPressed } from '../src/navigation/header.js'
@@ -24,20 +28,49 @@ const el = element<any>()
 
 const bar = (look: NativeStyle): Html => view([style({ position: 'absolute', ...look })], [])
 
-/** An arrow pointing up, 16 points square. */
-export const arrowUp = (color: string): Html =>
+/**
+ * An SF Symbol drawn by SwiftUI, where the build has Expo UI's SwiftUI
+ * views, or undefined. The button around it takes the touch.
+ */
+const sfSymbol = (name: string, color: string, size: number): Html | undefined =>
+  expoUiKind() === 'swiftui'
+    ? expoUiHost({ match: 'both' }, [prop('pointerEvents', 'none'), prop('accessibilityElementsHidden', true)], [
+        swiftUi('ImageView')(
+          [
+            prop('systemName', name),
+            modifiers([
+              { $type: 'font', size, weight: 'semibold' },
+              { $type: 'foregroundStyle', style: { type: 'color', color } },
+            ]),
+          ],
+          [],
+        ),
+      ])
+    : undefined
+
+/**
+ * An arrow pointing up, 16 points square, drawn from three bars. Each side
+ * of the head is turned so that its rounded end sits exactly on the stem's
+ * rounded end: the three meet in one point, the tip. (They used to end side
+ * by side, which drew the tip as a notch.)
+ */
+const drawnArrowUp = (color: string): Html =>
   view(
     [style({ width: 16, height: 16 })],
     [
-      bar({ left: 6.75, top: 2.5, width: 2.5, height: 11.5, borderRadius: 1.25, backgroundColor: color }),
-      bar({ left: 3.92, top: 1.33, width: 2.5, height: 8, borderRadius: 1.25, backgroundColor: color, transform: [{ rotate: '45deg' }] }),
-      bar({ left: 9.58, top: 1.33, width: 2.5, height: 8, borderRadius: 1.25, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
+      bar({ left: 6.75, top: 1.75, width: 2.5, height: 12.5, borderRadius: 1.25, backgroundColor: color }),
+      bar({ left: 4.45, top: 0.8, width: 2.5, height: 9, borderRadius: 1.25, backgroundColor: color, transform: [{ rotate: '45deg' }] }),
+      bar({ left: 9.05, top: 0.8, width: 2.5, height: 9, borderRadius: 1.25, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
     ],
   )
 
-/** An arrow pointing down: the up arrow turned over. */
+/** An arrow pointing up: the phone's own symbol where it can be drawn, else bars. */
+export const arrowUp = (color: string): Html => sfSymbol('arrow.up', color, 15) ?? drawnArrowUp(color)
+
+/** An arrow pointing down: the phone's own symbol, or the drawn up arrow turned over. */
 export const arrowDown = (color: string): Html =>
-  view([style({ transform: [{ rotate: '180deg' }] })], [arrowUp(color)])
+  sfSymbol('arrow.down', color, 15) ??
+  view([style({ width: 16, height: 16, transform: [{ rotate: '180deg' }] })], [drawnArrowUp(color)])
 
 /** A filled square, for Stop. */
 export const stopSquare = (color: string): Html =>
@@ -79,7 +112,7 @@ export const tick = (color: string): Html =>
   view(
     [style({ width: 12, height: 12 })],
     [
-      bar({ left: 2.2, top: 4.6, width: 1.6, height: 5.5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
+      bar({ left: 2.2, top: 5.57, width: 1.6, height: 5.5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
       bar({ left: 6.6, top: 0.6, width: 1.6, height: 11, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '40deg' }] }),
     ],
   )
@@ -101,8 +134,8 @@ export const shareIcon = (color: string): Html =>
     [
       bar({ left: 1.5, top: 6, width: 13, height: 10, borderWidth: 1.6, borderTopWidth: 0, borderColor: color, borderBottomLeftRadius: 2.5, borderBottomRightRadius: 2.5 }),
       bar({ left: 7.2, top: 0.5, width: 1.6, height: 10, borderRadius: 0.8, backgroundColor: color }),
-      bar({ left: 5.5, top: -0.2, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '45deg' }] }),
-      bar({ left: 8.9, top: -0.2, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
+      bar({ left: 6.07, top: 0.03, width: 1.6, height: 4.8, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '45deg' }] }),
+      bar({ left: 8.33, top: 0.03, width: 1.6, height: 4.8, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
     ],
   )
 
@@ -112,8 +145,8 @@ export const regenerateIcon = (color: string): Html =>
     [style({ width: 16, height: 16 })],
     [
       bar({ left: 1.5, top: 1.5, width: 13, height: 13, borderRadius: 6.5, borderWidth: 1.6, borderColor: color, borderTopColor: 'transparent', transform: [{ rotate: '45deg' }] }),
-      bar({ left: 10.6, top: 0.4, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] }),
-      bar({ left: 11.6, top: 3.1, width: 4.6, height: 1.6, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] }),
+      bar({ left: 10.62, top: 0.5, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] }),
+      bar({ left: 11.11, top: 3.29, width: 4.6, height: 1.6, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] }),
     ],
   )
 

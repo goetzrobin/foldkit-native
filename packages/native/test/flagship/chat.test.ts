@@ -142,6 +142,74 @@ describe('sending a message and reading the reply', () => {
   })
 })
 
+describe('a new chat and its keyboard', () => {
+  /** Every focus and blur the program sends to a text field, by the field's tag. */
+  const fieldCommands = (): ReadonlyArray<string> =>
+    at.phone.fabric.commands
+      .filter(each => each.name === 'focus' || each.name === 'blur')
+      .map(each => `${each.name} ${each.node?.reactTag}`)
+
+  it('raises the keyboard once, after the push, and keeps one text field for the life of the screen', async () => {
+    at = await startChatPhone()
+    const fabric = at.phone.fabric
+    const created: Array<number> = []
+    const createNode = fabric.createNode.bind(fabric)
+    fabric.createNode = ((tag: number, viewName: string, ...rest: [never, never, never]) => {
+      if (viewName === 'TextInput') created.push(tag)
+      return createNode(tag, viewName, ...rest)
+    }) as typeof fabric.createNode
+    await at.tap('start-chat')
+    await at.advance(100)
+    const field = byTestId(fabric, 'draft').reactTag
+    // Not focused by the field itself as it is made, in the middle of the push.
+    expect(byTestId(fabric, 'draft').props['autoFocus']).not.toBe(true)
+    expect(fieldCommands()).toEqual([])
+    // The push has finished: the phone says the screen appeared.
+    fabric.emit(byTestId(fabric, 'screen-chat'), 'topAppear', {})
+    await at.advance(50)
+    expect(fieldCommands()).toEqual([`focus ${field}`])
+    // The fallback timer that follows (on the program's own clock) does not focus it a second time.
+    await breathe(800)
+    await at.advance(50)
+    expect(fieldCommands()).toEqual([`focus ${field}`])
+
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.ask(RUNNING)
+    await at.untilDone()
+    // Typing, the new chat getting its id and the whole reply: still the one field.
+    expect(byTestId(fabric, 'draft').reactTag).toBe(field)
+    expect(created.filter(tag => tag === field)).toHaveLength(created.length)
+  })
+
+  it('focuses after a while when the phone never says the screen appeared', async () => {
+    at = await startChatPhone()
+    await at.tap('start-chat')
+    await at.advance(100)
+    expect(fieldCommands()).toEqual([])
+    // The program's own clock, not the server's.
+    await breathe(800)
+    await at.advance(50)
+    expect(fieldCommands()).toEqual([`focus ${byTestId(at.phone.fabric, 'draft').reactTag}`])
+  })
+
+  it('does not focus the field of a chat that was opened from the list', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.phone.fabric.emit(byTestId(at.phone.fabric, 'screen-chat'), 'topDismissed', { dismissCount: 1 })
+    await at.advance(100)
+    const before = fieldCommands().filter(each => each.startsWith('focus')).length
+    await at.tap('chat-c1')
+    await at.advance(100)
+    at.phone.fabric.emit(byTestId(at.phone.fabric, 'screen-chat'), 'topAppear', {})
+    await breathe(800)
+    await at.advance(50)
+    expect(fieldCommands().filter(each => each.startsWith('focus'))).toHaveLength(before)
+  })
+})
+
 describe('stopping and regenerating', () => {
   it('Stop keeps what was written and says Stopped; Regenerate writes it again', async () => {
     at = await startChatPhone()
@@ -317,6 +385,66 @@ describe('holding a message', () => {
     expect(at.sheet.shown.at(-1)?.items.map(item => item.key)).toEqual(['copy', 'select', 'share'])
   })
 
+  /**
+   * A finger resting on a view while the reply keeps streaming: the clock
+   * moves on in steps, and every step draws the transcript again, until
+   * the finger has rested for longer than a hold.
+   */
+  const holdWhileStreaming = async (id: string): Promise<void> => {
+    const fabric = at.phone.fabric
+    const node = byTestId(fabric, id)
+    const point = { identifier: 0, target: node.reactTag, pageX: 0, pageY: 0, locationX: 0, locationY: 0, timestamp: Date.now() }
+    fabric.emit(node, 'topTouchStart', { ...point, touches: [point], changedTouches: [point] })
+    const started = Date.now()
+    let draws = 0
+    while (Date.now() - started < LONG_PRESS_MS + 120) {
+      const before = at.transcriptRows().join('|')
+      await at.advance(50)
+      if (at.transcriptRows().join('|') !== before) draws += 1
+    }
+    // The reply did change under the finger: this is a hold during streaming.
+    expect(draws).toBeGreaterThan(0)
+    fabric.emit(byTestId(fabric, id), 'topTouchEnd', { ...point, touches: [], changedTouches: [point] })
+    await at.advance(50)
+  }
+
+  it('holding the reply while it streams offers Copy so far and Stop; Stop stops it', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.until(() => at.transcriptRows().some(each => /Starting to run/.test(each)))
+    expect(at.has('stop')).toBe(true)
+    const key = replyKey()
+    at.sheet.answerWith('stop')
+    await holdWhileStreaming(`row-${key}`)
+    expect(at.sheet.shown.at(-1)?.items.map(item => item.title)).toEqual(['Copy so far', 'Stop'])
+    await at.advance(600)
+    expect(at.has(`${key}-stopped`)).toBe(true)
+    expect(at.server.log().filter(each => each.startsWith('StopTurn'))).toHaveLength(1)
+  })
+
+  it('holding the reply while it streams and choosing Copy so far copies what is there', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.until(() => at.transcriptRows().some(each => /Starting to run/.test(each)))
+    at.sheet.answerWith('copy')
+    await holdWhileStreaming(`row-${replyKey()}`)
+    expect(at.device.clipboard.contents()).toMatch(/^## Starting to run/)
+    // Still streaming: copying did not stop it.
+    expect(at.has('stop')).toBe(true)
+  })
+
+  it('holding your question while the reply streams opens its menu', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.until(() => at.transcriptRows().some(each => /Starting to run/.test(each)))
+    at.sheet.answerWith(null)
+    await holdWhileStreaming('row-c1')
+    expect(at.sheet.shown.at(-1)?.items.map(item => item.key)).toEqual(['copy', 'select', 'share'])
+  })
+
   it('a short touch is not a hold', async () => {
     at = await startChatPhone()
     await newChat()
@@ -334,6 +462,87 @@ describe('holding a message', () => {
     await at.tap(`${replyKey()}-share`)
     await at.advance(50)
     expect(at.device.share.calls.at(-1)?.message).toMatch(/^## Starting to run/)
+  })
+})
+
+describe('putting the keyboard away', () => {
+  const touch = (id: string, phase: 'start' | 'end') => {
+    const node = byTestId(at.phone.fabric, id)
+    const point = { identifier: 0, target: node.reactTag, pageX: 0, pageY: 0, locationX: 0, locationY: 0, timestamp: Date.now() }
+    at.phone.fabric.emit(node, phase === 'start' ? 'topTouchStart' : 'topTouchEnd', {
+      ...point,
+      touches: phase === 'start' ? [point] : [],
+      changedTouches: [point],
+    })
+  }
+
+  it('a tap on the transcript, or on a message, puts the keyboard away; a button keeps it', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    const before = at.device.keyboard.dismissCount()
+
+    // Between the rows: nothing there takes the touch but the list itself.
+    await at.tap('transcript')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 1)
+
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap(`row-${replyKey()}`)
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 2)
+
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap('row-c1')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 3)
+
+    // A button under a reply does its own job and leaves the keyboard up.
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap(`${replyKey()}-share`)
+    await at.advance(50)
+    expect(at.device.share.calls).toHaveLength(1)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 3)
+  })
+
+  it('a drag is not a tap, and the keyboard still follows a drag down', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    const before = at.device.keyboard.dismissCount()
+    touch('transcript', 'start')
+    at.phone.fabric.emit(byTestId(at.phone.fabric, 'transcript'), 'topScrollBeginDrag', {
+      contentOffset: { x: 0, y: 0 },
+      layoutMeasurement: { width: 390, height: 600 },
+    })
+    touch('transcript', 'end')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before)
+    // The phone's own way: the keyboard follows the finger down, or leaves as the drag starts.
+    expect(['interactive', 'on-drag']).toContain(byTestId(at.phone.fabric, 'transcript').props['keyboardDismissMode'])
+  })
+
+  it('holding a message is not a tap', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    const before = at.device.keyboard.dismissCount()
+    at.sheet.answerWith(null)
+    await hold(at.phone.fabric, `row-${replyKey()}`, LONG_PRESS_MS + 80)
+    expect(at.sheet.shown).toHaveLength(1)
+    expect(at.device.keyboard.dismissCount()).toBe(before)
   })
 })
 

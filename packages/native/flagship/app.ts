@@ -55,7 +55,8 @@ import { type ServerState, focusEntry, watchAtom } from '../src/serverState/inde
 import { closeAllSwipes } from '../src/swipe/index.js'
 import { closeNativeSwipes } from '../src/swipeNative/index.js'
 import { Appearance } from './appearance.js'
-import { TRANSCRIPT_ID, chatScreen, chatTitle, voiceNoteText } from './chatScreen.js'
+import { DRAFT_FIELD, TRANSCRIPT_ID, chatScreen, chatTitle, voiceNoteText } from './chatScreen.js'
+import { focusField } from './focus.js'
 import { listScreen } from './listScreen.js'
 import {
   DEFAULT_SETTINGS,
@@ -210,6 +211,25 @@ export const makeChatApp = (
       }),
   })
 
+  /** Longer than a push takes, on any phone. Only used if the phone never says it appeared. */
+  const PUSH_WAIT_MS = 700
+
+  const WaitForPush = Command.define('ChatWaitForPush', {
+    messages: [Message.WaitedForPush],
+    execute: Effect.sleep(Duration.millis(PUSH_WAIT_MS)).pipe(Effect.as(Message.WaitedForPush())),
+  })
+
+  const FocusDraft = Command.define('ChatFocusDraft', {
+    messages: [Message.CompletedSideEffect],
+    execute: focusField(DRAFT_FIELD).pipe(Effect.as(Message.CompletedSideEffect())),
+  })
+
+  /** Raises the keyboard in a new chat, once: on the first of the two Messages that may say the push is done. */
+  const focusIfPending = (model: Model): Return =>
+    model.isDraftFocusPending && model.isChatOpen
+      ? { model: modifyFields(model, { isDraftFocusPending: () => false }), commands: [FocusDraft()] }
+      : { model }
+
   const ScrollToEnd = Command.define('ChatScrollToEnd', {
     messages: [Message.CompletedSideEffect],
     execute: scrollListToEnd(TRANSCRIPT_ID, { animated: true }).pipe(Effect.as(Message.CompletedSideEffect())),
@@ -293,6 +313,7 @@ export const makeChatApp = (
       joiningTurnId: Option.none(),
       nextClientId: 1,
       draft: '',
+      isDraftFocusPending: false,
       attachment: Option.none(),
       recording: Option.none(),
       anchorKey: Option.none(),
@@ -326,6 +347,7 @@ export const makeChatApp = (
       live: () => Option.none(),
       joiningTurnId: () => Option.none(),
       draft: () => '',
+      isDraftFocusPending: () => false,
       attachment: () => Option.none(),
       recording: () => Option.none(),
       anchorKey: () => Option.none(),
@@ -349,6 +371,7 @@ export const makeChatApp = (
       pending: pending =>
         PendingOps.add(pending, { clientMessageId, conversationId, text, attachments, createdAt: model.nowMs }),
       draft: () => '',
+      isDraftFocusPending: () => false,
       attachment: () => Option.none(),
       // The list brings this question near the top by itself.
       anchorKey: () => Option.some(clientMessageId),
@@ -450,6 +473,8 @@ export const makeChatApp = (
             return { model: modifyFields(closed, { sheet: () => Option.some({ _tag: 'SelectText' as const, rowKey: menu.rowKey }) }) }
           case 'regenerate':
             return regenerate(closed)
+          case 'stop':
+            return update(closed, Message.PressedStop())
           default:
             return { model: closed }
         }
@@ -564,9 +589,13 @@ export const makeChatApp = (
       ChangedList: ({ result }) => ({ model: modifyFields(model, { list: () => result }), commands: [ReadClock()] }),
       ChangedQuery: ({ text }) => ({ model: modifyFields(model, { query: () => text }) }),
       PressedConversation: ({ id }) => ({ model: openChat(model, Option.some(id)), commands: [CloseSwipes()] }),
+      // The keyboard comes up once the push has finished: see `focus.ts`.
       PressedNewChat: () => ({
-        model: modifyFields(openChat(model, Option.none()), { sheet: () => Option.none() }),
-        commands: [CloseSwipes()],
+        model: modifyFields(openChat(model, Option.none()), {
+          sheet: () => Option.none(),
+          isDraftFocusPending: () => true,
+        }),
+        commands: [CloseSwipes(), WaitForPush()],
       }),
       PressedSettings: () => ({ model: modifyFields(model, { sheet: () => Option.some({ _tag: 'Settings' as const }) }) }),
       SelectedRowAction: ({ id, key }) => {
@@ -596,6 +625,8 @@ export const makeChatApp = (
       ArmedFullSwipe: ({ isArmed }) => ({ model, commands: isArmed ? [haptic.light()] : [] }),
 
       // ONE CHAT
+      AppearedChat: () => focusIfPending(model),
+      WaitedForPush: () => focusIfPending(model),
       PoppedChat: () => ({ model: closeChat(model), commands: [dismissKeyboard()] }),
       ChangedConversation: ({ id, result }) => {
         if (!Option.contains(model.openId, id)) return { model }
@@ -709,23 +740,28 @@ export const makeChatApp = (
       PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
       // Android's scroll view cannot put the keyboard away by itself.
       DraggedListWithKeyboardUp: () => ({ model, commands: [dismissKeyboard()] }),
+      TappedTranscript: () => ({ model, commands: model.keyboardHeight > 0 ? [dismissKeyboard()] : [] }),
       LongPressedMessage: ({ rowKey }) => {
         const row = chatRows(model).find(each => each.key === rowKey)
         if (row === undefined) return { model }
         const canRegenerate = row.role === 'assistant' && row.isLastReply && !LiveTurnOps.isStreaming(model.live)
+        const text = textOf(row.parts)
+        // A reply still being written: what is there so far, and a way to end it.
+        const items =
+          row.role === 'assistant' && row.status === 'streaming'
+            ? [...(text === '' ? [] : [{ key: 'copy', title: 'Copy so far' }]), { key: 'stop', title: 'Stop' }]
+            : [
+                { key: 'copy', title: 'Copy' },
+                { key: 'select', title: 'Select text' },
+                { key: 'share', title: 'Share' },
+                ...(canRegenerate ? [{ key: 'regenerate', title: 'Regenerate' }] : []),
+              ]
         return {
-          model: modifyFields(model, { menu: () => Option.some({ rowKey, text: textOf(row.parts), canRegenerate }) }),
+          model: modifyFields(model, { menu: () => Option.some({ rowKey, text, canRegenerate }) }),
           commands: [
             haptic.medium(),
             Command.mapMessage(
-              ActionSheet.Show({
-                items: [
-                  { key: 'copy', title: 'Copy' },
-                  { key: 'select', title: 'Select text' },
-                  { key: 'share', title: 'Share' },
-                  ...(canRegenerate ? [{ key: 'regenerate', title: 'Regenerate' }] : []),
-                ],
-              }),
+              ActionSheet.Show({ items }),
               sheetMessage => Message.GotActionSheetMessage({ message: sheetMessage }),
             ),
           ],
