@@ -1,7 +1,7 @@
-import { checkFinishedScroll, checkFinishedScrollFallback } from "./checkFinishedScroll.js";
-import { type DoScrollToParams, getNativeScrollPoint } from "./doScrollParams.js";
-import { initialScrollCompletion } from "./initialScrollSession.js";
-import type { StateContext } from "../state/state.js";
+import { checkFinishedScroll, checkFinishedScrollFallback } from "./checkFinishedScroll";
+import { type DoScrollToParams, getNativeScrollPoint } from "./doScrollParams";
+import { initialScrollCompletion } from "./initialScrollSession";
+import type { StateContext } from "../state/state";
 
 export function doScrollTo(ctx: StateContext, params: DoScrollToParams) {
     const state = ctx.state;

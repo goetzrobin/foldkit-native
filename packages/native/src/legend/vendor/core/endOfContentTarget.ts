@@ -1,4 +1,4 @@
-import type { InternalState } from "../types.internal.js";
+import type { InternalState } from "../types.internal";
 
 /*
  * Two kinds of scroll targets exist, and only one of them accounts for the

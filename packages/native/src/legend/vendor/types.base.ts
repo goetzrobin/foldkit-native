@@ -1,7 +1,7 @@
-import type * as React from "../platform/react.js";
-import type { Key } from "../platform/react.js";
+import type * as React from "../platform/react";
+import type { Key } from "../platform/react";
 
-import type { LegendListListenerType, ListenerTypeValueMap } from "./state/state.js";
+import type { LegendListListenerType, ListenerTypeValueMap } from "./state/state";
 
 export interface Insets {
     top: number;

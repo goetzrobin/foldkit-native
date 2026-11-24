@@ -1,14 +1,14 @@
-import { USER_MOMENTUM_STALL_TIMEOUT_MS } from "../constants.js";
-import { cancelScroll } from "./cancelScroll.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { getNativeScrollPoint } from "./doScrollParams.js";
-import { finishScrollTo } from "./finishScrollTo.js";
-import { getCurrentTargetOffset, isEndAlignedLastItemTarget } from "./getCurrentTargetOffset.js";
-import { initialScrollCompletion, initialScrollWatchdog } from "./initialScrollSession.js";
-import { getObservedScrollOffset } from "./observedScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentSize } from "../state/getContentSize.js";
-import type { StateContext } from "../state/state.js";
+import { USER_MOMENTUM_STALL_TIMEOUT_MS } from "../constants";
+import { cancelScroll } from "./cancelScroll";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { getNativeScrollPoint } from "./doScrollParams";
+import { finishScrollTo } from "./finishScrollTo";
+import { getCurrentTargetOffset, isEndAlignedLastItemTarget } from "./getCurrentTargetOffset";
+import { initialScrollCompletion, initialScrollWatchdog } from "./initialScrollSession";
+import { getObservedScrollOffset } from "./observedScroll";
+import { Platform } from "../../platform/Platform";
+import { getContentSize } from "../state/getContentSize";
+import type { StateContext } from "../state/state";
 
 export { getCurrentTargetOffset };
 

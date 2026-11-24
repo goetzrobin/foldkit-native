@@ -1,6 +1,6 @@
-import { I18nManager } from "../../platform/I18nManager.js";
-import { Platform } from "../../platform/Platform.js";
-import type { InternalState } from "../types.internal.js";
+import { I18nManager } from "../../platform/I18nManager";
+import { Platform } from "../../platform/Platform";
+import type { InternalState } from "../types.internal";
 
 export type HorizontalRTLScrollType = "normal" | "inverted" | "negative";
 

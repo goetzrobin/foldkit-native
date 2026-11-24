@@ -1,15 +1,15 @@
-import { IsNewArchitecture } from "../../platform/constants-platform.js";
-import { getViewPositionOffset } from "./calculateOffsetWithOffsetPosition.js";
-import { getContentInsetTop, getScrollRangeEnd } from "./clampScrollOffset.js";
-import { shouldMaintainScrollAtEndOnDataChange } from "./shouldMaintainScrollAtEndOnDataChange.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentInsetEnd } from "../state/getContentInsetEnd.js";
-import { getContentSize } from "../state/getContentSize.js";
-import { peek$, type StateContext } from "../state/state.js";
-import type { ScrollAdjustmentSource } from "../types.internal.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize } from "../utils/getItemSize.js";
-import { requestAdjust } from "../utils/requestAdjust.js";
+import { IsNewArchitecture } from "../../platform/constants-platform";
+import { getViewPositionOffset } from "./calculateOffsetWithOffsetPosition";
+import { getContentInsetTop, getScrollRangeEnd } from "./clampScrollOffset";
+import { shouldMaintainScrollAtEndOnDataChange } from "./shouldMaintainScrollAtEndOnDataChange";
+import { Platform } from "../../platform/Platform";
+import { getContentInsetEnd } from "../state/getContentInsetEnd";
+import { getContentSize } from "../state/getContentSize";
+import { peek$, type StateContext } from "../state/state";
+import type { ScrollAdjustmentSource } from "../types.internal";
+import { getId } from "../utils/getId";
+import { getItemSize } from "../utils/getItemSize";
+import { requestAdjust } from "../utils/requestAdjust";
 
 // Web MVCP can keep a short-lived anchor lock while layout settles across consecutive frames.
 const MVCP_POSITION_EPSILON = 0.1;

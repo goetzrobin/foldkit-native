@@ -1,6 +1,6 @@
-import { peek$, type StateContext } from "../state/state.js";
-import { hasActiveInitialScroll } from "./hasActiveInitialScroll.js";
-import { toLogicalHorizontalOffset } from "./rtl.js";
+import { peek$, type StateContext } from "../state/state";
+import { hasActiveInitialScroll } from "./hasActiveInitialScroll";
+import { toLogicalHorizontalOffset } from "./rtl";
 
 export const INITIAL_DRAW_DISTANCE = 50;
 

@@ -1,7 +1,7 @@
-import type * as React from "../../platform/react.js";
+import type * as React from "../../platform/react";
 
-import { peek$, type StateContext } from "../state/state.js";
-import { isNullOrUndefined } from "./helpers.js";
+import { peek$, type StateContext } from "../state/state";
+import { isNullOrUndefined } from "./helpers";
 
 export function getRenderedItem(ctx: StateContext, key: string, containerId: number, onReadIndex?: () => void) {
     const state = ctx.state;

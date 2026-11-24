@@ -1,6 +1,6 @@
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext } from "../state/state.js";
-import { IS_DEV } from "./devEnvironment.js";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext } from "../state/state";
+import { IS_DEV } from "./devEnvironment";
 
 export interface ContainerAllocation {
     containerIndex: number;

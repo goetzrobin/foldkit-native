@@ -1,7 +1,7 @@
-import { setSize } from "../core/setSize.js";
-import type { StateContext } from "../state/state.js";
-import { roundSize } from "./helpers.js";
-import { getId } from "./getId.js";
+import { setSize } from "../core/setSize";
+import type { StateContext } from "../state/state";
+import { roundSize } from "./helpers";
+import { getId } from "./getId";
 
 export interface ResolvedItemSize {
     didResolveFixedItemSize?: boolean;

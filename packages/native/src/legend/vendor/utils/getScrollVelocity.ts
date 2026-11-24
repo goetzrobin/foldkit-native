@@ -1,4 +1,4 @@
-import type { InternalState } from "../types.internal.js";
+import type { InternalState } from "../types.internal";
 
 const MAX_SCROLL_VELOCITY_WINDOW_MS = 1000;
 const SCROLL_VELOCITY_HALF_LIFE_MS = 200;

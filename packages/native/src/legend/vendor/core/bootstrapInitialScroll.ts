@@ -1,25 +1,25 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame.js";
-import { doScrollTo } from "./doScrollTo.js";
-import { getEndAlignedViewOffset, isEndOfContentTarget } from "./endOfContentTarget.js";
-import { clearPreservedInitialScrollTarget, finishInitialScroll } from "./finishInitialScroll.js";
+import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame";
+import { doScrollTo } from "./doScrollTo";
+import { getEndAlignedViewOffset, isEndOfContentTarget } from "./endOfContentTarget";
+import { clearPreservedInitialScrollTarget, finishInitialScroll } from "./finishInitialScroll";
 import {
     advanceCurrentInitialScrollSession,
     dispatchInitialScroll,
     resolveInitialScrollOffset,
     setInitialScrollTarget,
-} from "./initialScroll.js";
-import { setInitialScrollSession } from "./initialScrollSession.js";
-import { shouldMaintainScrollAtEndOnDataChange } from "./shouldMaintainScrollAtEndOnDataChange.js";
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext } from "../state/state.js";
-import type { ScrollIndexWithOffsetAndContentOffset } from "../types.base.js";
-import type { InternalState } from "../types.internal.js";
-import { checkAllSizesKnown } from "../utils/checkAllSizesKnown.js";
-import { IS_DEV } from "../utils/devEnvironment.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize } from "../utils/getItemSize.js";
-import { getStylePaddingEnd, peekLogicalHorizontalOffset } from "../utils/rtl.js";
+} from "./initialScroll";
+import { setInitialScrollSession } from "./initialScrollSession";
+import { shouldMaintainScrollAtEndOnDataChange } from "./shouldMaintainScrollAtEndOnDataChange";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext } from "../state/state";
+import type { ScrollIndexWithOffsetAndContentOffset } from "../types.base";
+import type { InternalState } from "../types.internal";
+import { checkAllSizesKnown } from "../utils/checkAllSizesKnown";
+import { IS_DEV } from "../utils/devEnvironment";
+import { getId } from "../utils/getId";
+import { getItemSize } from "../utils/getItemSize";
+import { getStylePaddingEnd, peekLogicalHorizontalOffset } from "../utils/rtl";
 
 const DEFAULT_BOOTSTRAP_REVEAL_EPSILON = 1;
 const DEFAULT_BOOTSTRAP_REVEAL_MAX_FRAMES = 8;

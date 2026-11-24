@@ -1,11 +1,11 @@
-import { resolveContainerItemMetadata } from "./containerItemMetadata.js";
+import { resolveContainerItemMetadata } from "./containerItemMetadata";
 import {
     type ItemSizeMeasurement,
     isContainerItemCurrent,
     updateItemSizes,
     updateItemSizesBatch,
-} from "./updateItemSizes.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
+} from "./updateItemSizes";
+import { peek$, type StateContext, set$ } from "../state/state";
 
 function resolveSkippedAnchorReset(ctx: StateContext, itemKey: string) {
     const state = ctx.state;

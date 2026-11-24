@@ -1,6 +1,6 @@
-import { Platform } from "../../platform/Platform.js";
-import { getHorizontalInsetEnd, isHorizontalRTL } from "../utils/rtl.js";
-import { peek$, type StateContext } from "./state.js";
+import { Platform } from "../../platform/Platform";
+import { getHorizontalInsetEnd, isHorizontalRTL } from "../utils/rtl";
+import { peek$, type StateContext } from "./state";
 
 function getContentInsetEndAdjustmentEnd(adjustment?: number) {
     return Math.max(0, adjustment ?? 0);

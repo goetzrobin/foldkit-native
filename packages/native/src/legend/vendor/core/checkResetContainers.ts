@@ -1,10 +1,10 @@
-import { calculateItemsInView } from "./calculateItemsInView.js";
-import { invalidateFixedItemSizes } from "./containerItemMetadata.js";
-import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd.js";
-import { shouldMaintainScrollAtEndOnDataChange } from "./shouldMaintainScrollAtEndOnDataChange.js";
-import type { StateContext } from "../state/state.js";
-import { checkThresholds } from "../utils/checkThresholds.js";
-import { getId } from "../utils/getId.js";
+import { calculateItemsInView } from "./calculateItemsInView";
+import { invalidateFixedItemSizes } from "./containerItemMetadata";
+import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd";
+import { shouldMaintainScrollAtEndOnDataChange } from "./shouldMaintainScrollAtEndOnDataChange";
+import type { StateContext } from "../state/state";
+import { checkThresholds } from "../utils/checkThresholds";
+import { getId } from "../utils/getId";
 
 interface CheckResetContainersOptions {
     didColumnsChange?: boolean;

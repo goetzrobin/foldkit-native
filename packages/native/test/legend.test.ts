@@ -363,12 +363,29 @@ describe.each(['ios', 'android'] as const)('Legend core, 1,000 rows (%s)', platf
     expect(Math.abs(screenTopOf(scroll, watched)! - before)).toBeLessThanOrEqual(1)
   })
 
+  it('says that the end was reached, once for a drag that gets there', async () => {
+    const { scroll, phone } = running
+    expect(textOf(byTestId(phone.fabric, 'status'))).toContain('ends:0')
+    await dragTo(scroll, 9000)
+    expect(textOf(byTestId(phone.fabric, 'status'))).toContain('ends:0')
+    await dragTo(scroll, furthest(scroll))
+    expect(textOf(byTestId(phone.fabric, 'status'))).toContain('ends:1')
+    // Resting there, with rows still being measured, does not say it again.
+    await pump(scroll)
+    expect(textOf(byTestId(phone.fabric, 'status'))).toContain('ends:1')
+  })
+
   it('sends the row Message for a press, and redraws a row whose item changed', async () => {
     const { scroll, phone } = running
     await press(phone.fabric, 'row-3')
     expect(textOf(byTestId(phone.fabric, 'status'))).toContain('pressed:3')
     await pump(scroll)
     expect(textOf(byTestId(phone.fabric, 'row-3'))).toBe('Row 3')
+    await dragTo(scroll, furthest(scroll))
+    expect(textOf(byTestId(phone.fabric, 'row-999'))).toBe('Row 999')
+    await press(phone.fabric, 'rename')
+    await pump(scroll)
+    expect(textOf(byTestId(phone.fabric, 'row-999'))).toBe('Renamed')
   })
 })
 
@@ -506,6 +523,17 @@ describe('Legend core, the chat behaviours', () => {
     await pump(scroll)
     expect(Math.abs(screenTopOf(scroll, 'row-100000')! - 16)).toBeLessThanOrEqual(1)
     expect(Number(partsOf(scroll).end.props['height'])).toBe(endSpace - 200)
+  })
+
+  it('without recycling, a row that scrolls on gets native views of its own', async () => {
+    running = await start('ios', { recycleItems: false })
+    const { scroll } = running
+    await dragTo(scroll, 2000)
+    const before = new Set(containerViews(scroll).map(view => view.reactTag))
+    await dragTo(scroll, 16000)
+    const after = containerViews(scroll).map(view => view.reactTag)
+    expect(after.filter(tag => before.has(tag))).toHaveLength(0)
+    expect(after.length).toBeLessThan(40)
   })
 
   it('cleans up: nothing is drawn or heard after the list is gone', async () => {

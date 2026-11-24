@@ -1,6 +1,6 @@
-import { getContentInsetTop } from "./clampScrollOffset.js";
-import { getContentInsetEnd } from "../state/getContentInsetEnd.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
+import { getContentInsetTop } from "./clampScrollOffset";
+import { getContentInsetEnd } from "../state/getContentInsetEnd";
+import { peek$, type StateContext, set$ } from "../state/state";
 
 function getRawContentLength(ctx: StateContext) {
     const { state, values } = ctx;

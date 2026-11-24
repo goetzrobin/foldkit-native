@@ -1,27 +1,27 @@
-import { IsNewArchitecture } from "../../platform/constants-platform.js";
-import { calculateOffsetForIndex } from "../core/calculateOffsetForIndex.js";
-import { cancelScroll } from "../core/cancelScroll.js";
-import { getContentInsetTop } from "../core/clampScrollOffset.js";
-import { invalidateFixedItemSizes } from "../core/containerItemMetadata.js";
-import { doMaintainScrollAtEnd } from "../core/doMaintainScrollAtEnd.js";
-import { supersedeInitialScroll } from "../core/finishInitialScroll.js";
-import { armAppScrollRearm, interruptMaintainScrollAtEnd } from "../core/finishMaintainScrollAtEnd.js";
-import { getStartOffsetAdjustment } from "../core/getStartOffsetAdjustment.js";
-import { retargetActiveInitialScrollAtEnd } from "../core/initialScrollLifecycle.js";
-import { clearItemSizeEstimates } from "../core/itemSizeCache.js";
-import { getObservedScrollOffset } from "../core/observedScroll.js";
-import { scheduleContainerLayout } from "../core/scheduleContainerLayout.js";
-import { getScrollRequestTracker, type ScrollRequestRun } from "../core/scrollRequestTracker.js";
-import { findVisibleItemIndex, scrollTo } from "../core/scrollTo.js";
-import { scrollToEnd } from "../core/scrollToEnd.js";
-import { scrollToIndex } from "../core/scrollToIndex.js";
-import { setContentInsetOverride } from "../core/updateContentMetrics.js";
-import { updateItemSizes } from "../core/updateItemSizes.js";
-import { updateScroll } from "../core/updateScroll.js";
-import { updateViewableItems } from "../core/viewability.js";
-import { isScreenReaderEnabled } from "../../platform/screenReader.js";
-import { getContentInsetEnd } from "../state/getContentInsetEnd.js";
-import { getContentSize } from "../state/getContentSize.js";
+import { IsNewArchitecture } from "../../platform/constants-platform";
+import { calculateOffsetForIndex } from "../core/calculateOffsetForIndex";
+import { cancelScroll } from "../core/cancelScroll";
+import { getContentInsetTop } from "../core/clampScrollOffset";
+import { invalidateFixedItemSizes } from "../core/containerItemMetadata";
+import { doMaintainScrollAtEnd } from "../core/doMaintainScrollAtEnd";
+import { supersedeInitialScroll } from "../core/finishInitialScroll";
+import { armAppScrollRearm, interruptMaintainScrollAtEnd } from "../core/finishMaintainScrollAtEnd";
+import { getStartOffsetAdjustment } from "../core/getStartOffsetAdjustment";
+import { retargetActiveInitialScrollAtEnd } from "../core/initialScrollLifecycle";
+import { clearItemSizeEstimates } from "../core/itemSizeCache";
+import { getObservedScrollOffset } from "../core/observedScroll";
+import { scheduleContainerLayout } from "../core/scheduleContainerLayout";
+import { getScrollRequestTracker, type ScrollRequestRun } from "../core/scrollRequestTracker";
+import { findVisibleItemIndex, scrollTo } from "../core/scrollTo";
+import { scrollToEnd } from "../core/scrollToEnd";
+import { scrollToIndex } from "../core/scrollToIndex";
+import { setContentInsetOverride } from "../core/updateContentMetrics";
+import { updateItemSizes } from "../core/updateItemSizes";
+import { updateScroll } from "../core/updateScroll";
+import { updateViewableItems } from "../core/viewability";
+import { isScreenReaderEnabled } from "../../platform/screenReader";
+import { getContentInsetEnd } from "../state/getContentInsetEnd";
+import { getContentSize } from "../state/getContentSize";
 import {
     type LegendListListenerType,
     type ListenerTypeValueMap,
@@ -30,13 +30,13 @@ import {
     peek$,
     type StateContext,
     set$,
-} from "../state/state.js";
-import type { LegendListAverageItemSize, LegendListRef } from "../types.base.js";
-import type { LegendListInternalRef, ScrollResolve } from "../types.internal.js";
-import { getId } from "./getId.js";
-import { areKnownOrFixedItemSizesAvailable, getItemSizeAtIndex } from "./getItemSize.js";
-import { getScrollVelocity } from "./getScrollVelocity.js";
-import { findContainerId, isFunction } from "./helpers.js";
+} from "../state/state";
+import type { LegendListAverageItemSize, LegendListRef } from "../types.base";
+import type { LegendListInternalRef, ScrollResolve } from "../types.internal";
+import { getId } from "./getId";
+import { areKnownOrFixedItemSizesAvailable, getItemSizeAtIndex } from "./getItemSize";
+import { getScrollVelocity } from "./getScrollVelocity";
+import { findContainerId, isFunction } from "./helpers";
 
 const DEFAULT_AVERAGE_ITEM_SIZE_TYPE = "default";
 

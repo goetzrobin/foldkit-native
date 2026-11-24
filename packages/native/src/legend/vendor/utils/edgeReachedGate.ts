@@ -1,8 +1,8 @@
-import { getContentInsetTop } from "../core/clampScrollOffset.js";
-import { getContentSize } from "../state/getContentSize.js";
-import type { StateContext } from "../state/state.js";
-import type { ThresholdSnapshot } from "../types.internal.js";
-import { didThresholdDataChange, isOutsideThresholdHysteresis } from "./checkThreshold.js";
+import { getContentInsetTop } from "../core/clampScrollOffset";
+import { getContentSize } from "../state/getContentSize";
+import type { StateContext } from "../state/state";
+import type { ThresholdSnapshot } from "../types.internal";
+import { didThresholdDataChange, isOutsideThresholdHysteresis } from "./checkThreshold";
 
 export type ReachedEdge = "end" | "start";
 

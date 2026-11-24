@@ -1,5 +1,5 @@
-import type { MaintainScrollAtEndOptions } from "../types.base.js";
-import type { MaintainScrollAtEndNormalized } from "../types.internal.js";
+import type { MaintainScrollAtEndOptions } from "../types.base";
+import type { MaintainScrollAtEndNormalized } from "../types.internal";
 
 export function normalizeMaintainScrollAtEnd(
     value: boolean | MaintainScrollAtEndOptions | undefined,

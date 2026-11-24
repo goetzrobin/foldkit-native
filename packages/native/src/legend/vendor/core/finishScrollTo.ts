@@ -1,10 +1,10 @@
-import { addTotalSize } from "./addTotalSize.js";
-import { cancelScrollCompletionChecks, syncScrollActive } from "./cancelImperativeScroll.js";
-import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd.js";
-import { finishInitialScroll } from "./finishInitialScroll.js";
-import { recalculateSettledScroll } from "./recalculateSettledScroll.js";
-import { PlatformAdjustBreaksScroll } from "../../platform/Platform.js";
-import type { StateContext } from "../state/state.js";
+import { addTotalSize } from "./addTotalSize";
+import { cancelScrollCompletionChecks, syncScrollActive } from "./cancelImperativeScroll";
+import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd";
+import { finishInitialScroll } from "./finishInitialScroll";
+import { recalculateSettledScroll } from "./recalculateSettledScroll";
+import { PlatformAdjustBreaksScroll } from "../../platform/Platform";
+import type { StateContext } from "../state/state";
 
 export function finishScrollTo(ctx: StateContext) {
     const state = ctx.state;

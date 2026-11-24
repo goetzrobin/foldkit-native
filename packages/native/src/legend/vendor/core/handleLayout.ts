@@ -1,15 +1,15 @@
-import { calculateItemsInView } from "./calculateItemsInView.js";
-import { doInitialAllocateContainers } from "./doInitialAllocateContainers.js";
-import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd.js";
-import { scrollToIndex } from "./scrollToIndex.js";
-import { updateContentMetricsState } from "./updateContentMetricsState.js";
-import { getWindowSize } from "../../platform/getWindowSize.js";
-import type { LayoutRectangle } from "../platform/scrollview-types.js";
-import { type StateContext, set$ } from "../state/state.js";
-import { checkThresholds } from "../utils/checkThresholds.js";
-import { IS_DEV } from "../utils/devEnvironment.js";
-import { warnDevOnce } from "../utils/helpers.js";
-import { invalidateHorizontalRTLScrollType } from "../utils/rtl.js";
+import { calculateItemsInView } from "./calculateItemsInView";
+import { doInitialAllocateContainers } from "./doInitialAllocateContainers";
+import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd";
+import { scrollToIndex } from "./scrollToIndex";
+import { updateContentMetricsState } from "./updateContentMetricsState";
+import { getWindowSize } from "../../platform/getWindowSize";
+import type { LayoutRectangle } from "../platform/scrollview-types";
+import { type StateContext, set$ } from "../state/state";
+import { checkThresholds } from "../utils/checkThresholds";
+import { IS_DEV } from "../utils/devEnvironment";
+import { warnDevOnce } from "../utils/helpers";
+import { invalidateHorizontalRTLScrollType } from "../utils/rtl";
 
 export function handleLayout(
     ctx: StateContext,

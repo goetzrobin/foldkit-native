@@ -150,11 +150,12 @@ const legendListView = (config: LegendListConfig<any, any>, inputs: Inputs): Htm
     ] as never,
     [content],
   )
+  // Filled in by the Legend module once the scroll view exists as a native view.
+  const target: LegendSpec['target'] = { scroll: undefined }
   /** Calls the handler Foldkit put on the scroll view for one of the two names above. */
   const fire = (name: string, detail: unknown): void => {
-    const node = scroll?.elm
-    if (node === undefined) return
-    const handler = handlersByNode.get(node as never)?.[name] as Handler | undefined
+    if (target.scroll === undefined) return
+    const handler = handlersByNode.get(target.scroll)?.[name] as Handler | undefined
     handler?.(customEvent(name, detail))
   }
   const spec: LegendSpec = {
@@ -181,6 +182,7 @@ const legendListView = (config: LegendListConfig<any, any>, inputs: Inputs): Htm
       onStartReachedThreshold: config.onStartReachedThreshold,
     },
     inFrame: inputs.inFrame,
+    target,
   }
   tag(scroll, LEGEND_DATA, spec)
   tag(content, LEGEND_CONTENT_DATA, spec)

@@ -1,17 +1,17 @@
-import { calculateOffsetForIndex } from "./calculateOffsetForIndex.js";
-import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { isEndOfContentTarget } from "./endOfContentTarget.js";
-import { finishInitialScroll } from "./finishInitialScroll.js";
-import { setInitialScrollSession } from "./initialScrollSession.js";
-import { getObservedScrollOffset } from "./observedScroll.js";
-import { scrollTo } from "./scrollTo.js";
-import { Platform } from "../../platform/Platform.js";
-import type { StateContext } from "../state/state.js";
-import type { ScrollIndexWithOffset, ScrollIndexWithOffsetAndContentOffset } from "../types.base.js";
-import { clampScrollIndex } from "../utils/clampScrollIndex.js";
-import { getItemSizeAtIndex } from "../utils/getItemSize.js";
-import { resetInitialRenderState } from "../utils/setInitialRenderState.js";
+import { calculateOffsetForIndex } from "./calculateOffsetForIndex";
+import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { isEndOfContentTarget } from "./endOfContentTarget";
+import { finishInitialScroll } from "./finishInitialScroll";
+import { setInitialScrollSession } from "./initialScrollSession";
+import { getObservedScrollOffset } from "./observedScroll";
+import { scrollTo } from "./scrollTo";
+import { Platform } from "../../platform/Platform";
+import type { StateContext } from "../state/state";
+import type { ScrollIndexWithOffset, ScrollIndexWithOffsetAndContentOffset } from "../types.base";
+import { clampScrollIndex } from "../utils/clampScrollIndex";
+import { getItemSizeAtIndex } from "../utils/getItemSize";
+import { resetInitialRenderState } from "../utils/setInitialRenderState";
 
 type InternalInitialScrollTarget = NonNullable<StateContext["state"]["initialScroll"]>;
 

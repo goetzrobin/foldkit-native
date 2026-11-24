@@ -1,4 +1,4 @@
-import type { ReactElement } from "../../platform/react.js";
+import type { ReactElement } from "../../platform/react";
 
 import type {
     Insets,
@@ -7,7 +7,7 @@ import type {
     NativeSyntheticEvent,
     StyleProp,
     ViewStyle,
-} from "../types.base.js";
+} from "../types.base";
 
 // Base, RN-free types for shared/internal modules. These are intentionally loose
 // to avoid pulling react-native into the web type tree.

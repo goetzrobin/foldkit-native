@@ -1,6 +1,6 @@
-import type { ViewStyle } from "../platform/scrollview-types.js";
-import { peek$, type StateContext } from "../state/state.js";
-import { IS_DEV } from "./devEnvironment.js";
+import type { ViewStyle } from "../platform/scrollview-types";
+import { peek$, type StateContext } from "../state/state";
+import { IS_DEV } from "./devEnvironment";
 
 export function isFunction(obj: unknown): obj is (...args: any[]) => any {
     return typeof obj === "function";

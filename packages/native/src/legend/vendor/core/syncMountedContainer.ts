@@ -1,9 +1,9 @@
-import { POSITION_OUT_OF_VIEW } from "../constants.js";
-import { updateContainerItemMetadata } from "./containerItemMetadata.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize } from "../utils/getItemSize.js";
-import { toPhysicalHorizontalItemPosition } from "../utils/rtl.js";
+import { POSITION_OUT_OF_VIEW } from "../constants";
+import { updateContainerItemMetadata } from "./containerItemMetadata";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { getId } from "../utils/getId";
+import { getItemSize } from "../utils/getItemSize";
+import { toPhysicalHorizontalItemPosition } from "../utils/rtl";
 
 export function syncMountedContainer(
     ctx: StateContext,

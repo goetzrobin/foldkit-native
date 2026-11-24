@@ -1,4 +1,4 @@
-import { peek$, type StateContext, set$ } from "../state/state.js";
+import { peek$, type StateContext, set$ } from "../state/state";
 
 export function setPaddingTop(ctx: StateContext, { stylePaddingTop }: { stylePaddingTop?: number }) {
     const state = ctx.state;

@@ -1,10 +1,10 @@
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import type { Insets } from "../types.base.js";
-import { checkThresholds } from "../utils/checkThresholds.js";
-import { requestAdjust } from "../utils/requestAdjust.js";
-import { maybeUpdateAnchoredEndSpace } from "./updateAnchoredEndSpace.js";
-import { updateContentMetricsState } from "./updateContentMetricsState.js";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext, set$ } from "../state/state";
+import type { Insets } from "../types.base";
+import { checkThresholds } from "../utils/checkThresholds";
+import { requestAdjust } from "../utils/requestAdjust";
+import { maybeUpdateAnchoredEndSpace } from "./updateAnchoredEndSpace";
+import { updateContentMetricsState } from "./updateContentMetricsState";
 
 const SCROLL_ADJUST_EPSILON = 0.1;
 

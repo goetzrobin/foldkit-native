@@ -1,17 +1,17 @@
-import { schedulePreservedEndAnchorCorrection } from "./bootstrapInitialScroll.js";
-import { calculateItemsInView, schedulePendingDataChangeLayout } from "./calculateItemsInView.js";
-import { resolveContainerItemMetadata } from "./containerItemMetadata.js";
-import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd.js";
-import { setSize } from "./setSize.js";
-import { maybeUpdateAnchoredEndSpace } from "./updateAnchoredEndSpace.js";
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { checkAllSizesKnown } from "../utils/checkAllSizesKnown.js";
-import { checkThresholds } from "../utils/checkThresholds.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize, type ResolvedItemSize } from "../utils/getItemSize.js";
-import { roundSize } from "../utils/helpers.js";
-import { isNativeLayoutNoise } from "../utils/layoutMeasurement.js";
+import { schedulePreservedEndAnchorCorrection } from "./bootstrapInitialScroll";
+import { calculateItemsInView, schedulePendingDataChangeLayout } from "./calculateItemsInView";
+import { resolveContainerItemMetadata } from "./containerItemMetadata";
+import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd";
+import { setSize } from "./setSize";
+import { maybeUpdateAnchoredEndSpace } from "./updateAnchoredEndSpace";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { checkAllSizesKnown } from "../utils/checkAllSizesKnown";
+import { checkThresholds } from "../utils/checkThresholds";
+import { getId } from "../utils/getId";
+import { getItemSize, type ResolvedItemSize } from "../utils/getItemSize";
+import { roundSize } from "../utils/helpers";
+import { isNativeLayoutNoise } from "../utils/layoutMeasurement";
 
 export function runOrScheduleMVCPRecalculate(ctx: StateContext, isFollowingEnd?: boolean) {
     // Runs the MVCP recalculation pass after item-size changes.

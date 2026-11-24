@@ -1,4 +1,4 @@
-import type { InternalState } from "../types.internal.js";
+import type { InternalState } from "../types.internal";
 
 export function resetLayoutCachesForDataChange(state: InternalState) {
     state.positionsAreCurrent = false;

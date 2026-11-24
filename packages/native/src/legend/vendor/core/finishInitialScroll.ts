@@ -1,14 +1,14 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame.js";
-import { cancelScrollCompletionChecks } from "./cancelImperativeScroll.js";
-import { releaseDeferredPublicOnScroll } from "./deferredPublicOnScroll.js";
-import { isEndOfContentTarget } from "./endOfContentTarget.js";
-import { initialScrollCompletion, initialScrollWatchdog, setInitialScrollSession } from "./initialScrollSession.js";
-import { getObservedScrollOffset } from "./observedScroll.js";
-import { recalculateSettledScroll } from "./recalculateSettledScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { type StateContext, set$ } from "../state/state.js";
-import { setInitialRenderState } from "../utils/setInitialRenderState.js";
+import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame";
+import { cancelScrollCompletionChecks } from "./cancelImperativeScroll";
+import { releaseDeferredPublicOnScroll } from "./deferredPublicOnScroll";
+import { isEndOfContentTarget } from "./endOfContentTarget";
+import { initialScrollCompletion, initialScrollWatchdog, setInitialScrollSession } from "./initialScrollSession";
+import { getObservedScrollOffset } from "./observedScroll";
+import { recalculateSettledScroll } from "./recalculateSettledScroll";
+import { Platform } from "../../platform/Platform";
+import { type StateContext, set$ } from "../state/state";
+import { setInitialRenderState } from "../utils/setInitialRenderState";
 
 const PRESERVED_INITIAL_SCROLL_FALLBACK_CLEAR_DELAY_MS = 2000;
 

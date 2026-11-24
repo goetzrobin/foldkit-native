@@ -1,4 +1,4 @@
-import type { StateContext } from "../state/state.js";
+import type { StateContext } from "../state/state";
 
 export function calculateOffsetForIndex(ctx: StateContext, index: number | undefined) {
     const state = ctx.state;

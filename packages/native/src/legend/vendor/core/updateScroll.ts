@@ -1,18 +1,18 @@
-import { EDGE_POSITION_EPSILON } from "../constants.js";
-import { updateAdaptiveRender } from "./adaptiveRender.js";
-import { interruptMaintainScrollAtEnd } from "./finishMaintainScrollAtEnd.js";
-import { resolvePendingNativeMVCPAdjust } from "./mvcp.js";
-import { flushSync } from "../../platform/flushSync.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentSize } from "../state/getContentSize.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { checkThresholds } from "../utils/checkThresholds.js";
-import { beginReachedEdgeUserScroll } from "../utils/edgeReachedGate.js";
-import type { DrawDistanceMode } from "../utils/getEffectiveDrawDistance.js";
-import { scheduleFullDrawDistancePrewarm } from "../utils/getEffectiveDrawDistance.js";
-import { getScrollVelocity } from "../utils/getScrollVelocity.js";
-import { hasActiveInitialScroll } from "../utils/hasActiveInitialScroll.js";
-import { isInMVCPActiveMode } from "../utils/isInMVCPActiveMode.js";
+import { EDGE_POSITION_EPSILON } from "../constants";
+import { updateAdaptiveRender } from "./adaptiveRender";
+import { interruptMaintainScrollAtEnd } from "./finishMaintainScrollAtEnd";
+import { resolvePendingNativeMVCPAdjust } from "./mvcp";
+import { flushSync } from "../../platform/flushSync";
+import { Platform } from "../../platform/Platform";
+import { getContentSize } from "../state/getContentSize";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { checkThresholds } from "../utils/checkThresholds";
+import { beginReachedEdgeUserScroll } from "../utils/edgeReachedGate";
+import type { DrawDistanceMode } from "../utils/getEffectiveDrawDistance";
+import { scheduleFullDrawDistancePrewarm } from "../utils/getEffectiveDrawDistance";
+import { getScrollVelocity } from "../utils/getScrollVelocity";
+import { hasActiveInitialScroll } from "../utils/hasActiveInitialScroll";
+import { isInMVCPActiveMode } from "../utils/isInMVCPActiveMode";
 
 // Settling alone does not own browser motion. List writes update state.scroll;
 // an external jump reverses below that offset, the previous observation, and

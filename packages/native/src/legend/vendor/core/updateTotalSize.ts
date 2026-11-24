@@ -1,7 +1,7 @@
-import { addTotalSize } from "./addTotalSize.js";
-import { peek$, type StateContext } from "../state/state.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize } from "../utils/getItemSize.js";
+import { addTotalSize } from "./addTotalSize";
+import { peek$, type StateContext } from "../state/state";
+import { getId } from "../utils/getId";
+import { getItemSize } from "../utils/getItemSize";
 
 export function updateTotalSize(ctx: StateContext) {
     const state = ctx.state;

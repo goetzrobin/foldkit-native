@@ -1,5 +1,5 @@
-import type { StateContext } from "../state/state.js";
-import { checkThresholds } from "../utils/checkThresholds.js";
+import type { StateContext } from "../state/state";
+import { checkThresholds } from "../utils/checkThresholds";
 
 export function recalculateSettledScroll(ctx: StateContext) {
     const state = ctx.state;

@@ -1,9 +1,9 @@
-import { calculateOffsetForIndex } from "./calculateOffsetForIndex.js";
-import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { Platform } from "../../platform/Platform.js";
-import type { StateContext } from "../state/state.js";
-import { clampScrollIndex } from "../utils/clampScrollIndex.js";
+import { calculateOffsetForIndex } from "./calculateOffsetForIndex";
+import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { Platform } from "../../platform/Platform";
+import type { StateContext } from "../state/state";
+import { clampScrollIndex } from "../utils/clampScrollIndex";
 
 type ActiveScrollTarget = NonNullable<StateContext["state"]["scrollingTo"]>;
 

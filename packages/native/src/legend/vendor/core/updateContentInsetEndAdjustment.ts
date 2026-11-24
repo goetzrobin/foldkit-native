@@ -1,9 +1,9 @@
-import { retargetActiveInitialScrollAtEnd } from "./initialScrollLifecycle.js";
-import { updateScroll } from "./updateScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentInsetEnd } from "../state/getContentInsetEnd.js";
-import { peek$, type StateContext } from "../state/state.js";
-import { requestAdjust } from "../utils/requestAdjust.js";
+import { retargetActiveInitialScrollAtEnd } from "./initialScrollLifecycle";
+import { updateScroll } from "./updateScroll";
+import { Platform } from "../../platform/Platform";
+import { getContentInsetEnd } from "../state/getContentInsetEnd";
+import { peek$, type StateContext } from "../state/state";
+import { requestAdjust } from "../utils/requestAdjust";
 
 export function updateContentInsetEndAdjustment(ctx: StateContext, previousContentInsetEndAdjustment?: number) {
     const state = ctx.state;

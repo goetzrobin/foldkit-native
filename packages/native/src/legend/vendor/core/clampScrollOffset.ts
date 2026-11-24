@@ -1,7 +1,7 @@
-import { Platform } from "../../platform/Platform.js";
-import { getContentSize } from "../state/getContentSize.js";
-import type { StateContext } from "../state/state.js";
-import type { ScrollTarget } from "../types.internal.js";
+import { Platform } from "../../platform/Platform";
+import { getContentSize } from "../state/getContentSize";
+import type { StateContext } from "../state/state";
+import type { ScrollTarget } from "../types.internal";
 
 export function getContentInsetTop(ctx: StateContext) {
     const state = ctx.state;

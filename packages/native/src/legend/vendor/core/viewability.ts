@@ -1,16 +1,16 @@
-import { getStartOffsetAdjustment } from "./getStartOffsetAdjustment.js";
-import type { LooseScrollViewProps } from "../platform/scrollview-types.js";
-import type { StateContext } from "../state/state.js";
+import { getStartOffsetAdjustment } from "./getStartOffsetAdjustment";
+import type { LooseScrollViewProps } from "../platform/scrollview-types";
+import type { StateContext } from "../state/state";
 import type {
     ViewAmountToken,
     ViewabilityConfig,
     ViewabilityConfigCallbackPair,
     ViewabilityConfigCallbackPairs,
     ViewToken,
-} from "../types.base.js";
-import type { InternalState, LegendListPropsBase } from "../types.internal.js";
-import { getId } from "../utils/getId.js";
-import { findContainerId, warnDevOnce } from "../utils/helpers.js";
+} from "../types.base";
+import type { InternalState, LegendListPropsBase } from "../types.internal";
+import { getId } from "../utils/getId";
+import { findContainerId, warnDevOnce } from "../utils/helpers";
 
 type ViewabilityConfigState = StateContext["mapViewabilityConfigStates"] extends Map<string, infer State>
     ? State

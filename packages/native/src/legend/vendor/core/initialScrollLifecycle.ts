@@ -1,19 +1,19 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { requestAnimationFrame } from "../../platform/frame.js";
+import { requestAnimationFrame } from "../../platform/frame";
 import {
     handleBootstrapInitialScrollDataChange,
     schedulePreservedEndAnchorCorrection,
     startBootstrapInitialScrollOnMount,
-} from "./bootstrapInitialScroll.js";
-import { cancelImperativeScroll, syncScrollActive } from "./cancelImperativeScroll.js";
-import { checkFinishedScroll } from "./checkFinishedScroll.js";
-import { clearPreservedInitialScrollTarget, finishInitialScroll } from "./finishInitialScroll.js";
-import { advanceCurrentInitialScrollSession, setInitialScrollTarget } from "./initialScroll.js";
-import { setInitialScrollSession } from "./initialScrollSession.js";
-import { resetLayoutCachesForDataChange } from "./resetLayoutCachesForDataChange.js";
-import { updateItemPositions } from "./updateItemPositions.js";
-import { type StateContext, set$ } from "../state/state.js";
-import { resetInitialRenderState, setInitialRenderState } from "../utils/setInitialRenderState.js";
+} from "./bootstrapInitialScroll";
+import { cancelImperativeScroll, syncScrollActive } from "./cancelImperativeScroll";
+import { checkFinishedScroll } from "./checkFinishedScroll";
+import { clearPreservedInitialScrollTarget, finishInitialScroll } from "./finishInitialScroll";
+import { advanceCurrentInitialScrollSession, setInitialScrollTarget } from "./initialScroll";
+import { setInitialScrollSession } from "./initialScrollSession";
+import { resetLayoutCachesForDataChange } from "./resetLayoutCachesForDataChange";
+import { updateItemPositions } from "./updateItemPositions";
+import { type StateContext, set$ } from "../state/state";
+import { resetInitialRenderState, setInitialRenderState } from "../utils/setInitialRenderState";
 
 export function retargetActiveInitialScrollAtEnd(ctx: StateContext) {
     const state = ctx.state;

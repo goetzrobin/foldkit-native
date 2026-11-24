@@ -1,8 +1,8 @@
-import type { Key } from "../platform/react.js";
-import * as React from "../platform/react.js";
+import type { Key } from "../platform/react";
+import * as React from "../platform/react";
 
-import type { ScheduledWork } from "./core/ScheduledWork.js";
-import type { ScrollAdjustHandler } from "./core/ScrollAdjustHandler.js";
+import type { ScheduledWork } from "./core/ScheduledWork";
+import type { ScrollAdjustHandler } from "./core/ScrollAdjustHandler";
 import type {
     AlwaysRenderConfig,
     AnchoredEndSpaceConfig,
@@ -17,11 +17,11 @@ import type {
     ScrollToEndOptions,
     ViewabilityConfigCallbackPairs,
     ViewStyle,
-} from "./types.base.js";
-import type { StylesAsSharedValue } from "./typesInternal.js";
-import type { DrawDistanceMode } from "./utils/getEffectiveDrawDistance.js";
+} from "./types.base";
+import type { StylesAsSharedValue } from "./typesInternal";
+import type { DrawDistanceMode } from "./utils/getEffectiveDrawDistance";
 
-export type { BaseScrollViewProps, LegendListPropsBase } from "./types.base.js";
+export type { BaseScrollViewProps, LegendListPropsBase } from "./types.base";
 
 export type ScrollAdjustmentSource = "data" | "item-size" | "layout";
 

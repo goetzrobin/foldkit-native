@@ -1,11 +1,11 @@
-import { getContentInsetTop } from "./clampScrollOffset.js";
-import { getStartOffsetAdjustment } from "./getStartOffsetAdjustment.js";
-import { getContentInsetEnd } from "../state/getContentInsetEnd.js";
-import { getContentSize } from "../state/getContentSize.js";
-import type { StateContext } from "../state/state.js";
-import type { ScrollTarget } from "../types.internal.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize } from "../utils/getItemSize.js";
+import { getContentInsetTop } from "./clampScrollOffset";
+import { getStartOffsetAdjustment } from "./getStartOffsetAdjustment";
+import { getContentInsetEnd } from "../state/getContentInsetEnd";
+import { getContentSize } from "../state/getContentSize";
+import type { StateContext } from "../state/state";
+import type { ScrollTarget } from "../types.internal";
+import { getId } from "../utils/getId";
+import { getItemSize } from "../utils/getItemSize";
 
 export function getViewPositionOffset(
     availableSpace: number,

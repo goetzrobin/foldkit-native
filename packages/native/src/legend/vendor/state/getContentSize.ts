@@ -1,7 +1,7 @@
-import { Platform } from "../../platform/Platform.js";
-import { getContentInsetEnd } from "./getContentInsetEnd.js";
-import type { StateContext } from "./state.js";
-import { isHorizontalRTL } from "../utils/rtl.js";
+import { Platform } from "../../platform/Platform";
+import { getContentInsetEnd } from "./getContentInsetEnd";
+import type { StateContext } from "./state";
+import { isHorizontalRTL } from "../utils/rtl";
 
 export function getContentSize(ctx: StateContext, includeContentContainerMinSize = true) {
     const { values, state } = ctx;

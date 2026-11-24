@@ -4,11 +4,11 @@
 // `useSelector$` and their helpers. Added: `createStateContext`, which builds the same object
 // the provider built. Each change is marked with a `foldkit-native:` comment.
 // foldkit-native: `React.RefObject` now comes from our stand-in, and the two React imports are gone.
-import type * as React from "../../platform/react.js";
+import type * as React from "../../platform/react";
 
-import type { DoScrollToParams } from "../core/doScrollParams.js";
-import type { ScrollRequestTracker } from "../core/scrollRequestTracker.js";
-import type { LooseView } from "../platform/scrollview-types.js";
+import type { DoScrollToParams } from "../core/doScrollParams";
+import type { ScrollRequestTracker } from "../core/scrollRequestTracker";
+import type { LooseView } from "../platform/scrollview-types";
 import type {
     ColumnWrapperStyle,
     ScrollToEndOptions,
@@ -17,8 +17,8 @@ import type {
     ViewabilityCallback,
     ViewabilityConfigCallbackPair,
     ViewToken,
-} from "../types.base.js";
-import type { InternalScrollTarget, InternalState, MaintainVisibleContentPositionNormalized } from "../types.internal.js";
+} from "../types.base";
+import type { InternalScrollTarget, InternalState, MaintainVisibleContentPositionNormalized } from "../types.internal";
 
 // foldkit-native: Legend's `AnimatedValue` is React Native's `Animated.Value`, used only by
 // sticky headers, which this adapter does not draw. Nothing reads it here.

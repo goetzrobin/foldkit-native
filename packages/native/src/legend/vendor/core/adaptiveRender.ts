@@ -1,6 +1,6 @@
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import type { AdaptiveRender, AdaptiveRenderChangeReason } from "../types.base.js";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext, set$ } from "../state/state";
+import type { AdaptiveRender, AdaptiveRenderChangeReason } from "../types.base";
 
 export const DEFAULT_ADAPTIVE_RENDER_ENTER_VELOCITY = 3;
 export const DEFAULT_ADAPTIVE_RENDER_EXIT_VELOCITY = 1;

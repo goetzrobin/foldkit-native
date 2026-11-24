@@ -1,11 +1,11 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { requestAnimationFrame } from "../../platform/frame.js";
-import { POSITION_OUT_OF_VIEW } from "../constants.js";
-import { IsNewArchitecture } from "../../platform/constants-platform.js";
-import { calculateItemsInView } from "./calculateItemsInView.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { getInitialContainerPoolSize } from "../utils/containerPool.js";
-import { getEffectiveDrawDistance } from "../utils/getEffectiveDrawDistance.js";
+import { requestAnimationFrame } from "../../platform/frame";
+import { POSITION_OUT_OF_VIEW } from "../constants";
+import { IsNewArchitecture } from "../../platform/constants-platform";
+import { calculateItemsInView } from "./calculateItemsInView";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { getInitialContainerPoolSize } from "../utils/containerPool";
+import { getEffectiveDrawDistance } from "../utils/getEffectiveDrawDistance";
 
 export function doInitialAllocateContainers(ctx: StateContext): boolean | undefined {
     // Allocate containers

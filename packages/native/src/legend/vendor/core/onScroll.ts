@@ -1,18 +1,18 @@
-import { clearFinishedBootstrapInitialScrollTargetIfMovedAway } from "./bootstrapInitialScroll.js";
-import { interruptUserScroll } from "./cancelScroll.js";
-import { checkFinishedScroll } from "./checkFinishedScroll.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { armAppScrollRearm } from "./finishMaintainScrollAtEnd.js";
-import { initialScrollWatchdog } from "./initialScrollSession.js";
-import { scrollTo } from "./scrollTo.js";
-import { maybeUpdateAnchoredEndSpace } from "./updateAnchoredEndSpace.js";
-import { updateScroll } from "./updateScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import type { NativeScrollEvent, NativeSyntheticEvent } from "../platform/platform-types.js";
-import { isScreenReaderEnabled } from "../../platform/screenReader.js";
-import { peek$, type StateContext } from "../state/state.js";
-import { hasActiveInitialScroll } from "../utils/hasActiveInitialScroll.js";
-import { toLogicalHorizontalOffset } from "../utils/rtl.js";
+import { clearFinishedBootstrapInitialScrollTargetIfMovedAway } from "./bootstrapInitialScroll";
+import { interruptUserScroll } from "./cancelScroll";
+import { checkFinishedScroll } from "./checkFinishedScroll";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { armAppScrollRearm } from "./finishMaintainScrollAtEnd";
+import { initialScrollWatchdog } from "./initialScrollSession";
+import { scrollTo } from "./scrollTo";
+import { maybeUpdateAnchoredEndSpace } from "./updateAnchoredEndSpace";
+import { updateScroll } from "./updateScroll";
+import { Platform } from "../../platform/Platform";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "../platform/platform-types";
+import { isScreenReaderEnabled } from "../../platform/screenReader";
+import { peek$, type StateContext } from "../state/state";
+import { hasActiveInitialScroll } from "../utils/hasActiveInitialScroll";
+import { toLogicalHorizontalOffset } from "../utils/rtl";
 
 function trackInitialScrollNativeProgress(state: StateContext["state"], newScroll: number) {
     const initialNativeScrollWatchdog = initialScrollWatchdog.get(state);

@@ -1,9 +1,9 @@
-import { EDGE_POSITION_EPSILON, USER_MOMENTUM_STALL_TIMEOUT_MS, USER_MOMENTUM_WAIT_TIMEOUT_MS } from "../constants.js";
-import { syncScrollActive } from "./cancelImperativeScroll.js";
-import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd.js";
-import { rearmEndFollowIfSettled } from "./finishMaintainScrollAtEnd.js";
-import { getContentSize } from "../state/getContentSize.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
+import { EDGE_POSITION_EPSILON, USER_MOMENTUM_STALL_TIMEOUT_MS, USER_MOMENTUM_WAIT_TIMEOUT_MS } from "../constants";
+import { syncScrollActive } from "./cancelImperativeScroll";
+import { doMaintainScrollAtEnd } from "./doMaintainScrollAtEnd";
+import { rearmEndFollowIfSettled } from "./finishMaintainScrollAtEnd";
+import { getContentSize } from "../state/getContentSize";
+import { peek$, type StateContext, set$ } from "../state/state";
 
 export function armUserScrollSettle(ctx: StateContext) {
     ctx.state.scheduledWork.timeout(

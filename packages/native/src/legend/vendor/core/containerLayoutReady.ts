@@ -1,4 +1,4 @@
-import { type StateContext, set$ } from "../state/state.js";
+import { type StateContext, set$ } from "../state/state";
 
 const CONTAINER_LAYOUT_READY_PREFIX = "containerLayoutReady";
 

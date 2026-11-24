@@ -1,8 +1,8 @@
-import { settlePendingImperativeScroll, syncScrollActive } from "./cancelImperativeScroll.js";
-import { cancelScroll, stopScrollAnimation } from "./cancelScroll.js";
-import { interruptMaintainScrollAtEnd, rearmEndFollowIfSettled } from "./finishMaintainScrollAtEnd.js";
-import { type StateContext, set$ } from "../state/state.js";
-import type { ScrollResolve } from "../types.internal.js";
+import { settlePendingImperativeScroll, syncScrollActive } from "./cancelImperativeScroll";
+import { cancelScroll, stopScrollAnimation } from "./cancelScroll";
+import { interruptMaintainScrollAtEnd, rearmEndFollowIfSettled } from "./finishMaintainScrollAtEnd";
+import { type StateContext, set$ } from "../state/state";
+import type { ScrollResolve } from "../types.internal";
 
 export type ScrollRequestRun = () => boolean | "unreachable";
 

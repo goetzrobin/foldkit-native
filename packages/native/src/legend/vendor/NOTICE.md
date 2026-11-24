@@ -22,8 +22,9 @@ reaches. `FILES.txt` lists each one with its path in Legend's repository.
 In every file, by the script, and nothing else:
 
 1. **Import paths.** Legend writes `@/core/x`, an alias only its own build
-   understands. Each became a relative path ending in `.js`, so Metro and Node
-   resolve it with no configuration.
+   understands. Each became a relative path with no file ending
+   (`../core/x`), which Metro, Vite and TypeScript resolve with no
+   configuration.
 2. **Imports of `react`, `@/platform/*` and `@/constants-platform`** point at
    our files in `../platform/`. (`platform/platform-types.ts` and
    `platform/scrollview-types.ts` are type-only and are Legend's own.)

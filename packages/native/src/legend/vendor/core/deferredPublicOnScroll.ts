@@ -1,5 +1,5 @@
-import type { NativeScrollEvent, NativeSyntheticEvent } from "../platform/platform-types.js";
-import type { StateContext } from "../state/state.js";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "../platform/platform-types";
+import type { StateContext } from "../state/state";
 
 function withResolvedContentOffset(
     state: StateContext["state"],

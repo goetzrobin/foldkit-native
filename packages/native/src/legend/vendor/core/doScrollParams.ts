@@ -1,8 +1,8 @@
-import { getCommittedWebEndOffset } from "./getCurrentTargetOffset.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentSize } from "../state/getContentSize.js";
-import type { StateContext } from "../state/state.js";
-import { toNativeHorizontalOffset } from "../utils/rtl.js";
+import { getCommittedWebEndOffset } from "./getCurrentTargetOffset";
+import { Platform } from "../../platform/Platform";
+import { getContentSize } from "../state/getContentSize";
+import type { StateContext } from "../state/state";
+import { toNativeHorizontalOffset } from "../utils/rtl";
 
 export interface DoScrollToParams {
     animated?: boolean;

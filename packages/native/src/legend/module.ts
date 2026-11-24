@@ -60,6 +60,8 @@ export type LegendSpec = Readonly<{
   options: Omit<LegendDriverProps<unknown>, 'data' | 'keyExtractor' | 'renderItem'>
   /** Runs a function that builds Foldkit elements as if inside the program's view. */
   inFrame: (build: () => Html) => Html
+  /** Written by this module: the scroll view, so `legendList` can reach its handlers. */
+  target: { scroll: EngineNode | undefined }
 }>
 
 export const LEGEND_DATA = 'foldkitLegendList'
@@ -313,6 +315,15 @@ const legendModule: ModuleFactory = (engine, afterCommit) => {
     } finally {
       state.isFlushing = false
     }
+    // Still not settled after that many turns: carry on in a moment, so the
+    // phone can paint and take touches in between.
+    if (state.isAlive && state.isDirty && !state.isFlushQueued) {
+      state.isFlushQueued = true
+      setTimeout(() => {
+        state.isFlushQueued = false
+        flush(state)
+      }, 0)
+    }
   }
 
   /** Runs something Legend should hear, then draws what it decided. */
@@ -344,6 +355,7 @@ const legendModule: ModuleFactory = (engine, afterCommit) => {
     const content = nodeOf(contentVnode)
     if (content === undefined) return
     setLegendPlatform(spec.platform)
+    spec.target.scroll = scroll
 
     // The driver is made before the state that holds it, and may call back at once.
     const holder: { state: ListState | undefined } = { state: undefined }
@@ -485,6 +497,7 @@ const legendModule: ModuleFactory = (engine, afterCommit) => {
 
   const updateList = (state: ListState, spec: LegendSpec): void => {
     state.spec = spec
+    spec.target.scroll = state.scroll
     // The new `row` function may read newer parts of the Model, so every row
     // drawn is built again. Containers are few.
     state.rows = new Map()

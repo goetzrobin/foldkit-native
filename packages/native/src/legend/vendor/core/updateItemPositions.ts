@@ -1,16 +1,16 @@
-import { calculateOffsetForIndex } from "./calculateOffsetForIndex.js";
-import { cancelScroll } from "./cancelScroll.js";
-import { finishScrollTo } from "./finishScrollTo.js";
-import { prepareColumnStartState } from "./prepareColumnStartState.js";
-import { scrollTo } from "./scrollTo.js";
-import { updateTotalSize } from "./updateTotalSize.js";
-import { Platform } from "../../platform/Platform.js";
-import { notifyPosition$, peek$, type StateContext } from "../state/state.js";
-import { IS_DEV } from "../utils/devEnvironment.js";
-import { getId } from "../utils/getId.js";
-import { getItemSize, getItemSizeAtIndex } from "../utils/getItemSize.js";
-import { getScrollVelocity } from "../utils/getScrollVelocity.js";
-import { updateSnapToOffsets } from "../utils/updateSnapToOffsets.js";
+import { calculateOffsetForIndex } from "./calculateOffsetForIndex";
+import { cancelScroll } from "./cancelScroll";
+import { finishScrollTo } from "./finishScrollTo";
+import { prepareColumnStartState } from "./prepareColumnStartState";
+import { scrollTo } from "./scrollTo";
+import { updateTotalSize } from "./updateTotalSize";
+import { Platform } from "../../platform/Platform";
+import { notifyPosition$, peek$, type StateContext } from "../state/state";
+import { IS_DEV } from "../utils/devEnvironment";
+import { getId } from "../utils/getId";
+import { getItemSize, getItemSizeAtIndex } from "../utils/getItemSize";
+import { getScrollVelocity } from "../utils/getScrollVelocity";
+import { updateSnapToOffsets } from "../utils/updateSnapToOffsets";
 
 interface Options {
     doMVCP: boolean | undefined;

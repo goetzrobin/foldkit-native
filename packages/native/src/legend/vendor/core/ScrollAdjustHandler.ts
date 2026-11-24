@@ -1,12 +1,12 @@
-import { calculateItemsInView } from "./calculateItemsInView.js";
-import { calculateOffsetForIndex } from "./calculateOffsetForIndex.js";
-import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition.js";
-import { checkFinishedScroll } from "./checkFinishedScroll.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { getMaintainedWebEndOffset } from "./getCurrentTargetOffset.js";
-import { Platform, PlatformAdjustBreaksScroll } from "../../platform/Platform.js";
-import { type StateContext, set$ } from "../state/state.js";
-import type { ScrollTarget } from "../types.internal.js";
+import { calculateItemsInView } from "./calculateItemsInView";
+import { calculateOffsetForIndex } from "./calculateOffsetForIndex";
+import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition";
+import { checkFinishedScroll } from "./checkFinishedScroll";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { getMaintainedWebEndOffset } from "./getCurrentTargetOffset";
+import { Platform, PlatformAdjustBreaksScroll } from "../../platform/Platform";
+import { type StateContext, set$ } from "../state/state";
+import type { ScrollTarget } from "../types.internal";
 
 export class ScrollAdjustHandler {
     private appliedAdjust = 0;

@@ -1,5 +1,5 @@
-import { peek$, type StateContext } from "../state/state.js";
-import { isHorizontalRTL } from "../utils/rtl.js";
+import { peek$, type StateContext } from "../state/state";
+import { isHorizontalRTL } from "../utils/rtl";
 
 export function getStartOffsetAdjustment(ctx: StateContext) {
     const { state } = ctx;

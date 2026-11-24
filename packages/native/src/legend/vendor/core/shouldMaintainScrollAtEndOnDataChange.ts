@@ -1,5 +1,5 @@
-import type { InternalState } from "../types.internal.js";
-import { getId } from "../utils/getId.js";
+import type { InternalState } from "../types.internal";
+import { getId } from "../utils/getId";
 
 export function shouldMaintainScrollAtEndOnDataChange(state: InternalState, didColumnsChange = state.didColumnsChange) {
     const {

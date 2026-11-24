@@ -1,4 +1,4 @@
-import { PixelRatio } from "../../platform/PixelRatio.js";
+import { PixelRatio } from "../../platform/PixelRatio";
 
 const FLOATING_POINT_SLACK = 0.01;
 

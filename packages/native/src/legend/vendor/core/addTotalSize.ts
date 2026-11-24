@@ -1,6 +1,6 @@
-import { IsNewArchitecture } from "../../platform/constants-platform.js";
-import { updateContentMetricsState } from "./updateContentMetricsState.js";
-import { type StateContext, set$ } from "../state/state.js";
+import { IsNewArchitecture } from "../../platform/constants-platform";
+import { updateContentMetricsState } from "./updateContentMetricsState";
+import { type StateContext, set$ } from "../state/state";
 
 export function addTotalSize(ctx: StateContext, key: string | null, add: number, notifyTotalSize = true) {
     const state = ctx.state;

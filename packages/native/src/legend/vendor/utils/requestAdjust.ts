@@ -1,11 +1,11 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { requestAnimationFrame } from "../../platform/frame.js";
-import { IsNewArchitecture } from "../../platform/constants-platform.js";
-import { hasNativeScrollToStart } from "../core/nativeScrollToStart.js";
-import { getObservedScrollOffset } from "../core/observedScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext } from "../state/state.js";
-import type { ScrollAdjustmentSource } from "../types.internal.js";
+import { requestAnimationFrame } from "../../platform/frame";
+import { IsNewArchitecture } from "../../platform/constants-platform";
+import { hasNativeScrollToStart } from "../core/nativeScrollToStart";
+import { getObservedScrollOffset } from "../core/observedScroll";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext } from "../state/state";
+import type { ScrollAdjustmentSource } from "../types.internal";
 
 function preservesOffsetTarget(ctx: StateContext, source: ScrollAdjustmentSource | undefined) {
     const state = ctx.state;

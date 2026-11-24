@@ -1,10 +1,10 @@
-import { USER_MOMENTUM_STALL_TIMEOUT_MS } from "../constants.js";
-import { cancelImperativeScroll, syncScrollActive } from "./cancelImperativeScroll.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { getAlignItemsAtEndPadding } from "./updateContentMetricsState.js";
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { requestAdjust } from "../utils/requestAdjust.js";
+import { USER_MOMENTUM_STALL_TIMEOUT_MS } from "../constants";
+import { cancelImperativeScroll, syncScrollActive } from "./cancelImperativeScroll";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { getAlignItemsAtEndPadding } from "./updateContentMetricsState";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { requestAdjust } from "../utils/requestAdjust";
 
 export function interruptMaintainScrollAtEnd(ctx: StateContext) {
     const { state } = ctx;

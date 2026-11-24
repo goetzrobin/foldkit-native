@@ -1,5 +1,5 @@
-import { addTotalSize } from "./addTotalSize.js";
-import type { StateContext } from "../state/state.js";
+import { addTotalSize } from "./addTotalSize";
+import type { StateContext } from "../state/state";
 
 export function setSize(ctx: StateContext, itemKey: string, size: number, notifyTotalSize = true) {
     const state = ctx.state;

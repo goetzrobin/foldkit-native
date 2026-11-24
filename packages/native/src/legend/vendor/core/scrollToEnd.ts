@@ -1,8 +1,8 @@
-import { getEndAlignedViewOffset } from "./endOfContentTarget.js";
-import { scrollToIndex } from "./scrollToIndex.js";
-import { peek$, type StateContext } from "../state/state.js";
-import type { ScrollToEndOptions } from "../types.base.js";
-import { getStylePaddingEnd } from "../utils/rtl.js";
+import { getEndAlignedViewOffset } from "./endOfContentTarget";
+import { scrollToIndex } from "./scrollToIndex";
+import { peek$, type StateContext } from "../state/state";
+import type { ScrollToEndOptions } from "../types.base";
+import { getStylePaddingEnd } from "../utils/rtl";
 
 export function scrollToEnd(ctx: StateContext, options?: ScrollToEndOptions) {
     const state = ctx.state;

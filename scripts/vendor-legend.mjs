@@ -9,8 +9,11 @@
 // every file it reaches. It changes three things in each file, and nothing else:
 //
 //   1. Import paths. Legend writes `@/core/x`, which only its own build
-//      understands. They become relative paths ending in `.js`, as in the rest
-//      of this package, so Metro and Node can resolve them.
+//      understands. They become relative paths with no file ending
+//      (`../core/x`), which Metro, Vite and TypeScript all resolve with no
+//      configuration. (The rest of this package writes `./x.js` and the
+//      showcase's sync script strips the ending for Metro. That script only
+//      looks at single-quoted imports, and Legend's are double-quoted.)
 //   2. Imports of `react`, `@/platform/*` and `@/constants-platform` point at
 //      our own files in `src/legend/platform`, which do not use React.
 //   3. A file that calls `requestAnimationFrame` gets one import line for it,
@@ -75,7 +78,7 @@ const find = base => {
 }
 const plainName = file => path.relative(SRC, file).replace(/\.native(?=\.tsx?$)/, '')
 const relative = (fromFile, toFile) => {
-  const to = path.relative(path.dirname(fromFile), toFile).replace(/\.tsx?$/, '.js')
+  const to = path.relative(path.dirname(fromFile), toFile).replace(/\.tsx?$/, '')
   return to.startsWith('.') ? to : `./${to}`
 }
 

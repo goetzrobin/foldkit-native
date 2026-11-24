@@ -1,4 +1,4 @@
-import { peek$, type StateContext, set$ } from "../state/state.js";
+import { peek$, type StateContext, set$ } from "../state/state";
 
 // Consumes the next parent measurement scope. `undefined` means no request was
 // scheduled, `null` means every mounted container, and a Set is a targeted pass.

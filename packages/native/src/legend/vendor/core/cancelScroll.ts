@@ -1,13 +1,13 @@
-import { cancelImperativeScroll, syncScrollActive } from "./cancelImperativeScroll.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { getNativeScrollPoint } from "./doScrollParams.js";
-import { clearPreservedInitialScrollTarget, supersedeInitialScroll } from "./finishInitialScroll.js";
-import { interruptMaintainScrollAtEnd } from "./finishMaintainScrollAtEnd.js";
-import { cancelNativeScrollToStart } from "./nativeScrollToStart.js";
-import { getObservedScrollOffset } from "./observedScroll.js";
-import { updateScroll } from "./updateScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { peek$, type StateContext } from "../state/state.js";
+import { cancelImperativeScroll, syncScrollActive } from "./cancelImperativeScroll";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { getNativeScrollPoint } from "./doScrollParams";
+import { clearPreservedInitialScrollTarget, supersedeInitialScroll } from "./finishInitialScroll";
+import { interruptMaintainScrollAtEnd } from "./finishMaintainScrollAtEnd";
+import { cancelNativeScrollToStart } from "./nativeScrollToStart";
+import { getObservedScrollOffset } from "./observedScroll";
+import { updateScroll } from "./updateScroll";
+import { Platform } from "../../platform/Platform";
+import { peek$, type StateContext } from "../state/state";
 
 /** Returns whether it stopped a running animation with an instant write. */
 export function cancelScroll(

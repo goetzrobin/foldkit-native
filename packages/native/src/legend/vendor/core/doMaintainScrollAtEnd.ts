@@ -1,16 +1,16 @@
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { getNativeScrollPoint } from "./doScrollParams.js";
-import { isEndOfContentTarget } from "./endOfContentTarget.js";
-import { finishMaintainScrollAtEnd } from "./finishMaintainScrollAtEnd.js";
-import { getCurrentTargetOffset } from "./getCurrentTargetOffset.js";
-import { hasNativeScrollToStart } from "./nativeScrollToStart.js";
-import { getObservedScrollOffset } from "./observedScroll.js";
-import { getScrollRequestTracker } from "./scrollRequestTracker.js";
-import { isWebScrollAwayFromEnd, updateScroll } from "./updateScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentSize } from "../state/getContentSize.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { areKnownOrFixedItemSizesAvailable } from "../utils/getItemSize.js";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { getNativeScrollPoint } from "./doScrollParams";
+import { isEndOfContentTarget } from "./endOfContentTarget";
+import { finishMaintainScrollAtEnd } from "./finishMaintainScrollAtEnd";
+import { getCurrentTargetOffset } from "./getCurrentTargetOffset";
+import { hasNativeScrollToStart } from "./nativeScrollToStart";
+import { getObservedScrollOffset } from "./observedScroll";
+import { getScrollRequestTracker } from "./scrollRequestTracker";
+import { isWebScrollAwayFromEnd, updateScroll } from "./updateScroll";
+import { Platform } from "../../platform/Platform";
+import { getContentSize } from "../state/getContentSize";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { areKnownOrFixedItemSizesAvailable } from "../utils/getItemSize";
 
 // Native clamps an instant scroll to the content it has mounted, and a clamped scroll that cannot
 // move emits no event. Reissue the current measured end when the mounted content size changes.

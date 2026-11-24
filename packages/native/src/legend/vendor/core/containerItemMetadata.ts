@@ -1,5 +1,5 @@
-import type { ContainerItemMetadata, InternalState } from "../types.internal.js";
-import { getId } from "../utils/getId.js";
+import type { ContainerItemMetadata, InternalState } from "../types.internal";
+import { getId } from "../utils/getId";
 
 export function createContainerItemMetadata(
     state: InternalState,

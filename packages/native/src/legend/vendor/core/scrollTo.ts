@@ -1,15 +1,15 @@
-import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition.js";
-import { cancelScrollCompletionChecks } from "./cancelImperativeScroll.js";
-import { clampScrollOffset } from "./clampScrollOffset.js";
-import { doScrollTo } from "./doScrollTo.js";
-import { getMaintainedWebEndOffset } from "./getCurrentTargetOffset.js";
-import { getItemSpaceOffset } from "./getStartOffsetAdjustment.js";
-import { initialScrollCompletion, initialScrollWatchdog } from "./initialScrollSession.js";
-import { cancelNativeScrollToStart } from "./nativeScrollToStart.js";
-import { updateScroll } from "./updateScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import type { StateContext } from "../state/state.js";
-import { getItemSizeAtIndex } from "../utils/getItemSize.js";
+import { calculateOffsetWithOffsetPosition } from "./calculateOffsetWithOffsetPosition";
+import { cancelScrollCompletionChecks } from "./cancelImperativeScroll";
+import { clampScrollOffset } from "./clampScrollOffset";
+import { doScrollTo } from "./doScrollTo";
+import { getMaintainedWebEndOffset } from "./getCurrentTargetOffset";
+import { getItemSpaceOffset } from "./getStartOffsetAdjustment";
+import { initialScrollCompletion, initialScrollWatchdog } from "./initialScrollSession";
+import { cancelNativeScrollToStart } from "./nativeScrollToStart";
+import { updateScroll } from "./updateScroll";
+import { Platform } from "../../platform/Platform";
+import type { StateContext } from "../state/state";
+import { getItemSizeAtIndex } from "../utils/getItemSize";
 
 type InternalScrollTarget = NonNullable<StateContext["state"]["scrollingTo"]>;
 

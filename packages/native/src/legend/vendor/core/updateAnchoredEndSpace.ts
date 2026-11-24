@@ -1,11 +1,11 @@
-import { updateContentMetricsState } from "./updateContentMetricsState.js";
-import { updateScroll } from "./updateScroll.js";
-import { Platform } from "../../platform/Platform.js";
-import { getContentInsetEnd } from "../state/getContentInsetEnd.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { getId } from "../utils/getId.js";
-import { getKnownOrFixedItemSize } from "../utils/getItemSize.js";
-import { getStylePaddingEnd, isHorizontalRTL } from "../utils/rtl.js";
+import { updateContentMetricsState } from "./updateContentMetricsState";
+import { updateScroll } from "./updateScroll";
+import { Platform } from "../../platform/Platform";
+import { getContentInsetEnd } from "../state/getContentInsetEnd";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { getId } from "../utils/getId";
+import { getKnownOrFixedItemSize } from "../utils/getItemSize";
+import { getStylePaddingEnd, isHorizontalRTL } from "../utils/rtl";
 
 export function maybeUpdateAnchoredEndSpace(ctx: StateContext) {
     const state = ctx.state;

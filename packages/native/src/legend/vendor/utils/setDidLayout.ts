@@ -1,7 +1,7 @@
-import { doMaintainScrollAtEnd } from "../core/doMaintainScrollAtEnd.js";
-import type { StateContext } from "../state/state.js";
-import { checkThresholds } from "./checkThresholds.js";
-import { setInitialRenderState } from "./setInitialRenderState.js";
+import { doMaintainScrollAtEnd } from "../core/doMaintainScrollAtEnd";
+import type { StateContext } from "../state/state";
+import { checkThresholds } from "./checkThresholds";
+import { setInitialRenderState } from "./setInitialRenderState";
 
 export function setDidLayout(ctx: StateContext) {
     const state = ctx.state;

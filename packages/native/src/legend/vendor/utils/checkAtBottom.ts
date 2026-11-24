@@ -1,14 +1,14 @@
-import { EDGE_POSITION_EPSILON } from "../constants.js";
-import { getContentSize } from "../state/getContentSize.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { checkThreshold } from "./checkThreshold.js";
+import { EDGE_POSITION_EPSILON } from "../constants";
+import { getContentSize } from "../state/getContentSize";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { checkThreshold } from "./checkThreshold";
 import {
     canDispatchReachedEdge,
     dispatchReachedEdge,
     type ReachedEdge,
     resetSharedEdgeGateIfOutsideHysteresis,
-} from "./edgeReachedGate.js";
-import { hasActiveInitialScroll } from "./hasActiveInitialScroll.js";
+} from "./edgeReachedGate";
+import { hasActiveInitialScroll } from "./hasActiveInitialScroll";
 
 export function checkAtBottom(ctx: StateContext, allowedEdge?: ReachedEdge, allowGateCreatedInCurrentCheck?: boolean) {
     const state = ctx.state;

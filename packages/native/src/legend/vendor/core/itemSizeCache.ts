@@ -1,5 +1,5 @@
-import { peek$, type StateContext } from "../state/state.js";
-import { getId } from "../utils/getId.js";
+import { peek$, type StateContext } from "../state/state";
+import { getId } from "../utils/getId";
 
 interface CachedItemSize {
     crossAxisSize: number | undefined;

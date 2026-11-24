@@ -1,6 +1,6 @@
-import { resetAdaptiveRender, setAdaptiveRender } from "../core/adaptiveRender.js";
-import { peek$, type StateContext, set$ } from "../state/state.js";
-import { INITIAL_DRAW_DISTANCE, scheduleFullDrawDistancePrewarm } from "./getEffectiveDrawDistance.js";
+import { resetAdaptiveRender, setAdaptiveRender } from "../core/adaptiveRender";
+import { peek$, type StateContext, set$ } from "../state/state";
+import { INITIAL_DRAW_DISTANCE, scheduleFullDrawDistancePrewarm } from "./getEffectiveDrawDistance";
 
 export function resetInitialRenderState(
     ctx: StateContext,

@@ -1,7 +1,7 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame.js";
-import { getObservedScrollOffset } from "./observedScroll.js";
-import type { StateContext } from "../state/state.js";
+import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame";
+import { getObservedScrollOffset } from "./observedScroll";
+import type { StateContext } from "../state/state";
 
 const NATIVE_SCROLL_IDLE_MS = 200;
 

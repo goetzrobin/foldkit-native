@@ -1,5 +1,5 @@
 // foldkit-native: the next frame comes from our own file, so no browser global is needed.
-import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame.js";
+import { cancelAnimationFrame, requestAnimationFrame } from "../../platform/frame";
 export type ScheduledWorkKey =
     | "adaptiveRender"
     | "alignItemsAtEndPaddingFallback"

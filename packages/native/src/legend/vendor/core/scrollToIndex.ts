@@ -1,9 +1,9 @@
-import { calculateOffsetForIndex } from "./calculateOffsetForIndex.js";
-import { scrollTo } from "./scrollTo.js";
-import type { StateContext } from "../state/state.js";
-import type { LegendListRef } from "../types.base.js";
-import { clampScrollIndex } from "../utils/clampScrollIndex.js";
-import { getItemSizeAtIndex } from "../utils/getItemSize.js";
+import { calculateOffsetForIndex } from "./calculateOffsetForIndex";
+import { scrollTo } from "./scrollTo";
+import type { StateContext } from "../state/state";
+import type { LegendListRef } from "../types.base";
+import { clampScrollIndex } from "../utils/clampScrollIndex";
+import { getItemSizeAtIndex } from "../utils/getItemSize";
 
 export type ScrollToIndexParams = Parameters<LegendListRef["scrollToIndex"]>[0];
 

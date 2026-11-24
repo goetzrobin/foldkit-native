@@ -1,7 +1,7 @@
-import { getContentSize } from "../state/getContentSize.js";
-import { type StateContext, set$ } from "../state/state.js";
-import { getId } from "./getId.js";
-import { toNativeHorizontalOffset } from "./rtl.js";
+import { getContentSize } from "../state/getContentSize";
+import { type StateContext, set$ } from "../state/state";
+import { getId } from "./getId";
+import { toNativeHorizontalOffset } from "./rtl";
 
 export function updateSnapToOffsets(ctx: StateContext) {
     const state = ctx.state;

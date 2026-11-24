@@ -1,5 +1,5 @@
-import type { StateContext } from "../state/state.js";
-import { peekLogicalHorizontalOffset } from "../utils/rtl.js";
+import type { StateContext } from "../state/state";
+import { peekLogicalHorizontalOffset } from "../utils/rtl";
 
 export function getObservedScrollOffset(ctx: StateContext, fallbackOffset = ctx.state.scroll) {
     const { state } = ctx;

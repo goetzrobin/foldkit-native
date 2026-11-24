@@ -1,6 +1,6 @@
-import { peek$, type StateContext } from "../state/state.js";
-import type { InternalState } from "../types.internal.js";
-import { getItemSize } from "../utils/getItemSize.js";
+import { peek$, type StateContext } from "../state/state";
+import type { InternalState } from "../types.internal";
+import { getItemSize } from "../utils/getItemSize";
 
 // Multi-column layout helpers used by the hot positioning paths to keep
 // column bookkeeping and row math centralized.

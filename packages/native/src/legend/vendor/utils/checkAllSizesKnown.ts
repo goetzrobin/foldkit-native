@@ -1,5 +1,5 @@
-import type { InternalState } from "../types.internal.js";
-import { getId } from "./getId.js";
+import type { InternalState } from "../types.internal";
+import { getId } from "./getId";
 
 export function checkAllSizesKnown(
     state: InternalState,

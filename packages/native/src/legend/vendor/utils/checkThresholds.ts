@@ -1,8 +1,8 @@
-import { rearmEndFollowIfSettled } from "../core/finishMaintainScrollAtEnd.js";
-import type { StateContext } from "../state/state.js";
-import { checkAtBottom } from "./checkAtBottom.js";
-import { checkAtTop } from "./checkAtTop.js";
-import type { ReachedEdge } from "./edgeReachedGate.js";
+import { rearmEndFollowIfSettled } from "../core/finishMaintainScrollAtEnd";
+import type { StateContext } from "../state/state";
+import { checkAtBottom } from "./checkAtBottom";
+import { checkAtTop } from "./checkAtTop";
+import type { ReachedEdge } from "./edgeReachedGate";
 
 export function checkThresholds(ctx: StateContext, allowedEdge?: ReachedEdge) {
     const allowGateCreatedInCurrentCheck = !ctx.state.edgeReachedGate;
