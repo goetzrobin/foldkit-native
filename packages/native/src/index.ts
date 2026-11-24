@@ -80,3 +80,4 @@ export type {
   LegendPlatform,
 } from './legend/index.js'
 export * from './markdown/index.js'
+export * as AiChat from './aiChat/index.js'

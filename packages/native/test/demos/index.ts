@@ -10,6 +10,7 @@ import { Runtime } from 'foldkit'
 
 import type { BackSource, Phone } from '../../src/index.js'
 import { makeNotes } from '../notes.js'
+import { makeDemo as makeAiBackend } from './aiBackend.js'
 import { makeDemo as makeAiChat } from './aiChat.js'
 import { makeDemo as makeChat } from './chat.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
@@ -183,5 +184,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Streaming markdown',
     blurb: 'An AI reply streamed in as rich text: tables, code, lists, links. Best in the prebuilt app.',
     start: (container, env) => Runtime.embed(makeMarkdown(container, env, resources.device)),
+  },
+  {
+    id: 'ai-backend',
+    title: 'AI backend',
+    blurb: 'A pretend AI server inside the app. Ask, stop, regenerate, switch on chaos. Shows every Message.',
+    start: (container, env) => Runtime.embed(makeAiBackend(container, env, resources.device)),
   },
 ]

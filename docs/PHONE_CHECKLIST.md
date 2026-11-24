@@ -18,11 +18,11 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show nineteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show twenty rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
    Object tracking, Glass, Worklets, Server state, Swipe actions,
    Swipe actions (native view), Sheets, Menus and controls, Voice notes,
-   Streaming markdown?
+   Streaming markdown, AI backend?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -625,3 +625,26 @@ MD9. Press "Close and reopen". Is the reply just there, with no fade? Then
      stream again and press it halfway: does only the new text fade in?
 MD10. Switch the phone to dark mode while the demo is open. Does the reply
       turn light-on-dark, code block and table included, and stay readable?
+
+## AI backend
+
+The demo "AI backend" is a plain developer's screen for the pretend AI
+server inside the app. See `docs/AI_BACKEND.md`.
+
+B1. Open "AI backend". What does the "Saved in" line say? (On a phone it
+    should name files in the app's documents, not "memory only".)
+B2. Press New, then "Plain". Does your question appear at once, greyed and
+    marked "sending", and does the reply then grow a few words at a time?
+    What does the "Messages per second" line say while it grows?
+B3. Press "Thinks first", then "Calls a tool". Does the log show Reasoning
+    lines, then "ReasoningDone", and for the tool "ToolCallStarted
+    get_weather" a second before the reply starts?
+B4. Ask again and press Stop halfway. Does the reply stop at once and say
+    "(stopped)"? Press Regenerate. Does a new reply start with "Here is
+    another go at it"?
+B5. Switch on "Drop connection" and ask. Does the status line end up saying
+    "Reconnected", and does the reply read whole, with no words missing or
+    doubled? Then ask once more, go to the home screen for ten seconds while
+    it writes, and come back. Same question.
+B6. Close the app from the app switcher and open it again. Are the
+    conversations and replies still there?
