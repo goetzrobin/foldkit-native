@@ -2,6 +2,10 @@
  * The two chat demos on the simulated phone: sending, replies, the streamed
  * answer, the scroll-to-end button and the composer above the keyboard.
  *
+ * The demos open with the composer "following" the keyboard, which on this
+ * simulated phone means the eased fallback. `chatDock.test.ts` goes through
+ * every way of docking the composer.
+ *
  * As in `chatList.test.ts`, the test plays the phone's part for layout: it
  * says how tall the list and its rows are and where the list has scrolled.
  */
@@ -104,7 +108,7 @@ const until = async (isTrue: () => boolean, ms = 12000): Promise<void> => {
   while (!isTrue() && Date.now() < deadline) await wait(25)
 }
 
-/** The dock's three views: the caller's, the keyboard padding, the safe area. */
+/** The simple dock's three views: the caller's, the keyboard padding, the safe area. */
 const dockParts = () => {
   const dock = byTestId(phone.fabric, 'dock')
   const padding = dock.children[0]
@@ -211,7 +215,9 @@ describe('the chat demo', () => {
     expect(status()).toBe('22 messages. At the end: yes.')
   })
 
-  it('pads the composer by the keyboard, and by the safe area when the keyboard is down', async () => {
+  it('in "simple" mode, pads the composer by the keyboard, and by the safe area when the keyboard is down', async () => {
+    // The demo opens in "following". `chatDock.test.ts` covers that mode.
+    await press(phone.fabric, 'dock-mode')
     expect(dockParts().padding.props['paddingBottom']).toBe(0)
     expect(dockParts().safeArea.viewName).toBe('RNSSafeAreaView')
     expect(dockParts().safeArea.props['edges']).toEqual({
@@ -234,15 +240,18 @@ describe('the chat demo', () => {
     expect((dockParts().safeArea.props['edges'] as { bottom: boolean }).bottom).toBe(true)
   })
 
-  it('puts the keyboard away when the user drags the list, only if it is up', async () => {
+  it('in "simple" mode, puts the keyboard away when the user drags the list, only if it is up', async () => {
+    await press(phone.fabric, 'dock-mode')
+    // Switching the dock put the keyboard away once already.
+    const before = keyboard.dismissCount()
     phone.fabric.emit(byTestId(phone.fabric, 'messages'), 'topScrollBeginDrag', {})
     await settle()
-    expect(keyboard.dismissCount()).toBe(0)
+    expect(keyboard.dismissCount()).toBe(before)
     keyboard.show(336)
     await settle()
     phone.fabric.emit(byTestId(phone.fabric, 'messages'), 'topScrollBeginDrag', {})
     await settle()
-    expect(keyboard.dismissCount()).toBe(1)
+    expect(keyboard.dismissCount()).toBe(before + 1)
     expect(dockParts().padding.props['paddingBottom']).toBe(0)
   })
 
