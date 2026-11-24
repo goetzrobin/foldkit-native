@@ -158,12 +158,12 @@ export const dockModeButton = <Message>(
     message,
   )
 
-/** One sentence on what the composer should do in this mode, on this phone. */
+/** One sentence on what the text field should do in this mode, on this phone. */
 export const dockModeNote = (mode: DockMode): string => {
-  if (mode === 'simple') return 'Keyboard: the composer jumps to its place above the keyboard.'
+  if (mode === 'simple') return 'Keyboard: the text field jumps to its place above the keyboard.'
   return keyboardDockMode() === 'native'
-    ? 'Keyboard: the composer and the messages should travel up with the keyboard.'
-    : `Keyboard: the composer eases up to the keyboard (${keyboardDockFallbackReason()}).`
+    ? 'Keyboard: the text field and the messages should travel up with the keyboard.'
+    : `Keyboard: the text field eases up to the keyboard (${keyboardDockFallbackReason()}).`
 }
 
 export type Composer<Message> = Readonly<{

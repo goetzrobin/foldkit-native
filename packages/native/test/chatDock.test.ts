@@ -280,16 +280,16 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
       expect(inDock).toContain('send')
     })
 
-    it('says on screen what the composer should do', async () => {
+    it('says on screen what the text field should do', async () => {
       await start(demo, way)
       expect(textOf(byTestId(fabric, 'dock-note'))).toBe(
         {
           'follow-native':
-            'Keyboard: the composer and the messages should travel up with the keyboard.',
+            'Keyboard: the text field and the messages should travel up with the keyboard.',
           'follow-fallback':
-            'Keyboard: the composer eases up to the keyboard ' +
+            'Keyboard: the text field eases up to the keyboard ' +
             '(react-native-keyboard-controller is not in this build).',
-          simple: 'Keyboard: the composer jumps to its place above the keyboard.',
+          simple: 'Keyboard: the text field jumps to its place above the keyboard.',
         }[way],
       )
     })
@@ -473,7 +473,7 @@ describe.each(DEMOS)('%s', (_demoTitle, demo) => {
     expect(keyboardDockMode()).toBe('fallback')
     expect(named('KeyboardControllerView')).toHaveLength(0)
     expect(textOf(byTestId(fabric, 'dock-note'))).toBe(
-      'Keyboard: the composer eases up to the keyboard (native following is built for iOS only).',
+      'Keyboard: the text field eases up to the keyboard (native following is built for iOS only).',
     )
     expect(byTestId(fabric, 'messages').props['keyboardDismissMode']).toBe('on-drag')
     await open()
