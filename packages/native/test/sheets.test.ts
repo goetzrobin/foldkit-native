@@ -2,8 +2,8 @@ import { Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { Keyboard } from '../src/device/index.js'
-import { DOCK_CONTENT_ID } from '../src/keyboard/dock.js'
-import { configureMotion, stopMotion } from '../src/motion/clock.js'
+import { DOCK_CONTENT_ID } from '../src/foldkit/keyboard/dock.js'
+import { configureMotion, stopMotion } from '../src/host/motion/clock.js'
 import { registerNavigation, style } from '../src/index.js'
 import {
   type BackSource,
@@ -18,7 +18,7 @@ import {
   formatSheetNumbers,
   readSheetNumbers,
   sheetContent,
-} from '../src/navigation/sheets.js'
+} from '../src/foldkit/navigation/sheets.js'
 import { MAPS_DETENTS, makeDemo } from './demos/sheets.js'
 import type { FakeFabricNode } from '@ng-native/testing/fake'
 import {

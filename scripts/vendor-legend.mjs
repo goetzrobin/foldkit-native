@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copies the React-free part of Legend List into packages/native/src/legend/vendor.
+// Copies the React-free part of Legend List into packages/native/src/host/legend/vendor.
 //
 //   node scripts/vendor-legend.mjs /path/to/legend-list
 //
@@ -15,7 +15,7 @@
 //      showcase's sync script strips the ending for Metro. That script only
 //      looks at single-quoted imports, and Legend's are double-quoted.)
 //   2. Imports of `react`, `@/platform/*` and `@/constants-platform` point at
-//      our own files in `src/legend/platform`, which do not use React.
+//      our own files in `src/host/legend/platform`, which do not use React.
 //   3. A file that calls `requestAnimationFrame` gets one import line for it,
 //      so the tests need no browser global.
 //
@@ -32,8 +32,8 @@ const legend = process.argv[2]
 if (!legend) throw new Error('Give the path to a Legend List checkout')
 const SRC = path.join(legend, 'src')
 const here = path.dirname(fileURLToPath(import.meta.url))
-const OUT = path.join(here, '../packages/native/src/legend/vendor')
-const OURS = path.join(here, '../packages/native/src/legend/platform')
+const OUT = path.join(here, '../packages/native/src/host/legend/vendor')
+const OURS = path.join(here, '../packages/native/src/host/legend/platform')
 
 /** The functions the driver and Legend's own component call. */
 const ENTRIES = [

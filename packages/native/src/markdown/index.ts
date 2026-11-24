@@ -1,42 +1,5 @@
 /**
- * Streaming Markdown for AI replies.
- *
- *   configureMarkdown({ remend })     once at startup (the app imports remend)
- *   markdown(h, { id, text, isStreaming, ... })   the reply, in a view
- *   markdownStatus()                  which renderer draws, and why
- *   markdownNumbers(id)               what a reply cost: updates, characters, remend time
- *
- * `markdown.ts` is the entry, `native.ts` the native view, `fallback.ts` the
- * plain one, `theme.ts` the look. docs/MARKDOWN.md explains it in plain words.
+ * The public path of this folder, kept so apps, demos and tests import it
+ * as before. The code now lives in the Foldkit binding: see `src/foldkit/markdown/index.ts`.
  */
-export { markdown, markdownRenderer, markdownStatus, isRemendConfigured } from './markdown.js'
-export type { MarkdownOptions, MarkdownRenderer, RendererChoice } from './markdown.js'
-export {
-  NATIVE_MARKDOWN_VIEW,
-  NEEDS_PREBUILT,
-  configureMarkdown,
-  isNativeMarkdownAvailable,
-  nativeMarkdownUnavailableReason,
-  resetMarkdownSetup,
-} from './detect.js'
-export type { MarkdownSetup, Remend, RemendOptions } from './detect.js'
-export {
-  NATIVE_MARKDOWN_TAG,
-  REMEND_OPTIONS,
-  markdownNumbers,
-  resetMarkdownNumbers,
-} from './native.js'
-export type { MarkdownNumbers } from './native.js'
-export { forgetFallback } from './fallback.js'
-export type { CodeCopy } from './fallback.js'
-export { markdownTheme } from './theme.js'
-export type {
-  MarkdownColorScheme,
-  MarkdownColors,
-  MarkdownFonts,
-  MarkdownSizes,
-  MarkdownSpacing,
-  MarkdownStyle,
-  MarkdownTheme,
-  SyntaxColors,
-} from './theme.js'
+export * from '../foldkit/markdown/index.js'

@@ -1,31 +1,16 @@
 /**
- * Fold Chat's Model and Messages, and the pure functions the view and the
- * tests share: the rows of a chat, the conversation list grouped by day,
- * and search.
+ * Fold Chat's words: the settings, the sheets, a notice, a recording, the
+ * rows of a chat, and the pure functions the parts and the tests share: the
+ * conversation list grouped by day, and search.
  *
  * The app has two screens on one native stack: the list of chats, and one
  * chat pushed over it. Sheets (settings, reasoning, rename, select text)
- * are presented over either. Everything a screen shows comes from here.
+ * are presented over either. Each part keeps its own Model (see `parts/`);
+ * the top of the app is in `appModel.ts`.
  */
 import { Option, Schema } from 'effect'
-import * as AsyncResult from 'effect/reactivity/AsyncResult'
-import { defineMessageUnion } from 'foldkit/message'
 
-import {
-  Attachment,
-  ConversationListResult,
-  ConversationResult,
-  type ConversationSummary,
-  LiveTurn,
-  type Part,
-  Pending,
-  type TranscriptRow,
-  TurnUpdate,
-  AiWire,
-  transcript,
-} from '../src/aiChat/index.js'
-import { ActionSheet } from '../src/menus/index.js'
-import { Alert, Clipboard, Haptics, Keyboard, Linking, Recorder, Share } from '../src/device/index.js'
+import type { ConversationSummary, Part, TranscriptRow } from '../src/aiChat/index.js'
 
 // SETTINGS
 
@@ -55,13 +40,22 @@ export const DEFAULT_SETTINGS: Settings = { theme: 'system', speed: 'normal' }
 
 // SHEETS
 
+/**
+ * The two sheets with more than one height keep the one the phone last
+ * reported (`detent`, an index into the sheet's heights). The sheet moves by
+ * itself under a finger; this only records it, so a log of Messages says
+ * what was on screen.
+ */
+export const ReasoningSheetOpen = Schema.TaggedStruct('Reasoning', { rowKey: Schema.String, detent: Schema.Number })
+export const SelectTextOpen = Schema.TaggedStruct('SelectText', { rowKey: Schema.String, detent: Schema.Number })
+
 export const Sheet = Schema.Union([
   Schema.TaggedStruct('Settings', {}),
   /** The reasoning of one reply, by the row's key. */
-  Schema.TaggedStruct('Reasoning', { rowKey: Schema.String }),
+  ReasoningSheetOpen,
   Schema.TaggedStruct('Rename', { id: Schema.String, title: Schema.String }),
   /** A reply drawn with text selection on, for copying a part of it. */
-  Schema.TaggedStruct('SelectText', { rowKey: Schema.String }),
+  SelectTextOpen,
 ])
 export type Sheet = typeof Sheet.Type
 
@@ -85,137 +79,6 @@ export const Recording = Schema.Struct({
   isNearLimit: Schema.Boolean,
 })
 
-// MODEL
-
-export const Model = Schema.Struct({
-  /** Light or dark, as the phone shows it now. */
-  scheme: Schema.Literals(['light', 'dark']),
-  settings: Settings,
-  /** The pretend server's failure switches. Not kept between launches. */
-  chaos: ChaosSchema,
-  /** The developer overlay with the list's and the keyboard's numbers. */
-  showsNumbers: Schema.Boolean,
-  /** The clock when the list was last read, for "Today" and "Yesterday". */
-  nowMs: Schema.Number,
-
-  list: ConversationListResult,
-  query: Schema.String,
-  isChatOpen: Schema.Boolean,
-  /** None in a new chat, until its first message makes the conversation. */
-  openId: Schema.Option(Schema.String),
-  conversation: ConversationResult,
-  pending: Schema.Array(Pending),
-  live: Schema.Option(LiveTurn),
-  /** A turn found running when a chat was opened, being joined. */
-  joiningTurnId: Schema.Option(Schema.String),
-  nextClientId: Schema.Number,
-  draft: Schema.String,
-  /**
-   * A new chat raises the keyboard once its push has finished: set by the
-   * pencil, cleared when the field is focused or the chat is left.
-   */
-  isDraftFocusPending: Schema.Boolean,
-  attachment: Schema.Option(Attachment),
-  recording: Schema.Option(Recording),
-  /** The question held near the top of the screen, by its row key. */
-  anchorKey: Schema.Option(Schema.String),
-  isAtEnd: Schema.Boolean,
-  /** The turn whose first words have had their haptic. */
-  tickedTurnId: Schema.Option(Schema.String),
-  notice: Schema.Option(Notice),
-  menu: Schema.Option(MessageMenu),
-
-  keyboardHeight: Schema.Number,
-  keyboardCovers: Schema.Number,
-  isOnline: Schema.Boolean,
-  sheet: Schema.Option(Sheet),
-})
-export type Model = typeof Model.Type
-
-// MESSAGE
-
-export const Message = defineMessageUnion({
-  // The phone and the settings
-  ChangedColorScheme: { scheme: Schema.Literals(['light', 'dark']) },
-  LoadedSettings: { settings: Settings },
-  PressedTheme: { theme: ThemePref },
-  PressedSpeed: { speed: Speed },
-  PressedChaos: { name: ChaosName },
-  AppliedServerDials: {},
-  PressedNumbers: {},
-  GotTime: { at: Schema.Number },
-  ChangedNetwork: { isOnline: Schema.Boolean },
-  ReturnedToApp: {},
-  GotKeyboardMessage: { message: Keyboard.Message },
-  CompletedSideEffect: {},
-
-  // The list
-  ChangedList: { result: ConversationListResult },
-  ChangedQuery: { text: Schema.String },
-  PressedConversation: { id: Schema.String },
-  PressedNewChat: {},
-  PressedSettings: {},
-  SelectedRowAction: { id: Schema.String, key: Schema.String },
-  ArmedFullSwipe: { isArmed: Schema.Boolean },
-
-  // One chat
-  /** The phone says the chat's push has finished. */
-  AppearedChat: {},
-  /** Long enough for any push to have finished, in case the phone never says. */
-  WaitedForPush: {},
-  PoppedChat: {},
-  ChangedConversation: { id: Schema.String, result: ConversationResult },
-  SelectedChatMenu: { key: Schema.String },
-  ChangedDraft: { text: Schema.String },
-  PressedSend: {},
-  PressedSuggestion: { text: Schema.String },
-  CreatedConversation: { id: Schema.String },
-  StartedTurn: { clientMessageId: Schema.String, started: AiWire.TurnStarted },
-  FailedSend: { clientMessageId: Schema.String, text: Schema.String, reason: Schema.String },
-  PressedStop: {},
-  StoppedTurn: {},
-  PressedRegenerate: {},
-  StartedRegenerate: { started: AiWire.TurnStarted },
-  ReceivedTurnUpdate: { update: TurnUpdate },
-  Resumed: { turnId: Schema.String },
-  PressedReconnect: {},
-  FailedWrite: { action: Schema.String, reason: Schema.String },
-  ChangedAtEnd: { isAtEnd: Schema.Boolean },
-  PressedScrollToEnd: {},
-  DraggedListWithKeyboardUp: {},
-  /** A tap on the transcript that no button, link or hold took. */
-  TappedTranscript: {},
-  LongPressedMessage: { rowKey: Schema.String },
-  /** One of the small buttons under a finished reply: copy, share, regenerate. */
-  PressedReplyAction: { rowKey: Schema.String, key: Schema.String },
-  GotActionSheetMessage: { message: ActionSheet.Message },
-  PressedLink: { url: Schema.String },
-  CopiedCode: { language: Schema.String },
-  DismissedNotice: { text: Schema.String },
-
-  // Sheets
-  PressedReasoning: { rowKey: Schema.String },
-  ClosedSheet: {},
-  ChangedRenameDraft: { text: Schema.String },
-  PressedSaveRename: {},
-  RenamedConversation: {},
-  DeletedConversation: { id: Schema.String },
-
-  // Voice notes
-  PressedMic: {},
-  GotRecorderMessage: { message: Recorder.Message },
-  PressedFinishRecording: {},
-  PressedCancelRecording: {},
-  PressedRemoveAttachment: {},
-})
-export type Message = typeof Message.Type
-
-/** The phone features' own Messages that the app ignores are all one. */
-export const ignore = (
-  _message: Haptics.Message | Clipboard.Message | Share.Message | Alert.Message | Linking.Message,
-) =>
-  Message.CompletedSideEffect()
-
 // THE ROWS OF A CHAT
 
 /** One row of the transcript, with a key that stays the same from sending to saved. */
@@ -228,31 +91,6 @@ export type ChatRow = TranscriptRow &
 /** The text of a row: its text parts joined. */
 export const textOf = (parts: ReadonlyArray<Part>): string =>
   parts.map(part => (part._tag === 'Text' ? part.text : '')).join('')
-
-/**
- * The rows of the open chat. A message you sent keeps one key from the
- * moment it is shown greyed to the moment the server's copy replaces it
- * (its client id), so the row is not built again and does not jump.
- */
-export const chatRows = (model: Model): ReadonlyArray<ChatRow> => {
-  const id = Option.getOrElse(model.openId, () => '')
-  const conversation = AsyncResult.value(model.conversation)
-  const rows = transcript(id, conversation, model.pending, model.live)
-  const clientIds = new Map<string, string>()
-  Option.map(conversation, each => {
-    for (const message of each.messages) {
-      if (message.role === 'user' && message.clientMessageId !== null) {
-        clientIds.set(message.id, message.clientMessageId)
-      }
-    }
-  })
-  const lastReply = rows.reduce((found, row, index) => (row.role === 'assistant' ? index : found), -1)
-  return rows.map((row, index) => ({
-    ...row,
-    key: row.source === 'saved' && row.role === 'user' ? (clientIds.get(row.key) ?? row.key) : row.key,
-    isLastReply: index === lastReply,
-  }))
-}
 
 /** The key of the newest question in the chat, if any. */
 export const lastQuestionKey = (rows: ReadonlyArray<ChatRow>): Option.Option<string> => {

@@ -22,13 +22,18 @@ phone features, each shown in a showcase app.
 
 ```
 packages/native/        the adapter (this is the product)
-  src/nodeApi.ts        Foldkit's updater -> engine calls
-  src/modules.ts        props, classes, styles, events, text input, screens
-  src/extend.ts         registerModule: add behaviour without editing core
-  src/mount.ts          createNativeSurface: a place a program can draw
-  src/elements.ts       view, text, scrollView, image, textInput
-  src/navigation.ts     stack, screen, header, safeArea, onDismissed, style, prop
+  src/host/             knows nothing of Foldkit: effect and the engine only
+    fabric/             node API, surface, core node hooks, the hooks registry
+    device/ list/ ...   phone services, the list and swipe and keyboard logic
+  src/foldkit/          the Foldkit binding: the only folder importing foldkit
+    mount.ts            createNativeSurface: a place a program can draw
+    modules.ts          node hooks as Foldkit modules; nodeOf, bagOf
+    extend.ts           registerModule: add behaviour without editing core
+    elements.ts         view, text, scrollView, image, textInput
+    navigation/         stack, screen, header, safeArea, onDismissed, ...
+  src/index.ts and src/<folder>/index.ts   the public paths, re-exporting both
   test/                 programs and tests on a simulated phone
+  test/boundary.test.ts fails if a file in src/host imports foldkit
 apps/notes/             Expo app, runs on a phone (copy of the adapter in src/foldkit-native)
 apps/counter/           the first, smallest app
 foldkit-fork/           the patch Foldkit needs
@@ -135,10 +140,13 @@ trivial:
   `mount.ts`, `elements.ts`, `navigation.ts`, `index.ts`, `extend.ts`,
   `test/support/phone.ts`, or anything under `apps/notes` and `apps/counter`,
   unless your track owns that file (stated in your task).
-- Need behaviour on your own elements? Write a module factory in your own
-  file and call `registerModule(factory)` from `src/extend.ts`. Helpers
-  `nodeOf`, `bagOf`, `customEvent`, `handlersByNode` are exported from
-  `src/modules.ts`.
+- Need behaviour on your own elements? Prefer node hooks in `src/host`
+  (`registerNodeHooks` from `src/host/fabric/registry.ts`): they know no
+  Foldkit and survive the move to Effect UI. A Foldkit module factory
+  (`registerModule` from `src/foldkit/extend.ts`) is for what needs virtual
+  nodes. Helpers `nodeOf`, `bagOf` are in `src/foldkit/modules.ts`,
+  `customEvent`, `handlersByNode` in `src/host/fabric/nodes.ts`. See
+  `docs/EFFECT_UI.md`.
 - Need a change in a core file? Do not make it. Describe the exact change in
   your report and work around it locally if you can.
 - Put your public API in `src/<track>/index.ts` (or `src/<track>.ts`). The

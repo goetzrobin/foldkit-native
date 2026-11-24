@@ -9,7 +9,7 @@ for app in "$here"/apps/*/; do
   [ -d "$dest" ] || continue
   (cd "$here/packages/native/src" && find . -name '*.ts' -print0) | while IFS= read -r -d '' file; do
     mkdir -p "$dest/$(dirname "$file")"
-    sed "s#\(from '\.\{1,2\}/[^']*\)\.js'#\1'#" "$here/packages/native/src/$file" > "$dest/$file"
+    sed -e "s#\(from '\.\{1,2\}/[^']*\)\.js'#\1'#" -e "s#\(^import '\.\{1,2\}/[^']*\)\.js'#\1'#" "$here/packages/native/src/$file" > "$dest/$file"
   done
 done
 echo "Synced packages/native/src into apps/*/src/foldkit-native"

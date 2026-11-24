@@ -19,7 +19,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { type Source, streamOf } from '../src/device/common.js'
+import { type Source, streamOf } from '../src/host/device/common.js'
 import { Phone, configureMotion, registerNavigation, stopMotion, view } from '../src/index.js'
 import {
   type CodeCopy,
@@ -38,7 +38,7 @@ import {
   resetMarkdownNumbers,
   resetMarkdownSetup,
 } from '../src/markdown/index.js'
-import { splitBlocks } from '../src/markdown/fallback.js'
+import { splitBlocks } from '../src/foldkit/markdown/fallback.js'
 import { makeDemo } from './demos/markdown.js'
 import { SAMPLE_REPLY, longReply, tokensOf, wordCount } from './demos/markdownSample.js'
 import { type Phone as TestPhone, byTestId, flatten, hasTestId, press, settle, startPhone, textOf } from './support/phone.js'

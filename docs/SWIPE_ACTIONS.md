@@ -171,7 +171,7 @@ screen.
 | `src/swipe/group.ts` | One open row per group. `closeSwipe`, `closeAllSwipes`. |
 | `src/swipe/row.ts` | `swipeRow`: what is drawn. Registers the two drivers. |
 | `src/swipe/stage.ts` | What a row keeps between draws. |
-| `src/swipe/module.ts` | Touch, motion and events between draws. |
+| `src/host/swipe/rows.ts` | Touch, motion and events between draws. |
 | `src/swipe/uiSide.ts` | The UI thread driver's worklets. |
 | `test/swipe.ts`, `test/swipe.test.ts` | A fixture and 105 tests. |
 | `test/demos/swipe.ts` | The demo. |

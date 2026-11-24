@@ -1,19 +1,5 @@
 /**
- * A bar that follows the keyboard, for a chat's composer.
- *
- *   keyboardDock(h, { keyboardHeight, children, above?, offset?, backgroundColor? })
- *   dismissKeyboardOnDrag()   an attribute for the scroll view above the bar
- *   keyboardDockMode()        'native' or 'fallback', the same for the whole app
- *
- * `dock.ts` explains the two modes and `detect.ts` how one is chosen.
+ * The public path of this folder, kept so apps, demos and tests import it
+ * as before. The code now lives in the Foldkit binding: see `src/foldkit/keyboard/index.ts`.
  */
-export { dismissKeyboardOnDrag, keyboardDock } from './dock.js'
-export type { KeyboardDock } from './dock.js'
-export {
-  configureKeyboardDock,
-  forceKeyboardDockFallback,
-  keyboardDockFallbackReason,
-  keyboardDockMode,
-} from './detect.js'
-export type { KeyboardDockMode, KeyboardDockOptions } from './detect.js'
-export { measureAppWindow } from './appWindow.js'
+export * from '../foldkit/keyboard/index.js'

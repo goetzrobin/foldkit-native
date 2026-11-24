@@ -1,15 +1,5 @@
 /**
- * The development loop: hot reload that keeps the Model, and a crash screen
- * made of native views.
+ * The public path of this folder, kept so apps, demos and tests import it
+ * as before. The code now lives in the Foldkit binding: see `src/foldkit/devLoop/index.ts`.
  */
-export { hotProgram } from './hotReload.js'
-export type {
-  HotModule,
-  HotProgram,
-  HotProgramOptions,
-  ProgramFactory,
-} from './hotReload.js'
-export { keepModel } from './keepModel.js'
-export { hasFoldkitTransport } from './foldkitTransport.js'
-export { nativeCrash, nativeCrashView } from './crashView.js'
-export type { NativeCrashOptions } from './crashView.js'
+export * from '../foldkit/devLoop/index.js'

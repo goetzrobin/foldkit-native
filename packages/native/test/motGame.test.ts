@@ -11,7 +11,7 @@ import { type FakeFabric, type FakeFabricNode, createFakeFabric } from '@ng-nati
 import { Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { DEFAULT_COLORS } from '../src/game/arena.js'
+import { DEFAULT_COLORS } from '../src/foldkit/game/arena.js'
 import { type TrialSpec, drawnPositions, isTarget, stateAt } from '../src/game/index.js'
 import { type NativeSurface, createNativeSurface, registerNavigation } from '../src/index.js'
 import { configureMotion, stopMotion } from '../src/motion/index.js'
