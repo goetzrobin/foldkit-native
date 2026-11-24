@@ -119,6 +119,10 @@ export const registerNavigation = (): void => {
     { ios: 'RNSTabsScreenIOS', android: 'RNSTabsScreenAndroid' },
     { position: 'absolute', flex: 1, width: '100%', height: '100%' },
   )
+  // iOS 26 and later: the strip above the tab bar. See `bottomAccessory` in
+  // `tabs.ts`, which draws them on no other phone.
+  registerViewName('tab-bar-accessory', 'RNSTabsBottomAccessory')
+  registerViewName('tab-bar-accessory-content', 'RNSTabsBottomAccessoryContent')
 }
 
 /** The stack of screens. Its children are `screen`s, the last one on top. */
@@ -167,6 +171,31 @@ export type Presentation =
  * created and leave it. The phone reads it as the screen joins the stack.
  */
 export const presentation = (kind: Presentation) => prop('stackPresentation', kind)
+
+/** How the edge of a scrolling list fades under a bar. */
+export type ScrollEdgeEffect = 'automatic' | 'hard' | 'soft' | 'hidden'
+
+/**
+ * iOS 26 and later: how this screen's scrolling content meets the bars at
+ * each edge. `soft` fades it out under the glass, `hard` draws a firmer
+ * line, `hidden` does nothing. An edge left out is the phone's choice.
+ * Spread it into the screen's attributes:
+ *
+ *   screen([h.Key(key), ...scrollEdgeEffects({ top: 'soft', bottom: 'hidden' })], ...)
+ */
+export const scrollEdgeEffects = (
+  edges: Readonly<{
+    top?: ScrollEdgeEffect
+    bottom?: ScrollEdgeEffect
+    left?: ScrollEdgeEffect
+    right?: ScrollEdgeEffect
+  }>,
+) => [
+  prop('topScrollEdgeEffect', edges.top ?? 'automatic'),
+  prop('bottomScrollEdgeEffect', edges.bottom ?? 'automatic'),
+  prop('leftScrollEdgeEffect', edges.left ?? 'automatic'),
+  prop('rightScrollEdgeEffect', edges.right ?? 'automatic'),
+]
 
 export type SheetOptions = Readonly<{
   /** Heights the sheet rests at, as parts of the screen: `[0.5, 1]`. */

@@ -20,12 +20,19 @@ export {
   registerNavigation,
   safeArea,
   screen,
+  scrollEdgeEffects,
   sheet,
   stack,
   style,
   title,
 } from './stack.js'
-export type { Attributes, Device, Presentation, SheetOptions } from './stack.js'
+export type {
+  Attributes,
+  Device,
+  Presentation,
+  ScrollEdgeEffect,
+  SheetOptions,
+} from './stack.js'
 export {
   backButtonHidden,
   backTitle,
@@ -38,7 +45,13 @@ export {
 } from './header.js'
 export type { BarButton, NavigationBarOptions } from './header.js'
 export { tab, tabs } from './tabs.js'
-export type { TabOptions, TabsOptions } from './tabs.js'
+export type {
+  BottomAccessory,
+  TabBarMinimizeBehavior,
+  TabOptions,
+  TabSystemItem,
+  TabsOptions,
+} from './tabs.js'
 export { backSourceFrom, hardwareBack, noBackSource } from './back.js'
 export type { BackHandlerLike, BackSource, HardwareBackConfig } from './back.js'
 export { canPop, pop, popByPhone, popTo, popToRoot, push, replace, stackOf } from './route.js'
