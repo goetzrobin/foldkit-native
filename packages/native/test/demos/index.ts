@@ -17,6 +17,7 @@ import { makeDemo as makeGlass } from './glass.js'
 import { makeDemo as makeKeyboard } from './keyboard.js'
 import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
+import { makeDemo as makeMarkdown } from './markdown.js'
 import { makeDemo as makeMenus } from './menus.js'
 import { makeDemo as makeMot } from './mot.js'
 import { makeDemo as makeNavigation } from './navigation.js'
@@ -176,5 +177,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Voice notes',
     blurb: 'Record a note with a live level meter, keep it on the phone, play it back at 1x, 1.5x or 2x.',
     start: (container, env) => Runtime.embed(makeVoice(container, env, resources.device)),
+  },
+  {
+    id: 'markdown',
+    title: 'Streaming markdown',
+    blurb: 'An AI reply streamed in as rich text: tables, code, lists, links. Best in the prebuilt app.',
+    start: (container, env) => Runtime.embed(makeMarkdown(container, env, resources.device)),
   },
 ]
