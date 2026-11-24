@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show thirteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show fourteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass, Worklets, Server state?
+   Object tracking, Glass, Worklets, Server state, Menus and controls?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -374,3 +374,41 @@ S9. Press "Announce topic" so it says off. Change the name, press Save, wait
     right: this is what breaks without the topic.)
 S10. On the member screen with the keyboard open, can you see the name field
      and the Save button, and is the panel clear of the title bar?
+
+## Menus and controls
+
+The phone's own menus and controls, with no React. A block at the top,
+"What this phone uses", has one line per feature. Green lines are the
+phone's own. Amber lines are a fallback and say why. None of this has been
+seen on a phone. Please answer on the iPhone and on the Android emulator.
+
+MC1. Open "Menus and controls". Please send a screenshot of the block "What
+     this phone uses". Are the lines green, and do they say "Expo UI
+     (SwiftUI)" on the iPhone and "Expo UI (Jetpack Compose)" on Android?
+MC2. Is the whole screen drawn, with nothing missing, cut off or on top of
+     something else? Can you scroll to "Set from the Model" at the bottom?
+MC3. Press and hold the grey card. iPhone: does the card lift and a menu
+     open, with icons, a greyed "Print (off)" and a red "Delete"? Android:
+     does a menu open under the card?
+MC4. Choose "Pinned" in that menu. Does "Last event" say "Card menu: pin",
+     and does the card say "Pinned"? Open the menu again. Is there a check
+     mark by "Pinned"? iPhone only: does "Move to" open a second menu?
+MC5. Press "Sort". Does a menu open at the button? Choose "Name". Does the
+     line beside it say "Sorted by name", and is "Name" checked next time?
+MC6. Press "More" in the title bar. Does a menu open from the bar? Choose
+     "Rename". Does "Last event" say "Title bar menu: bar-rename"?
+MC7. Press "Open an action sheet". iPhone: does a sheet slide up with a red
+     "Remove photo", a greyed "Browse files (off)" and Cancel? Android: does
+     a dialog with a list open? Choose one. Does "Last event" name it?
+MC8. Flip the switch and drag the slider. Do they move under your finger
+     with no jump back, and do the lines under "In the Model now" follow?
+     Does the progress bar follow the slider?
+MC9. Tap a segment, and the stepper's plus and minus. Do the lines under
+     "In the Model now" follow each tap? Does the stepper stop at 0 and 10?
+MC10. Change both pickers. iPhone: is one a menu and the other a wheel?
+      Android: are both menus? Do the lines in the Model follow?
+MC11. Change the date and the time. Do "Date" and "Time" in the Model show
+      what you picked? On Android, is the day right and not one day off?
+MC12. Press "Set from the Model". Do all the controls move by themselves to
+      the new values (switch on, slider near the right, "Large", 7, "Blue",
+      "Fig", 2027-01-31, 18:45)? Press it again. Do they all move back?
