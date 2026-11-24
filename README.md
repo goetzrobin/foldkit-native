@@ -31,6 +31,7 @@ Foldkit program.
 | Glass | Liquid Glass over scrolling colours: a card, a pill, a round button, two shapes that flow into one. A line says if it is real glass or the plain fallback. A second screen shows the tab bar options iOS 26 added. |
 | Worklets | Code on the phone's UI thread with no React. Status lines say which pieces this build has. An orange box keeps moving while a button blocks JavaScript for two seconds, and a card follows a finger. See `docs/WORKLETS.md`. |
 | Server state | A crew list from a pretend server, kept in a cache outside the Model. A panel says what was loaded, when and why. Buttons slow the server, fail a request, and edit from "another device". See `docs/SERVER_STATE.md`. |
+| Voice notes | Records with the microphone through expo-audio's native recorder, with no React. A timer, a live level meter drawn outside the Model, pause, a 15 minute limit, notes kept as files, and playback at 1x, 1.5x and 2x. See `docs/VOICE_NOTES.md`. |
 
 Chat and AI chat have a button that goes round three ways of keeping the text
 field above the keyboard: "Keyboard: inset" (the default: the messages are not

@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show thirteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show fourteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass, Worklets, Server state?
+   Object tracking, Glass, Worklets, Server state, Voice notes?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -374,3 +374,50 @@ S9. Press "Announce topic" so it says off. Change the name, press Save, wait
     right: this is what breaks without the topic.)
 S10. On the member screen with the keyboard open, can you see the name field
      and the Save button, and is the panel clear of the title bar?
+
+## Voice notes
+
+The demo "Voice notes" records with the microphone, keeps each note as a file
+on the phone, and plays it back. It has not been seen or heard on a phone.
+See `docs/VOICE_NOTES.md` for what the words on screen mean. Please answer
+for the iPhone and for Android separately where they differ.
+
+V1. Open "Voice notes". What do the four lines under Status say? (Route
+    should say "expo-audio native objects, no React". If it says "not
+    available", write down the rest of the line and stop here.)
+V2. Press the round Record button. Does the phone ask for the microphone?
+    Allow it. Did you feel a tap, and does the button show a timer counting
+    up from 0:00?
+V3. Talk, then stay quiet. Do the bars under the button rise when you talk
+    and fall when you stop? Does the rest of the screen stay still while
+    they move?
+V4. Press Pause, wait five seconds, press Resume. Did the timer wait and then
+    carry on from the same number?
+V5. Press "Stop and save". Did you feel a second tap, and is there a note in
+    the list with a length, a size and today's date? Press Play. Can you
+    hear all of it, including the part after the pause?
+V6. While it plays, press a block in the row of blocks to jump, then press
+    1.5x and 2x. Does the sound jump and speed up? Does it stop at the end
+    with the position back at 0:00?
+V7. Press "Record 5 seconds and stop" and do not touch the phone. Does a
+    warning line show near the end, and does a five second note save itself?
+V8. Record a few seconds and press Discard. Is the list unchanged? Then
+    rename a note and delete a note. Close the app from the app switcher and
+    open it again. Is the list as you left it, and do the notes still play?
+V9. Start a recording and talk for two minutes with the app in the
+    background: go to the home screen and leave it there. Come back. What
+    does the timer say, and does the phase line say "Recording" or "Paused
+    by the phone"? Stop and play it. How much of the two minutes can you
+    hear?
+V10. Start a recording, lock the screen, and talk for two minutes. Unlock.
+     Same three answers as V9: the timer, the phase line, and how much you
+     can hear. On Android, was there a notification while it recorded?
+V11. Start a recording, press Exit, open another demo, then come back to
+     "Voice notes". Is the timer still running at the right second, and does
+     the saved note hold everything you said?
+V12. Start a recording and call the phone from another phone (or start a
+     timer alarm). Does the phase line say "Paused by the phone"? After the
+     call, does it carry on by itself, or do you need to press Resume? Then,
+     in the phone's Settings, turn the microphone off for the app, come back
+     and press Record. Does an "Open Settings" button appear, and does it
+     open the right page?
