@@ -39,6 +39,7 @@ import {
 import { registerGlass } from './native/src/glass'
 import { configureKeyboardDock } from './native/src/keyboard'
 import { configureSkia, registerSkia } from './native/src/skia'
+import { configureWorklets } from './native/src/worklets'
 import { makeDemos } from './native/test/demos'
 import { startShowcase } from './native/test/demos/shell'
 
@@ -58,6 +59,18 @@ configureSkia({ nativeModule: name => TurboModuleRegistry.get(name) })
 // This must run after `import 'expo'` above, which is what tells JavaScript
 // the name Expo Go gives this project's views.
 registerGlass()
+
+// For the Worklets demo: code that runs on the phone's UI thread. Only
+// `react-native-worklets` is loaded as JavaScript, and it imports no React.
+// It is loaded the first time something asks for the UI thread, inside a
+// try, because it throws where its native code is missing. Reanimated and
+// gesture-handler are in package.json for their native code alone: they are
+// found by name and none of their JavaScript is imported. Where a piece is
+// missing the demo says which and the rest of the app is untouched.
+configureWorklets({
+  load: () => require('react-native-worklets'),
+  nativeModule: name => TurboModuleRegistry.get(name),
+})
 
 /**
  * React Native's animation module, which can move a view on the native side

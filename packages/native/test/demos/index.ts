@@ -21,6 +21,7 @@ import { makeDemo as makeMot } from './mot.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
+import { makeDemo as makeWorklets } from './worklets.js'
 
 export type DemoResources = Readonly<{
   /** The phone features: `Phone.live({...})` in an app, `Phone.makeTest()` in a test. */
@@ -106,5 +107,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Glass',
     blurb: 'Liquid Glass over scrolling colours. A line says if it is real glass or the fallback.',
     start: (container, env) => Runtime.embed(makeGlass(container, env)),
+  },
+  {
+    id: 'worklets',
+    title: 'Worklets',
+    blurb: 'Code on the UI thread. Status lines say what this build has. Block JavaScript and watch.',
+    start: (container, env) => Runtime.embed(makeWorklets(container, env)),
   },
 ]
