@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show ten rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show eleven rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking?
+   Object tracking, Glass?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -243,3 +243,32 @@ M11. Set 20 dots and the highest speed, then press Start. Is the movement
      still smooth? Write down the late frames number again.
 M12. If there is a button "Draw with plain views", press it and play a trial.
      Is it less smooth than before? Write down its late frames number.
+
+## Glass
+
+Liquid Glass is the see-through material of iOS 26 and later. The demo shows
+a card, two shapes, a round button and a pill made of it, floating over
+colours that scroll. It has not been seen on a phone. On Android, and on an
+older iPhone, the same things are drawn as pale see-through boxes. That is
+the fallback, and it is the right answer there.
+
+G1. What does the orange line at the top say after "Liquid Glass:"? Write it
+    down in full.
+G2. Scroll the colours. Do they bend and blur through the card, the round
+    button and the pill, as they do through the glass in Apple's own apps?
+G3. Are the words on the glass easy to read over every colour?
+G4. Press "Style: clear". Does the glass let more of the colours through?
+G5. Press "Tint". Does the glass turn orange? Press it again. Does the
+    orange go?
+G6. Hold a finger on the round "+" button. Does the glass swell or shine
+    under the finger? Does the number on the card go up by one when you let go?
+G7. Press "Less" and "More" on the pill. Does the pill count change by one
+    each time?
+G8. Press "Shapes: close" so it says "Shapes: apart", then press it again.
+    Do shapes A and B flow into one shape when close and part when apart?
+G9. Press "Open the tabs screen" and scroll the list up. Does the tab bar
+    shrink to a small pill, and is the Search button set apart from the
+    other two? Does "Back to the glass screen" bring the first screen back?
+G10. On the tabs screen, switch "Strip above the tab bar" on. Does a glass
+     strip with the words "Strip above the bar" appear above the tab bar,
+     with no crash?
