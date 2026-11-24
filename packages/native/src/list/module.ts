@@ -1397,7 +1397,11 @@ export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }
   for (const state of listsById.get(id) ?? []) {
     letGo(state)
     // Asked for the end: the list follows it from now on (see `Following`).
+    // A fling still running is over: the glide there takes its place.
     state.isFollowing = true
+    state.isUserScrolling = false
+    clearTimeout(state.flingTimer)
+    state.flingTimer = undefined
     reveal(state)
     beginHold(state)
     resettle(state, options.animated ?? false)
