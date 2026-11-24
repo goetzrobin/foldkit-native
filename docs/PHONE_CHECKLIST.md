@@ -465,6 +465,12 @@ phone's own sheet. The main screen has a counter, a "Last event" line and a
 list of buttons, one per sheet. None of this has been seen on a phone. Please
 answer each question for the iPhone and for Android.
 
+For any no in this section, a screenshot with numbers helps most. On the
+main screen press "Show numbers" so it says ON, then open the sheet. Lines of
+sizes appear under the sheet's title. Scroll the sheet's list a little, press
+"Read numbers again", and take the screenshot. For the footer and text field
+sheets, please send one at each height.
+
 SH1. Open "Maps-style sheet". Does it come up to about a quarter of the
      screen? Drag it to half and to full. Each time, does the line "Maps-style
      sheet: resting at ..." on the main screen name the right height?

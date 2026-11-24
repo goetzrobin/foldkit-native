@@ -60,8 +60,13 @@ import { Option, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
+import type { EngineNode } from '@ng-native/fabric'
+import type { VNode } from 'foldkit/renderTarget'
+
 import { prop } from '../attributes.js'
+import { type ModuleFactory, registerModule } from '../extend.js'
 import { keyboardDock } from '../keyboard/dock.js'
+import { bagOf, nodeOf } from '../modules.js'
 
 const el = element<any>()
 
@@ -209,18 +214,49 @@ export const sheet = <Message = never>(options: SheetOptions<Message> = {}) => {
 
 /** The names `registerNavigation` gives the native views of this file. */
 export const SHEET_CONTENT = 'sheet-content'
-export const SHEET_CONTENT_FIT = 'sheet-content-fit'
 export const SHEET_FOOTER = 'sheet-footer'
 
-/** Fills the sheet. */
-export const SHEET_CONTENT_STYLE = { flex: 1 } as const
+/** Fills the sheet's screen, above a footer if there is one. */
+const CONTENT_STYLE = { flex: 1 } as const
 
 /**
  * Pinned to the top with no bottom edge, so the view is as tall as what is
  * in it. That height is what the phone makes the sheet. These are the styles
  * react-native-screens' own wrapper gives a sheet that fits its content.
  */
-export const SHEET_CONTENT_FIT_STYLE = { position: 'absolute', top: 0, left: 0, right: 0 } as const
+const CONTENT_FIT_STYLE = { position: 'absolute', top: 0, left: 0, right: 0 } as const
+
+type PropAttribute = Readonly<{ _tag: 'Prop'; key: string; value: unknown }>
+
+const isStyle = (attribute: unknown): attribute is PropAttribute =>
+  typeof attribute === 'object' &&
+  attribute !== null &&
+  (attribute as { _tag?: unknown })._tag === 'Prop' &&
+  (attribute as { key?: unknown }).key === 'style'
+
+/**
+ * One `style` from the view's own styles and the caller's, the caller's on
+ * top. Two `style` attributes on one element do not add up: the later one
+ * replaces the earlier.
+ *
+ * The two kinds of content view once had their styles as defaults of two
+ * element names. Both names were the same native view, and the engine keeps
+ * one default per native view, so every sheet's content got the styles meant
+ * for `fit`: out of the layout, with no height of its own. A footer after it
+ * then sat at the top of the sheet. The styles are sent with the view now.
+ */
+const withStyle = (
+  base: Readonly<Record<string, unknown>>,
+  attributes: ReadonlyArray<unknown>,
+): ReadonlyArray<unknown> => {
+  let style: Record<string, unknown> = { ...base }
+  const rest: Array<unknown> = []
+  for (const attribute of attributes) {
+    if (isStyle(attribute)) style = { ...style, ...(attribute.value as object) }
+    else rest.push(attribute)
+  }
+  return [prop('style', style), ...rest]
+}
 
 export type SheetContentOptions = Readonly<{
   /** For `sheet({ detents: 'fit' })`: the sheet is as tall as this view. */
@@ -247,9 +283,15 @@ export type SheetContentOptions = Readonly<{
  * title row, with `prop('collapsable', false)`, and the list.
  */
 export const sheetContent = (options: SheetContentOptions, children: ReadonlyArray<Html>): Html =>
-  el(options.fit === true ? SHEET_CONTENT_FIT : SHEET_CONTENT)(
-    // Never left out of the native tree: the phone looks for this very view.
-    [prop('collapsable', false), ...(options.attributes ?? [])] as never,
+  el(SHEET_CONTENT)(
+    [
+      // Never left out of the native tree: the phone looks for this very view.
+      prop('collapsable', false),
+      ...withStyle(
+        options.fit === true ? CONTENT_FIT_STYLE : CONTENT_STYLE,
+        options.attributes ?? [],
+      ),
+    ] as never,
     (options.keepsOwnLayout === true
       ? [
           el('view')(
@@ -439,3 +481,154 @@ export const presentAgain = (place: SheetPlace): SheetPlace => ({
 /** The key for the sheet's screen. It changes when the sheet is presented again. */
 export const sheetKey = (name: string, place: SheetPlace): string =>
   `${name}#${place.presentation}`
+
+// ---- Numbers, for finding out on a real phone why a sheet is laid out wrong ----
+
+const PROBE = 'foldkit-sheet-probe:'
+
+/**
+ * Marks a view so that `readSheetNumbers` reports its size under `name`:
+ * the sheet's screen, its content, a scroll view, a footer. One of the
+ * view's attributes. It uses the view's `nativeID`.
+ */
+export const sheetProbe = (name: string) => prop('nativeID', `${PROBE}${name}`)
+
+export type SheetFrame = Readonly<{ x: number; y: number; width: number; height: number }>
+
+/** What is known about one marked view. A part the phone has not said is null. */
+export type SheetNumbers = Readonly<{
+  name: string
+  /** From the view's layout report: its place in its parent. */
+  layout: SheetFrame | null
+  /** Measured now: its place in the window. */
+  inWindow: SheetFrame | null
+  /**
+   * A scroll view only, after it was scrolled: the size the native scroll
+   * view really has, and the size of what is in it. The two frames above
+   * come from the layout the app worked out. This one comes from the view.
+   */
+  scrolled: Readonly<{ viewport: SheetFrame; content: SheetFrame }> | null
+  /** A sheet's screen only: the last height the phone reported, as an index. */
+  detent: number | null
+}>
+
+type Probe = {
+  node: EngineNode
+  layout: SheetFrame | null
+  scrolled: SheetNumbers['scrolled']
+  detent: number | null
+  stops: Array<() => void>
+}
+
+type Read = () => ReadonlyArray<SheetNumbers>
+
+/** The surface now on screen. An app has one. */
+let read: Read | undefined
+
+const probeName = (vnode: VNode): string | undefined => {
+  const id = bagOf(vnode, 'props')['nativeID']
+  return typeof id === 'string' && id.startsWith(PROBE) ? id.slice(PROBE.length) : undefined
+}
+
+const frameOf = (value: unknown): SheetFrame | null => {
+  const frame = value as Partial<SheetFrame> | undefined
+  return typeof frame?.width === 'number' && typeof frame.height === 'number'
+    ? { x: frame.x ?? 0, y: frame.y ?? 0, width: frame.width, height: frame.height }
+    : null
+}
+
+type Reported = Readonly<{
+  nativeEvent?: {
+    layout?: unknown
+    layoutMeasurement?: unknown
+    contentSize?: unknown
+    index?: unknown
+    isStable?: unknown
+  }
+}>
+
+const probeModule: ModuleFactory = engine => {
+  const probes = new Map<string, Probe>()
+
+  read = () =>
+    [...probes.entries()].map(([name, probe]) => {
+      let inWindow: SheetFrame | null = null
+      try {
+        // On a phone the answer comes before `measure` returns.
+        engine.measure(probe.node, frame => {
+          inWindow = frame
+        })
+      } catch {
+        // No answer is reported as none.
+      }
+      return { name, layout: probe.layout, inWindow, scrolled: probe.scrolled, detent: probe.detent }
+    })
+
+  const create = (_empty: VNode, vnode: VNode): void => {
+    const name = probeName(vnode)
+    const node = nodeOf(vnode)
+    if (name === undefined || node === undefined) return
+    for (const stop of probes.get(name)?.stops ?? []) stop()
+    const probe: Probe = { node, layout: null, scrolled: null, detent: null, stops: [] }
+    probes.set(name, probe)
+    probe.stops.push(
+      engine.setEventListener(node, 'topLayout', event => {
+        probe.layout = frameOf((event as Reported | undefined)?.nativeEvent?.layout) ?? probe.layout
+      }),
+      engine.setEventListener(node, 'topSheetDetentChanged', event => {
+        const native = (event as Reported | undefined)?.nativeEvent
+        if (typeof native?.index === 'number' && native.isStable !== false) {
+          probe.detent = native.index
+        }
+      }),
+    )
+    if (node.tag === 'scroll-view') {
+      probe.stops.push(
+        engine.setEventListener(node, 'topScroll', event => {
+          const native = (event as Reported | undefined)?.nativeEvent
+          const viewport = frameOf(native?.layoutMeasurement)
+          const content = frameOf(native?.contentSize)
+          if (viewport !== null && content !== null) probe.scrolled = { viewport, content }
+        }),
+      )
+    }
+  }
+  const destroy = (vnode: VNode): void => {
+    const name = probeName(vnode)
+    if (name === undefined) return
+    const probe = probes.get(name)
+    // A newer view may have taken the name already.
+    if (probe === undefined || probe.node !== nodeOf(vnode)) return
+    for (const stop of probe.stops) stop()
+    probes.delete(name)
+  }
+  return { create, destroy }
+}
+
+registerModule(probeModule)
+
+/**
+ * The sizes of every view marked with `sheetProbe` that is on screen now.
+ * For a Command: `Effect.sync(() => readSheetNumbers())`.
+ */
+export const readSheetNumbers = (): ReadonlyArray<SheetNumbers> => read?.() ?? []
+
+const whole = (frame: SheetFrame | null): string =>
+  frame === null
+    ? 'not reported'
+    : `${Math.round(frame.width)}x${Math.round(frame.height)} at ${Math.round(frame.x)},${Math.round(frame.y)}`
+
+/** One line per marked view, for showing on screen. */
+export const formatSheetNumbers = (numbers: ReadonlyArray<SheetNumbers>): ReadonlyArray<string> =>
+  numbers.length === 0
+    ? ['No marked view on screen.']
+    : numbers.map(
+        each =>
+          `${each.name}: layout ${whole(each.layout)}, in window ${whole(each.inWindow)}` +
+          (each.detent === null ? '' : `, detent ${each.detent}`) +
+          (each.scrolled === null
+            ? ''
+            : `, native viewport ${Math.round(each.scrolled.viewport.width)}x` +
+              `${Math.round(each.scrolled.viewport.height)}, content height ` +
+              `${Math.round(each.scrolled.content.height)}`),
+      )
