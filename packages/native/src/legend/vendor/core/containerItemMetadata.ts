@@ -1,0 +1,92 @@
+import type { ContainerItemMetadata, InternalState } from "../types.internal";
+import { getId } from "../utils/getId";
+
+export function createContainerItemMetadata(
+    state: InternalState,
+    itemIndex: number,
+    itemData: any,
+    itemType?: string,
+): ContainerItemMetadata {
+    return {
+        data: state.props.data,
+        dataChangeEpoch: state.dataChangeEpoch,
+        getFixedItemSize: state.props.getFixedItemSize,
+        getItemType: state.props.getItemType,
+        itemData,
+        itemIndex,
+        itemType,
+    };
+}
+
+export function updateContainerItemMetadata(
+    state: InternalState,
+    containerId: number,
+    itemIndex: number,
+    itemData: any,
+    itemType?: string,
+) {
+    const { getItemType } = state.props;
+    const previousMetadata = state.containerItemMetadata.get(containerId);
+    if (
+        previousMetadata?.dataChangeEpoch === state.dataChangeEpoch &&
+        previousMetadata.getItemType === getItemType &&
+        previousMetadata.itemData === itemData &&
+        previousMetadata.itemIndex === itemIndex
+    ) {
+        return previousMetadata;
+    }
+
+    const resolvedItemType = itemType ?? (getItemType ? (getItemType(itemData, itemIndex) ?? "") : undefined);
+    const metadata = createContainerItemMetadata(state, itemIndex, itemData, resolvedItemType);
+    state.containerItemMetadata.set(containerId, metadata);
+    return metadata;
+}
+
+export function resolveContainerItemMetadata(
+    state: InternalState,
+    containerId: number,
+    itemIndex: number,
+    itemData: any,
+) {
+    const { getFixedItemSize } = state.props;
+    const metadata = updateContainerItemMetadata(state, containerId, itemIndex, itemData);
+
+    if (metadata.getFixedItemSize !== getFixedItemSize) {
+        metadata.didResolveFixedItemSize = false;
+        metadata.fixedItemSize = undefined;
+        metadata.getFixedItemSize = getFixedItemSize;
+    }
+    if (getFixedItemSize && !metadata.didResolveFixedItemSize) {
+        // The flag also caches an intentional undefined result for dynamic items.
+        metadata.fixedItemSize = getFixedItemSize(itemData, itemIndex, metadata.itemType ?? "");
+        metadata.didResolveFixedItemSize = true;
+    }
+
+    return metadata;
+}
+
+export function invalidateFixedItemSizes(state: InternalState) {
+    for (const key of state.fixedItemSizeKeys ?? []) {
+        state.sizesKnown.delete(key);
+    }
+    state.fixedItemSizeKeys?.clear();
+    const { data, getFixedItemSize, getItemType } = state.props;
+    if (getFixedItemSize) {
+        // A measured row that now has a fixed size must drop its stale measurement.
+        // indexByKey can be stale before the first layout, so resolve keys from the current data.
+        for (let index = 0; index < data.length; index++) {
+            const key = getId(state, index);
+            const item = data[index];
+            if (
+                state.sizesKnown.has(key) &&
+                getFixedItemSize(item, index, getItemType ? (getItemType(item, index) ?? "") : "") !== undefined
+            ) {
+                state.sizesKnown.delete(key);
+            }
+        }
+    }
+    for (const metadata of state.containerItemMetadata.values()) {
+        metadata.didResolveFixedItemSize = false;
+        metadata.fixedItemSize = undefined;
+    }
+}

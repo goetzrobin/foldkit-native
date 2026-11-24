@@ -14,6 +14,7 @@ import { makeDemo as makeAiChat } from './aiChat.js'
 import { makeDemo as makeChat } from './chat.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
 import { makeDemo as makeKeyboard } from './keyboard.js'
+import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
@@ -65,6 +66,12 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'AI chat',
     blurb: 'Your question goes to the top and the answer is written under it, word by word.',
     start: (container, env) => Runtime.embed(makeAiChat(container, env, resources.device)),
+  },
+  {
+    id: 'legend-chat',
+    title: 'AI chat on Legend List',
+    blurb: "Legend List's own core with no React. Send: your message goes to the top, the reply streams under it.",
+    start: (container, env) => Runtime.embed(makeLegendChat(container, env, resources.device)),
   },
   {
     id: 'styling',
