@@ -29,8 +29,11 @@ Foldkit program.
 | Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |
 | Object tracking | A tracking game drawn every frame with Skia, or with plain views where Skia is missing. Shows frame timing after each trial. |
 
-Chat and AI chat have a button, "Keyboard: following" or "Keyboard: simple",
-that switches between two ways of keeping the text field above the keyboard.
+Chat and AI chat have a button that goes round three ways of keeping the text
+field above the keyboard: "Keyboard: inset" (the default: the messages are not
+resized, the list scrolls to make room, as react-native-keyboard-controller and
+Legend List do it), "following" and "simple". AI chat also has "Lift: ...", for
+what the messages do as the keyboard opens, and "Show numbers".
 
 ## Run it
 
