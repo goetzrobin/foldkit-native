@@ -140,5 +140,5 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
     // "Hide keyboard" leaves the keyboard up.
     blurFocused: () => surface.engine.blurFocused(),
   })
-  startShowcase(surface.container, device, makeDemos({ device: phone, backSource: backSourceFrom(BackHandler) }))
+  startShowcase(surface.container, device, makeDemos({ device: phone, backSource: backSourceFrom(BackHandler), rightToLeft: I18nManager.isRTL }))
 })

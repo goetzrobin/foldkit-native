@@ -16,8 +16,6 @@
  * and how another folder adds its own driver, and `module.ts` for the
  * finger and the motion.
  */
-import './module.js'
-
 export {
   SWIPE_ARMED,
   SWIPE_CLOSED,
