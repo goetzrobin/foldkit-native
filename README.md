@@ -31,6 +31,7 @@ Foldkit program.
 | Glass | Liquid Glass over scrolling colours: a card, a pill, a round button, two shapes that flow into one. A line says if it is real glass or the plain fallback. A second screen shows the tab bar options iOS 26 added. |
 | Worklets | Code on the phone's UI thread with no React. Status lines say which pieces this build has. An orange box keeps moving while a button blocks JavaScript for two seconds, and a card follows a finger. See `docs/WORKLETS.md`. |
 | Server state | A crew list from a pretend server, kept in a cache outside the Model. A panel says what was loaded, when and why. Buttons slow the server, fail a request, and edit from "another device". See `docs/SERVER_STATE.md`. |
+| Sheets | The phone's own bottom sheets: three heights with the screen behind still usable, fit to content, a text field above the keyboard, a 500-row list, a footer, asking before closing, a sheet over a sheet, and screens inside a sheet. |
 
 Chat and AI chat have a button that goes round three ways of keeping the text
 field above the keyboard: "Keyboard: inset" (the default: the messages are not

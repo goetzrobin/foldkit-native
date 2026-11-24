@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show thirteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show fourteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass, Worklets, Server state?
+   Object tracking, Glass, Worklets, Server state, Sheets?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -374,3 +374,48 @@ S9. Press "Announce topic" so it says off. Change the name, press Save, wait
     right: this is what breaks without the topic.)
 S10. On the member screen with the keyboard open, can you see the name field
      and the Save button, and is the panel clear of the title bar?
+
+## Sheets
+
+Bottom sheets: panels that slide up from the bottom edge. Each one is the
+phone's own sheet. The main screen has a counter, a "Last event" line and a
+list of buttons, one per sheet. None of this has been seen on a phone. Please
+answer each question for the iPhone and for Android.
+
+SH1. Open "Maps-style sheet". Does it come up to about a quarter of the
+     screen? Drag it to half and to full. Each time, does the line "Maps-style
+     sheet: resting at ..." on the main screen name the right height?
+SH2. With that sheet at small or half: is the main screen behind it bright,
+     can you scroll the colours, and does "Add one" raise the counter? At
+     full, is the screen behind dimmed?
+SH3. With that sheet open, press "Move to half", then "Move to small" on the
+     main screen. Does the sheet end at the right height each time? Say what
+     you see on the way: it is expected to slide away and come back.
+SH4. Open "Sheet that fits its content". Does the sheet end just under the
+     last button? Press "Add a line" three times. Does the sheet grow each
+     time, with nothing cut off?
+SH5. Open "Sheet with a text field" and tap the field. With the keyboard up,
+     can you see both the field and the Send button, just above the keyboard?
+     Type a word and press Send. Does it appear in the sheet?
+SH6. Still there: drag the sheet to full height and tap the field again. Are
+     the field and Send still just above the keyboard?
+SH7. Open "Sheet with a 500-row list". Scroll down and back up. Is it smooth?
+     At the top of the list, pull down. Does the sheet move down with your
+     finger? At half height, push up. Does the sheet go to full?
+SH8. Open "Sheet with a footer". Are Cancel and Save at the bottom edge of
+     the part of the sheet you can see, at half and at full, and while you
+     drag between them? Does Save raise the number beside it?
+SH9. Open "Sheet that asks before closing". With the field empty, drag the
+     sheet down. Does it close? Open it again, type a word, and drag it down.
+     Does the sheet stay, or come straight back, with the question "Throw
+     away what you typed?" and your word still in the field?
+SH10. Open "Sheet over a sheet" and press its button. Is the second sheet
+      lying over the first? Drag the second one down. Is the first still
+      open and usable?
+SH11. Open "Sheet with screens inside". Is there a title bar inside the
+      sheet? Press "Push a screen". Does a new screen slide in inside the
+      sheet, with a back button that works? On Android, say if this one
+      crashes or looks broken: its sheets are not built to hold screens yet.
+SH12. Look at any of the sheets. Does it have round top corners and a small
+      "drag me" bar at the top? On an iPhone with iOS 26 or later, does the
+      Maps-style sheet say "a glass panel", and is it see-through glass?
