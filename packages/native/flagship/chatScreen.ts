@@ -248,7 +248,7 @@ const replyRow = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
       prop('testID', `row-${row.key}`),
       // Held while it streams too: the menu then offers Copy so far and Stop.
       ...(hasText || isStreamingRow(row)
-        ? onLongPress(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript())
+        ? onLongPress<Message>(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript())
         : []),
       style({ paddingHorizontal: SPACE.xl, paddingTop: SPACE.m, gap: SPACE.s, backgroundColor: palette.bg }),
     ],
@@ -284,7 +284,7 @@ const questionRow = (h: HtmlBuilder<Message>, palette: Palette, row: ChatRow, is
   const bubble = view(
     [
       prop('testID', `row-${row.key}`),
-      ...onLongPress(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript()),
+      ...onLongPress<Message>(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript()),
       style({
         maxWidth: '84%',
         paddingVertical: 10,
