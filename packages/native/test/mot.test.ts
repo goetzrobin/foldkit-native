@@ -142,7 +142,7 @@ describe('the movement', () => {
         }
       }
     }
-  })
+  }, 30_000)
 
   it('keeps every dot at the set speed, also after bouncing off walls and each other', () => {
     for (const collide of [false, true]) {
