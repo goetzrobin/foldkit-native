@@ -39,6 +39,7 @@ import {
 import { registerGlass } from './native/src/glass'
 import { configureKeyboardDock } from './native/src/keyboard'
 import { configureSkia, registerSkia } from './native/src/skia'
+import { registerNativeSwipe } from './native/src/swipeNative'
 import { configureWorklets } from './native/src/worklets'
 import { makeDemos } from './native/test/demos'
 import { startShowcase } from './native/test/demos/shell'
@@ -59,6 +60,13 @@ configureSkia({ nativeModule: name => TurboModuleRegistry.get(name) })
 // This must run after `import 'expo'` above, which is what tells JavaScript
 // the name Expo Go gives this project's views.
 registerGlass()
+
+// For the "Swipe actions (native view)" demo. The swipe row is this app's
+// own native view, written in Swift and Kotlin in modules/foldkit-swipe.
+// It is only in an app built with `npx expo run:ios` or `run:android`. Expo
+// Go does not have it: there the demo draws plain rows and says so. This
+// line only gives the view its name. It must run after `import 'expo'`.
+registerNativeSwipe()
 
 // For the Worklets demo: code that runs on the phone's UI thread. Only
 // `react-native-worklets` is loaded as JavaScript, and it imports no React.

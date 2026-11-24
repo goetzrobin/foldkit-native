@@ -23,6 +23,7 @@ import { makeDemo as makeServerState } from './serverState.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
 import { makeDemo as makeSwipe } from './swipe.js'
+import { makeDemo as makeSwipeNative } from './swipeNative.js'
 import { makeDemo as makeWorklets } from './worklets.js'
 
 export type DemoResources = Readonly<{
@@ -138,5 +139,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
           ...(resources.reduceMotion === undefined ? {} : { reduceMotion: resources.reduceMotion }),
         }),
       ),
+  },
+  {
+    id: 'swipe-native',
+    title: 'Swipe actions (native view)',
+    blurb: 'Rows drawn by our own Swift and Kotlin. A line says if this build has them. Not in Expo Go.',
+    start: (container, env) => Runtime.embed(makeSwipeNative(container, env)),
   },
 ]

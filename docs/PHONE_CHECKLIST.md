@@ -18,9 +18,10 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show fourteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show fifteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass, Worklets, Server state, Swipe actions?
+   Object tracking, Glass, Worklets, Server state, Swipe actions,
+   Swipe actions (native view)?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -416,3 +417,43 @@ SW12. Press "Right to left: off" so it says on. Does dragging a mail to the
       right now show Flag and Delete on the left side? With VoiceOver on,
       does a mail offer Read, Delete and Flag as actions? (Swipe up or down
       on the mail to hear them.)
+
+## Swipe actions (native view)
+
+Inbox rows drawn and moved by this project's own Swift and Kotlin code. It
+needs an app you build yourself (`npx expo run:ios --device`, or
+`npx expo run:android`). Expo Go cannot run it. The native code has never
+been compiled, so the first build may stop on an error. See
+`docs/NATIVE_VIEWS.md`.
+
+N1. Did the build finish and put the app on the phone? If not, paste the
+    first error. `docs/NATIVE_VIEWS.md`, "If the build fails", says how to
+    find it.
+N2. Open "Swipe actions (native view)". What does the orange status line at
+    the top say? ("Native view: present" is right in your own build. In Expo
+    Go it should say "not present: needs the prebuilt app", and the rows
+    should show but not swipe.)
+N3. Drag a row slowly to the left. Do Delete and Flag come out from under
+    the row's right edge and spread apart, with the row staying under your
+    finger? Let go past half way: does it stay open? Flick a closed row
+    left with a short quick move: does it open too?
+N4. Drag a row all the way to the left. Does Delete grow to fill the row,
+    and do you feel a tick? Pull back a little: does it shrink again? Go all
+    the way and let go: is the mail gone, and does the line say "Last
+    event: Delete on mail-1, by a full swipe" (with that row's number)?
+N5. Open one row. Start dragging another. Does the first one close?
+N6. Put a finger on a row and move it up and down. Does the list scroll as
+    usual, with no row sliding sideways?
+N7. Press the grey "Press me" button in a closed row. Does its number go up
+    by one? Now start a swipe with your finger on that button. Does the row
+    slide and the number stay the same? Tap the content of an open row. Does
+    it close, with the number still the same?
+N8. Drag a row to the right. Does Read show on the left? Press it. Does the
+    blue dot turn grey? Press "Direction". Do the sides swap, so that Delete
+    and Flag now come from the left?
+N9. Press "Look: Strip". Are the actions square blocks from edge to edge?
+    Press "Look: Info". Does dragging left show two lines of grey words,
+    and does the row spring back when you let go, with nothing triggered?
+N10. Turn on VoiceOver (iPhone) or TalkBack (Android) and move to a row.
+     Does it say actions are available, and can you choose Delete, Flag and
+     Read from them?
