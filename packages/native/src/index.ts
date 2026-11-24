@@ -64,3 +64,18 @@ export type {
   MotionOptions,
   Timing,
 } from './motion/index.js'
+export {
+  legendContainers,
+  legendHandles,
+  legendList,
+  legendVisibleRange,
+  scrollLegendListToEnd,
+  scrollLegendListToIndex,
+  setPixelRatio,
+  setScreenReaderEnabled,
+} from './legend/index.js'
+export type {
+  AnchoredEndSpace as LegendAnchoredEndSpace,
+  LegendListConfig,
+  LegendPlatform,
+} from './legend/index.js'

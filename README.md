@@ -23,6 +23,7 @@ Foldkit program.
 | Lists and motion | 5,000 rows with about 40 drawn, pull to refresh, fades, and a card you can drag. |
 | Chat | A list that opens at the newest message and stays there, with a text field above the keyboard. |
 | AI chat | Your question goes to the top and the answer is written under it, word by word. |
+| AI chat on Legend List | The same AI chat, built on Legend List's own list code (MIT, copied into `packages/native/src/legend/vendor`) with no React. |
 | Styling | Tailwind classes, with colors that change when the phone goes to dark mode. |
 | Phone features | Haptics, clipboard, saved text, share sheet, alerts, keyboard, network, rotation. |
 | Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |

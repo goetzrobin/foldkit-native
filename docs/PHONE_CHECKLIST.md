@@ -18,8 +18,8 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show eight rows: Notes, Navigation, Lists and motion, Chat,
-   AI chat, Styling, Phone features, Keyboard dock?
+1. Does the menu show nine rows: Notes, Navigation, Lists and motion, Chat,
+   AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -193,3 +193,24 @@ npx expo start
 
 Nothing in this project has run on Android. If you have an Android phone with
 Expo Go, the first pass above is the most useful thing to try.
+
+## AI chat on Legend List
+
+This demo runs Legend List's own list code under Foldkit. It has not been seen
+on a phone. Its text field uses the simple keyboard handling, so it will jump
+up with the keyboard and not slide.
+
+L1. Does it open showing the newest message, with no blank screen and no
+    visible jump from the top?
+L2. After Send, does your message move to just below the top of the list and
+    stay still while the reply is written?
+L3. While the reply is written, does anything flicker or shift?
+L4. Scroll up a long way, then slowly back down. Do the messages stay steady?
+L5. Scroll up and press "Load older". Does what you were reading stay where it
+    was?
+L6. Does "Go to latest" move smoothly to the bottom and stop there?
+L7. Tap the text field. Does the bar end on top of the keyboard, and does the
+    list still show the newest message?
+L8. Fling fast up and down. Are there blank gaps?
+L9. Does scrolling feel as smooth as in "Lists and motion"?
+L10. Are the answers to L1 to L9 the same on Android?
