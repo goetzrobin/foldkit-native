@@ -77,6 +77,20 @@ export const keepMoving = (engine: Engine): void => {
 }
 
 /**
+ * Runs `run` when the next frame is due, on the same clock the animations
+ * use: the phone's own, with a timer behind it. For code that draws every
+ * frame by itself, such as a game. It asks for one frame, so call it again
+ * from `run` to keep going. Does nothing once the surface has been stopped.
+ */
+export const onNextFrame = (engine: Engine, run: () => void): void => {
+  const pump = pumpOf(engine)
+  if (pump.isStopped) return
+  pump.requestFrame(() => {
+    if (!pump.isStopped) run()
+  })
+}
+
+/**
  * Optional. Call with the surface (or its engine) to change how frames are
  * asked for. Tests use this to step through an animation by hand.
  */
