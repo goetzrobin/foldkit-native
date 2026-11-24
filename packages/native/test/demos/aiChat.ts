@@ -410,6 +410,9 @@ const makeView =
                           row: row(model),
                           estimatedRowHeight: 120,
                           initialScrollAtEnd: true,
+                          // The keyboard must not cover the last message. An
+                          // answer that grows is left to run off the screen.
+                          maintainScrollAtEnd: { onlyWhenResized: true },
                           ...Option.match(model.maybeAnchorIndex, {
                             onNone: () => ({}),
                             onSome: anchorIndex => ({
