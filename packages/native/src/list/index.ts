@@ -123,8 +123,18 @@ export type ListConfig<Item, Message> = Readonly<{
    * the list stays at its end when the keyboard opens or closes, and does
    * not chase rows that arrive or grow. An AI chat wants that, because its
    * answer is meant to run off the bottom of the screen.
+   *
+   * `followOnReturn`, with `onlyWhenResized`: once the user asks for the
+   * end, the list does chase rows that grow or arrive, as Claude's app
+   * follows a reply being written. Asking is `scrollListToEnd` (the round
+   * button) or scrolling to the end by hand. A drag away from the end stops
+   * it, and so does a new `anchoredEndSpace` row (the question after Send,
+   * whose reply runs off the bottom as before). See `Following` in
+   * `module.ts`; `ListNumbers.isFollowing` says which it is.
    */
-  maintainScrollAtEnd?: boolean | Readonly<{ animated?: boolean; onlyWhenResized?: boolean }>
+  maintainScrollAtEnd?:
+    | boolean
+    | Readonly<{ animated?: boolean; onlyWhenResized?: boolean; followOnReturn?: boolean }>
   /** How near the end counts as at the end, in screen heights. Default 0.1. */
   atEndThreshold?: number
   /**
@@ -195,6 +205,10 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
     maintainScrollAtEndOnlyWhenResized:
       typeof config.maintainScrollAtEnd === 'object' &&
       (config.maintainScrollAtEnd.onlyWhenResized ?? false),
+    maintainScrollAtEndFollowOnReturn:
+      typeof config.maintainScrollAtEnd === 'object' &&
+      (config.maintainScrollAtEnd.onlyWhenResized ?? false) &&
+      (config.maintainScrollAtEnd.followOnReturn ?? false),
     atEndThreshold: config.atEndThreshold ?? 0.1,
     anchoredEndSpace: config.anchoredEndSpace,
     alignItemsAtEnd: config.alignItemsAtEnd ?? false,
@@ -320,8 +334,27 @@ export const formatListNumbers = (numbers: ListNumbers | undefined): string => {
     `keyboard ${round(numbers.keyboard)} bar ${round(numbers.bar)}\n` +
     `at ${round(numbers.offset)} of ${round(numbers.furthest)}, asked: ${asked}, ` +
     `at end: ${numbers.isAtEnd === undefined ? 'unknown' : numbers.isAtEnd ? 'yes' : 'no'}` +
-    `${numbers.isHolding ? ', holding' : ''}`
+    `${numbers.isHolding ? ', holding' : ''}${numbers.isFollowing ? ', following' : ''}` +
+    anchorLine(numbers.anchor)
   )
+}
+
+const tenth = (value: number): string => (Math.round(value * 10) / 10).toFixed(1)
+const signed = (value: number): string => `${value >= 0 ? '+' : ''}${tenth(value)}`
+
+/**
+ * The question held at the top after Send: where it is, how far it moved in
+ * the last draw and how far since it was put there. While a reply streams
+ * under it all should stay at 0.0. "window" is the phone's own measurement.
+ */
+const anchorLine = (anchor: ListNumbers['anchor']): string => {
+  if (anchor === undefined) return ''
+  const window =
+    anchor.windowY === undefined
+      ? ''
+      : `, window y ${tenth(anchor.windowY)} (step ${signed(anchor.windowStep ?? 0)}, ` +
+        `drift ${anchor.windowDrift === undefined ? '-' : signed(anchor.windowDrift)})`
+  return `\nquestion y ${tenth(anchor.top)} (step ${signed(anchor.step)}, drift ${signed(anchor.drift)})${window}`
 }
 
 /**

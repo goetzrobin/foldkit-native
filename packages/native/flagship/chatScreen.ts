@@ -565,9 +565,12 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
         row: rowView(h, device, model, palette),
         estimatedRowHeight: 120,
         initialScrollAtEnd: true,
-        // Stays at the end when the keyboard opens or closes. A reply that
-        // grows is left to run off the screen, as in other AI apps.
-        maintainScrollAtEnd: { onlyWhenResized: true },
+        // Stays at the end when the keyboard opens or closes. After Send the
+        // reply is left to run off the screen under the question, as in other
+        // AI apps. Once the user asks for the end (the round button, or
+        // scrolling there by hand) the list follows the reply as it is
+        // written, until a drag up. See `Following` in src/list/module.ts.
+        maintainScrollAtEnd: { onlyWhenResized: true, followOnReturn: true },
         ...(isInset ? { keyboardInset: { lift: 'whenAtEnd' as const } } : {}),
         ...Option.match(anchorIndex, {
           onNone: () => ({}),

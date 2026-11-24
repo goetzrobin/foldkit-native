@@ -1,0 +1,179 @@
+/**
+ * The part of a real iPhone that the simulated phone leaves out, for one
+ * list: a scroll view that keeps its own position and puts itself back
+ * inside its range, and rows that the phone lays out and measures.
+ *
+ * The simulated phone records what the program asks for and does nothing
+ * by itself. That hides the bugs that come from what UIKit does by itself.
+ * This file plays that part, as React Native 0.88 and UIKit do it:
+ *
+ * - A commit reaches the scroll view as its props first (`contentInset`),
+ *   then its state (the content size, which is the height of its one
+ *   content view): `RCTMountingManager.mm` calls `updateProps` before
+ *   `updateState`. After each, UIKit puts an offset that is now past the
+ *   end of the range back at the end, and says so with a scroll event.
+ * - A `scrollTo` command moves it there at once and says so; a gliding one
+ *   also says when it has come to rest.
+ * - After a commit, each row reports its height when it has changed. How
+ *   tall a row is comes from `rowHeight`, which a test writes from the
+ *   row's text, as a phone would lay the text out.
+ *
+ * `topOf(id)` is where a view with that testID is in the window, worked out
+ * the way the phone would draw it, so a test can say whether something on
+ * screen moved.
+ */
+import type { FakeFabric, FakeFabricNode } from '@ng-native/testing/fake'
+
+import { byTestId, flatten } from './phone.js'
+
+export type ScrollPhoneOptions = Readonly<{
+  /** The testID of the list's scroll view. */
+  listId: string
+  /** The scroll view's height. */
+  viewport: number
+  /** How tall the phone lays a row out. Rows it does not know are left as they are. */
+  rowHeight: (row: FakeFabricNode) => number | undefined
+  /** Where the list's top edge is in the window. */
+  listTop?: number
+}>
+
+export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions) => {
+  const { listId, viewport } = options
+  const listTop = options.listTop ?? 0
+  const phone = { offset: 0, inset: 0, size: 0 }
+  /** Every place the phone put itself back inside its range, by how far it moved. */
+  const clamps: Array<number> = []
+  const reported = new Map<number, number>()
+  let commandsSeen = fabric.commands.length
+  let isQueued = false
+  let isOn = true
+
+  const list = (): FakeFabricNode | undefined => {
+    try {
+      return byTestId(fabric, listId)
+    } catch {
+      return undefined
+    }
+  }
+  const canvasOf = (scroll: FakeFabricNode): FakeFabricNode | undefined => scroll.children.at(-1)?.children[0]
+  const rowsOf = (scroll: FakeFabricNode): Array<FakeFabricNode> => canvasOf(scroll)?.children.slice(1) ?? []
+
+  const furthest = (): number => Math.max(0, phone.size + phone.inset - viewport)
+
+  const tell = (scroll: FakeFabricNode): void => {
+    fabric.emit(scroll, 'topScroll', {
+      contentOffset: { x: 0, y: phone.offset },
+      layoutMeasurement: { width: 390, height: viewport },
+      contentSize: { width: 390, height: phone.size },
+    })
+  }
+
+  /** UIKit's own rule: a position past the end of the range is put back at the end. */
+  const clamp = (scroll: FakeFabricNode): void => {
+    const end = furthest()
+    if (phone.offset <= end + 1e-9) return
+    clamps.push(phone.offset - end)
+    phone.offset = end
+    tell(scroll)
+  }
+
+  const mount = (): void => {
+    isQueued = false
+    if (!isOn) return
+    const scroll = list()
+    if (scroll === undefined) return
+    // Props first: the inset.
+    const inset = (scroll.props['contentInset'] as { bottom?: number } | undefined)?.bottom ?? 0
+    if (inset !== phone.inset) {
+      phone.inset = inset
+      clamp(scroll)
+    }
+    // Then the state: the content view's height.
+    const size = Number(canvasOf(scroll)?.props['height'] ?? 0)
+    if (size !== phone.size) {
+      phone.size = size
+      clamp(scroll)
+    }
+    // Then the scroll commands sent with this commit, in order.
+    for (const command of fabric.commands.slice(commandsSeen)) {
+      if (command.name !== 'scrollTo' || command.node?.reactTag !== scroll.reactTag) continue
+      phone.offset = Math.min(Math.max(0, Number(command.args[1])), furthest())
+      tell(scroll)
+      if (command.args[2] === true) fabric.emit(scroll, 'topMomentumScrollEnd', {})
+    }
+    commandsSeen = fabric.commands.length
+    // Then the rows report their heights.
+    for (const row of rowsOf(scroll)) {
+      const height = options.rowHeight(row)
+      if (height === undefined || reported.get(row.reactTag) === height) continue
+      reported.set(row.reactTag, height)
+      fabric.emit(row, 'topLayout', { layout: { x: 0, y: 0, width: 390, height } })
+    }
+  }
+
+  // Each commit is mounted a moment later, as on a phone.
+  const completeRoot = fabric.completeRoot.bind(fabric)
+  fabric.completeRoot = ((...args: Parameters<FakeFabric['completeRoot']>) => {
+    completeRoot(...args)
+    if (isQueued) return
+    isQueued = true
+    setTimeout(mount, 0)
+  }) as FakeFabric['completeRoot']
+
+  const scroll = list()
+  if (scroll !== undefined) {
+    fabric.emit(scroll, 'topLayout', { layout: { x: 0, y: 0, width: 390, height: viewport } })
+  }
+
+  /** Where the top of a view with this testID is in the window. */
+  const topOf = (id: string): number => {
+    const scrollNode = list()
+    if (scrollNode === undefined) throw new Error('No list on screen')
+    const canvas = canvasOf(scrollNode)
+    if (canvas === undefined) throw new Error('The list has no rows')
+    let y = Number(canvas.children[0]?.props['height'] ?? 0)
+    for (const row of canvas.children.slice(1)) {
+      if (flatten([row]).some(node => node.props['testID'] === id)) return listTop + y - phone.offset
+      y += reported.get(row.reactTag) ?? 0
+    }
+    throw new Error(`No row holds ${id}`)
+  }
+
+  /** A finger drags the list to `to`, in a few moves, and lets go there. */
+  const drag = (to: number): void => {
+    const scrollNode = list()
+    if (scrollNode === undefined) return
+    fabric.emit(scrollNode, 'topScrollBeginDrag', {
+      contentOffset: { x: 0, y: phone.offset },
+      layoutMeasurement: { width: 390, height: viewport },
+    })
+    const from = phone.offset
+    for (const part of [0.25, 0.5, 0.75, 1]) {
+      phone.offset = Math.min(Math.max(0, from + (to - from) * part), furthest())
+      tell(scrollNode)
+    }
+    fabric.emit(scrollNode, 'topScrollEndDrag', {
+      contentOffset: { x: 0, y: phone.offset },
+      layoutMeasurement: { width: 390, height: viewport },
+    })
+  }
+
+  return {
+    phone,
+    clamps,
+    furthest,
+    topOf,
+    drag,
+    /** Scroll commands sent since the phone started, as [y, animated]. */
+    scrolls: (): Array<readonly [number, boolean]> =>
+      fabric.commands
+        .filter(each => each.name === 'scrollTo')
+        .map(each => [Number(each.args[1]), each.args[2] === true] as const),
+    stop: (): void => {
+      isOn = false
+      fabric.completeRoot = completeRoot
+    },
+  }
+}
+
+export type ScrollPhone = ReturnType<typeof startScrollPhone>
