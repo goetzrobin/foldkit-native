@@ -22,6 +22,7 @@ import { makeDemo as makeNavigation } from './navigation.js'
 import { makeDemo as makeServerState } from './serverState.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
+import { makeDemo as makeSwipe } from './swipe.js'
 import { makeDemo as makeWorklets } from './worklets.js'
 
 export type DemoResources = Readonly<{
@@ -29,6 +30,10 @@ export type DemoResources = Readonly<{
   device: Layer.Layer<Phone.Services>
   /** Android's hardware Back button: `backSourceFrom(BackHandler)` in an app. */
   backSource?: BackSource
+  /** Whether the app reads right to left: React Native's `I18nManager.isRTL`. */
+  rightToLeft?: boolean
+  /** Whether the user asked the phone for less motion. */
+  reduceMotion?: boolean
 }>
 
 export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
@@ -121,5 +126,17 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     blurb: 'A crew list from a pretend server. A panel says what was loaded, when, and why.',
     start: (container, env) =>
       Runtime.embed(makeServerState(container, env, resources.device)),
+  },
+  {
+    id: 'swipe',
+    title: 'Swipe actions',
+    blurb: 'Drag a row sideways for actions. Tiles, a strip, and times behind chat bubbles.',
+    start: (container, env) =>
+      Runtime.embed(
+        makeSwipe(container, env, resources.device, {
+          ...(resources.rightToLeft === undefined ? {} : { rightToLeft: resources.rightToLeft }),
+          ...(resources.reduceMotion === undefined ? {} : { reduceMotion: resources.reduceMotion }),
+        }),
+      ),
   },
 ]

@@ -15,6 +15,7 @@ import { Effect } from 'effect'
 import { Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { Phone as PhoneFeatures, registerNavigation } from '../src/index.js'
 import { configureMotion } from '../src/motion/index.js'
 import {
   type SwipeStyle,
@@ -44,6 +45,8 @@ import {
   requireCompiledWorklets,
   resetWorklets,
 } from '../src/worklets/index.js'
+import { makeDemos } from './demos/index.js'
+import { makeDemo } from './demos/swipe.js'
 import { type SwipeFixtureOptions, makeSwipeFixture } from './swipe.js'
 import { type Phone, byTestId, hasTestId, press, settle, startPhone, textOf } from './support/phone.js'
 import { type FakeWorklets, makeWorklets } from './support/worklets.js'
@@ -243,6 +246,8 @@ const dragWithGesture = (id: string, legs: ReadonlyArray<number>, options: DragO
  * went down, negative is left). Then every spring runs to its end.
  */
 const drag = async (id: string, legs: ReadonlyArray<number>, options: DragOptions = {}): Promise<void> => {
+  // What JavaScript last told the UI thread has long arrived by the time a finger moves.
+  at().ui?.flushUi()
   if (at().kind === 'javascript') dragWithTouches(id, legs, options)
   else dragWithGesture(id, legs, options)
   if (options.end === 'hold') {
@@ -819,5 +824,167 @@ describe('the UI thread driver and gesture-handler', () => {
     expect(phone.fabric.commitCount).toBe(commits)
     expect(ui?.updates.length).toBeGreaterThan(0)
     await lift()
+  })
+})
+
+describe.each<Kind>(['javascript', 'ui-thread'])('the Swipe actions demo with the %s driver', kind => {
+  const open = async (options: Parameters<typeof makeDemo>[3] = {}) => {
+    resetWorklets()
+    requireCompiledWorklets(false)
+    let ui: FakeWorklets | undefined
+    if (kind === 'ui-thread') {
+      ui = makeWorklets()
+      configureWorklets(ui.config)
+    }
+    const phone = startPhone()
+    registerNavigation()
+    const frames: Array<() => void> = []
+    configureMotion(phone.surface, { requestFrame: run => frames.push(run) })
+    const device = PhoneFeatures.makeTest()
+    let exits = 0
+    const handle = Runtime.embed(
+      makeDemo(
+        phone.surface.container,
+        { device: { platform: 'ios', osVersion: 26 } as never, exit: () => (exits += 1) },
+        device.layer,
+        options,
+      ),
+    )
+    stage = { kind, phone, ui, frames, handle }
+    await settle()
+    await settle()
+    for (const id of ['mail-1', 'mail-2', 'task-1', 'bubble-1']) layOut(id)
+    await rest()
+    return { device, exits: () => exits }
+  }
+
+  it('is on the menu', () => {
+    const demos = makeDemos({ device: PhoneFeatures.makeTest().layer })
+    expect(demos.find(demo => demo.id === 'swipe')?.title).toBe('Swipe actions')
+  })
+
+  it('says which driver is in use and why, and lists every driver', async () => {
+    await open()
+    if (kind === 'ui-thread') {
+      expect(textOf(node('swipe-active'))).toBe('In use: UI thread (first that can run)')
+      expect(hasTestId(at().phone.fabric, 'swipe-driver-ui-thread-reason')).toBe(false)
+    } else {
+      expect(textOf(node('swipe-active'))).toBe(
+        'In use: JavaScript (UI thread cannot run: the app did not call configureWorklets())',
+      )
+      expect(textOf(node('swipe-driver-ui-thread-reason'))).toBe(
+        'UI thread: not available. the app did not call configureWorklets()',
+      )
+    }
+    expect(textOf(node('swipe-driver-ui-thread'))).toBe('UI thread')
+    expect(textOf(node('swipe-driver-javascript'))).toBe('JavaScript')
+  })
+
+  it('lists a driver another folder registered, with why it cannot run', async () => {
+    registerSwipeDriver('native', {
+      label: 'Native',
+      check: () => ({ ok: false, reason: 'needs the prebuilt app' }),
+      row: () => null,
+    })
+    try {
+      await open()
+      expect(textOf(node('swipe-driver-native'))).toBe('Native')
+      expect(textOf(node('swipe-driver-native-reason'))).toBe(
+        'Native: not available. needs the prebuilt app',
+      )
+      await press(at().phone.fabric, 'swipe-driver-native')
+      await settle()
+      expect(textOf(node('swipe-active'))).toContain('Native cannot run: needs the prebuilt app')
+    } finally {
+      unregisterSwipeDriver('native')
+    }
+  })
+
+  it('can be forced to the JavaScript driver, and the rows still swipe', async () => {
+    await open()
+    await press(at().phone.fabric, 'swipe-driver-javascript')
+    await settle()
+    expect(textOf(node('swipe-active'))).toBe('In use: JavaScript (asked for)')
+    at().kind = 'javascript'
+    layOut('mail-1')
+    await drag('mail-1', [-140])
+    expect(offsetOf('mail-1')).toBe(-TRAILING_OPEN)
+    expect(textOf(node('swipe-last-event'))).toBe('Last event: opened mail-1 on its trailing side (1 so far)')
+    at().kind = kind
+  })
+
+  it('deletes a mail on a full swipe, taps the phone at the line, and can undo', async () => {
+    const { device } = await open()
+    await drag('mail-1', [-300])
+    expect(hasTestId(at().phone.fabric, 'mail-1')).toBe(false)
+    expect(device.haptics.calls).toEqual(['impact:medium'])
+    expect(textOf(node('swipe-deleted'))).toBe('Deleted "Notes from Tuesday".')
+    expect(textOf(node('swipe-last-event'))).toBe('Last event: delete on mail-1 (2 so far)')
+    await press(at().phone.fabric, 'swipe-undo')
+    await settle()
+    layOut('mail-1')
+    await rest()
+    expect(hasTestId(at().phone.fabric, 'swipe-undo')).toBe(false)
+    // Back in its place, and closed.
+    expect(offsetOf('mail-1')).toBe(0)
+    const inbox = node('swipe-inbox').children.map(child => child.props['testID'])
+    expect(inbox[0]).toBe('mail-1')
+  })
+
+  it('opens without triggering when full swipe is off', async () => {
+    const { device } = await open()
+    await press(at().phone.fabric, 'swipe-full')
+    await settle()
+    await drag('mail-1', [-300])
+    expect(hasTestId(at().phone.fabric, 'mail-1')).toBe(true)
+    expect(offsetOf('mail-1')).toBe(-TRAILING_OPEN)
+    expect(device.haptics.calls).toEqual([])
+  })
+
+  it('marks a mail read from the leading side, and counts taps on the small button', async () => {
+    await open()
+    await drag('mail-1', [70])
+    await press(at().phone.fabric, 'mail-1-leading-read')
+    await rest()
+    expect(textOf(node('mail-1-leading-read'))).toBe('Unread')
+    await press(at().phone.fabric, 'mail-1-tap')
+    expect(textOf(node('swipe-taps'))).toBe('Taps on the small buttons: 1')
+  })
+
+  it('changes the style of the inbox, and has three actions on a task', async () => {
+    await open()
+    await press(at().phone.fabric, 'swipe-style-strip')
+    await settle()
+    layOut('mail-1')
+    await drag('mail-1', [-140])
+    expect(offsetOf('mail-1')).toBe(-148)
+    await drag('task-1', [-200])
+    expect(offsetOf('task-1')).toBe(-222)
+    await press(at().phone.fabric, 'task-1-trailing-rename')
+    await rest()
+    expect(textOf(node('task-1'))).toContain('Water the plants (renamed)')
+  })
+
+  it('shows a time behind a chat bubble and springs back', async () => {
+    await open()
+    await drag('bubble-1', [-80], { end: 'hold' })
+    expect(placed('bubble-1-trailing-info').opacity).toBeGreaterThan(0.5)
+    expect(textOf(node('bubble-1-trailing-info'))).toBe('09:41')
+    await lift()
+    expect(offsetOf('bubble-1')).toBe(0)
+    expect(textOf(node('swipe-last-event'))).toBe('Last event: none yet')
+  })
+
+  it('flips the sides with right to left on', async () => {
+    await open({ rightToLeft: true })
+    expect(textOf(node('swipe-rtl'))).toBe('Right to left: on')
+    await drag('mail-1', [140])
+    expect(textOf(node('swipe-last-event'))).toBe('Last event: opened mail-1 on its trailing side (1 so far)')
+  })
+
+  it('leaves through its button', async () => {
+    const { exits } = await open()
+    await press(at().phone.fabric, 'swipe-exit')
+    expect(exits()).toBe(1)
   })
 })
