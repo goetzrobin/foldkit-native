@@ -160,6 +160,12 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
     // The engine knows which text field has the focus. Without this,
     // "Hide keyboard" leaves the keyboard up.
     blurFocused: () => surface.engine.blurFocused(),
+    // For the Voice notes demo. expo-audio's package is not imported: its
+    // entry file imports React for its hooks. Its native module, and
+    // expo-file-system's, are found by name on the global Expo sets up.
+    // Expo Go includes both. Where a build has neither, the demo says so.
+    audio: Phone.Native.audioModuleFromGlobal(),
+    fileSystem: Phone.Native.fileSystemFromGlobal(),
   })
   startShowcase(surface.container, device, makeDemos({ device: phone, backSource: backSourceFrom(BackHandler), rightToLeft: I18nManager.isRTL }))
 })

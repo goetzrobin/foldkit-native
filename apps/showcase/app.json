@@ -12,7 +12,14 @@
     "userInterfaceStyle": "automatic",
     "orientation": "default",
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone to record voice notes.",
+          "enableBackgroundRecording": true
+        }
+      ]
     ]
   }
 }

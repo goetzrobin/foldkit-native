@@ -26,6 +26,7 @@ import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
 import { makeDemo as makeSwipe } from './swipe.js'
 import { makeDemo as makeSwipeNative } from './swipeNative.js'
+import { makeDemo as makeVoice } from './voice.js'
 import { makeDemo as makeWorklets } from './worklets.js'
 
 export type DemoResources = Readonly<{
@@ -169,5 +170,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Menus and controls',
     blurb: "The phone's own menus, action sheet, switch, slider and pickers. Lines at the top say what is real.",
     start: (container, env) => Runtime.embed(makeMenus(container, env)),
+  },
+  {
+    id: 'voice',
+    title: 'Voice notes',
+    blurb: 'Record a note with a live level meter, keep it on the phone, play it back at 1x, 1.5x or 2x.',
+    start: (container, env) => Runtime.embed(makeVoice(container, env, resources.device)),
   },
 ]
