@@ -18,10 +18,11 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show eighteen rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show nineteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
    Object tracking, Glass, Worklets, Server state, Swipe actions,
-   Swipe actions (native view), Sheets, Menus and controls, Voice notes?
+   Swipe actions (native view), Sheets, Menus and controls, Voice notes,
+   Streaming markdown?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -593,3 +594,34 @@ V12. Start a recording and call the phone from another phone (or start a
      in the phone's Settings, turn the microphone off for the app, come back
      and press Record. Does an "Open Settings" button appear, and does it
      open the right page?
+
+## Streaming markdown
+
+Needs the prebuilt app: after `npm install`, run `npx expo prebuild --clean`
+and `npx expo run:ios` (see `docs/MARKDOWN.md`). In Expo Go only MD1 applies.
+
+MD1. Open "Streaming markdown". What does the line at the top say? In the
+     prebuilt app it should be "Renderer: native (react-native-enriched-markdown)".
+     In Expo Go it should name Expo Go as the reason.
+MD2. Press "Stream it". Does the reply build up word by word with a soft
+     fade, and do the heading, bold, italic, struck-out word, list numbers,
+     bullets and ticked boxes all look right?
+MD3. Does the table grow row by row, with lines between cells? Does the code
+     block grow line by line and get its colours? Swipe sideways on the
+     code: does it scroll?
+MD4. Watch a few lines that end with a half-written word like `**reply`
+     while it streams. Do you ever see stray stars, brackets or a broken
+     picture, even for a moment?
+MD5. Pick "Burst", then "Long reply". Does the screen keep up and scroll
+     smoothly while 3,000 words arrive? Any stutter or freeze? Then press
+     "Show numbers": write down the line.
+MD6. Tap the link "training notes". Does the browser open foldkit.dev?
+     Long press it on an iPhone: is there a page preview?
+MD7. Press Copy on a code block. Does the line under the buttons say
+     "Copied 14 lines of typescript", and does pasting in Notes give the code?
+MD8. When the reply has finished, long press a word. Can you select text and
+     see Copy and Copy as Markdown? While it streams, is selection off?
+MD9. Press "Close and reopen". Is the reply just there, with no fade? Then
+     stream again and press it halfway: does only the new text fade in?
+MD10. Switch the phone to dark mode while the demo is open. Does the reply
+      turn light-on-dark, code block and table included, and stay readable?

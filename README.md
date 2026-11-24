@@ -36,6 +36,7 @@ Foldkit program.
 | Sheets | The phone's own bottom sheets: three heights with the screen behind still usable, fit to content, a text field above the keyboard, a 500-row list, a footer, asking before closing, a sheet over a sheet, and screens inside a sheet. |
 | Menus and controls | The phone's own menus and controls with no React: a context menu, a pull-down menu, a title bar menu, an action sheet, and a form with a switch, slider, segments, stepper, pickers, date and time. Lines at the top say where each one comes from on this phone. |
 | Voice notes | Records with the microphone through expo-audio's native recorder, with no React. A timer, a live level meter drawn outside the Model, pause, a 15 minute limit, notes kept as files, and playback at 1x, 1.5x and 2x. See `docs/VOICE_NOTES.md`. |
+| Streaming markdown | An AI reply streamed in as rich text: headings, lists, tables that grow row by row, coloured code with a Copy button, links, pictures, light and dark. Drawn by Software Mansion's react-native-enriched-markdown native view with no React, so it needs the prebuilt app; Expo Go shows a plain fallback and says so. See `docs/MARKDOWN.md`. |
 
 Chat and AI chat have a button that goes round three ways of keeping the text
 field above the keyboard: "Keyboard: inset" (the default: the messages are not
