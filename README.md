@@ -28,6 +28,7 @@ Foldkit program.
 | Phone features | Haptics, clipboard, saved text, share sheet, alerts, keyboard, network, rotation. |
 | Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |
 | Object tracking | A tracking game drawn every frame with Skia, or with plain views where Skia is missing. Shows frame timing after each trial. |
+| Glass | Liquid Glass over scrolling colours: a card, a pill, a round button, two shapes that flow into one. A line says if it is real glass or the plain fallback. A second screen shows the tab bar options iOS 26 added. |
 
 Chat and AI chat have a button, "Keyboard: following" or "Keyboard: simple",
 that switches between two ways of keeping the text field above the keyboard.
@@ -58,8 +59,8 @@ with a title bar and swipe-back, and a scroll view.
 
 The other demos pass their tests on a simulated phone. The simulated phone
 checks what the program asks the phone to do. It cannot show layout or
-movement, so those demos still need the checklist. Chat, AI chat and Keyboard
-dock have not been seen on a phone at all. Nothing has run on Android.
+movement, so those demos still need the checklist. Chat, AI chat, Keyboard
+dock and Glass have not been seen on a phone at all. Nothing has run on Android.
 
 ## How it fits together
 

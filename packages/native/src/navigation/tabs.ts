@@ -34,7 +34,7 @@ import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderT
 import { registerModule } from '../extend.js'
 import { bagOf, nodeOf } from '../modules.js'
 import { prop } from '../attributes.js'
-import type { Attributes } from './stack.js'
+import type { Attributes, Device } from './stack.js'
 
 const el = element<any>()
 
@@ -58,9 +58,70 @@ export type TabsOptions<Message> = Readonly<{
   isBarHidden?: boolean
   /** iOS: the colour of the selected item. */
   tintColor?: string
+  /**
+   * iOS 26 and later: whether the bar shrinks to a small pill while a list
+   * is scrolled. `onScrollDown` shrinks it as the content moves up and
+   * brings it back on the way down. `automatic` leaves it to the phone.
+   */
+  minimizeBehavior?: TabBarMinimizeBehavior
+  /**
+   * iOS 26 and later: a strip of glass that sits just above the tab bar, as
+   * the small player in Apple's Music app does. When the bar shrinks, the
+   * strip moves in beside it.
+   */
+  bottomAccessory?: BottomAccessory
+  /** iOS 26 and later: hides the strip and keeps it mounted. */
+  isBottomAccessoryHidden?: boolean
   /** Anything else for the tab bar's view: a `testID`, more `prop`s. */
   attributes?: Attributes<Message>
 }>
+
+export type TabBarMinimizeBehavior = 'automatic' | 'never' | 'onScrollDown' | 'onScrollUp'
+
+export type BottomAccessory = Readonly<{
+  /** The phone the app runs on. The strip is only drawn on iOS 26 and later. */
+  device: Device
+  /** What the strip shows at full width, above the bar. */
+  regular: ReadonlyArray<Html>
+  /**
+   * What it shows when it sits beside the shrunken bar, where there is less
+   * room. The same as `regular`, unless said.
+   */
+  inline?: ReadonlyArray<Html>
+}>
+
+const ACCESSORY = 'tab-bar-accessory'
+const ACCESSORY_CONTENT = 'tab-bar-accessory-content'
+
+/** Fills its parent, as react-native-screens' own wrappers make these views. */
+const FILL = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } as const
+
+/**
+ * The strip above the bar. It holds its content twice, once for each place
+ * it can sit, and the phone shows the one that fits. This is the tree
+ * react-native-screens' own tab bar builds. Older iPhones and Android have no
+ * such strip, and the tab bar there refuses a child that is not a tab, so
+ * nothing is drawn for them.
+ */
+const accessoryOf = (accessory: BottomAccessory | undefined): ReadonlyArray<Html> => {
+  if (accessory === undefined) return []
+  if (accessory.device.platform !== 'ios' || accessory.device.osVersion < 26) return []
+  const content = (environment: 'regular' | 'inline', children: ReadonlyArray<Html>): Html =>
+    el(ACCESSORY_CONTENT)(
+      [
+        prop('environment', environment),
+        prop('collapsable', false),
+        prop('style', FILL),
+      ] as never,
+      children,
+    )
+  return [
+    el(ACCESSORY)(
+      [prop('collapsable', false), prop('style', FILL)] as never,
+      [content('regular', accessory.regular), content('inline', accessory.inline ?? accessory.regular)],
+    ),
+  ]
+}
 
 type Selection = Readonly<{
   selectedScreenKey?: string
@@ -110,8 +171,14 @@ export const tabs = <Message>(
   }
   if (options.isBarHidden !== undefined) attributes.push(prop('tabBarHidden', options.isBarHidden))
   if (options.tintColor !== undefined) attributes.push(prop('tabBarTintColor', options.tintColor))
+  if (options.minimizeBehavior !== undefined) {
+    attributes.push(prop('tabBarMinimizeBehavior', options.minimizeBehavior))
+  }
+  if (options.isBottomAccessoryHidden !== undefined) {
+    attributes.push(prop('bottomAccessoryHidden', options.isBottomAccessoryHidden))
+  }
   attributes.push(...(options.attributes ?? []))
-  return el(TAB_BAR)(attributes as never, children)
+  return el(TAB_BAR)(attributes as never, [...children, ...accessoryOf(options.bottomAccessory)])
 }
 
 export type TabOptions<Message> = Readonly<{
@@ -133,9 +200,33 @@ export type TabOptions<Message> = Readonly<{
   badge?: string
   /** Taps on this tab are reported and the phone does not change tab. */
   isLocked?: boolean
+  /**
+   * iOS 26 and later: `search` sets this tab apart from the others, as a
+   * round glass button at the end of the bar. Other phones ignore it.
+   */
+  role?: 'search'
+  /**
+   * iOS: one of the phone's own tab items, which brings its own icon and
+   * title in the phone's language. `search` is the magnifying glass.
+   */
+  systemItem?: TabSystemItem
   /** Anything else for the tab's view: a `testID`, more `prop`s. */
   attributes?: Attributes<Message>
 }>
+
+export type TabSystemItem =
+  | 'bookmarks'
+  | 'contacts'
+  | 'downloads'
+  | 'favorites'
+  | 'featured'
+  | 'history'
+  | 'more'
+  | 'mostRecent'
+  | 'mostViewed'
+  | 'recents'
+  | 'search'
+  | 'topRated'
 
 /**
  * A second tap on the tab in front would, by default, pop that tab's stack on
@@ -162,6 +253,8 @@ export const tab = <Message>(options: TabOptions<Message>, children: ReadonlyArr
     attributes.push(prop('drawableIconResourceName', options.drawable))
   }
   if (options.badge !== undefined) attributes.push(prop('badgeValue', options.badge))
+  if (options.role !== undefined) attributes.push(prop('tabRole', options.role))
+  if (options.systemItem !== undefined) attributes.push(prop('systemItem', options.systemItem))
   attributes.push(...(options.attributes ?? []))
   return el('tab-screen')(attributes as never, children)
 }

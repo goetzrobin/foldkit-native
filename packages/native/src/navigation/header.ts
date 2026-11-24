@@ -57,6 +57,21 @@ export type BarButton = Readonly<{
   /** An SF Symbol name, such as `plus`. Shown in place of the label. */
   symbol?: string
   isDisabled?: boolean
+  /**
+   * `prominent` (iOS 26 and later) fills the button's glass with the app's
+   * tint colour, for the one main action. `done` is bold text on older
+   * iPhones.
+   */
+  variant?: 'plain' | 'done' | 'prominent'
+  /**
+   * iOS 26 and later: `false` gives this button a piece of glass of its own.
+   * Buttons side by side otherwise share one.
+   */
+  sharesBackground?: boolean
+  /** iOS 26 and later: draws the button with no glass behind it. */
+  hidesSharedBackground?: boolean
+  /** iOS 26 and later: a small label on the button's corner, such as a count. */
+  badge?: string
 }>
 
 const barButtonData = (buttons: ReadonlyArray<BarButton>) =>
@@ -65,6 +80,12 @@ const barButtonData = (buttons: ReadonlyArray<BarButton>) =>
     if (button.label !== undefined) data['title'] = button.label
     if (button.symbol !== undefined) data['sfSymbolName'] = button.symbol
     if (button.isDisabled !== undefined) data['disabled'] = button.isDisabled
+    if (button.variant !== undefined) data['variant'] = button.variant
+    if (button.sharesBackground !== undefined) data['sharesBackground'] = button.sharesBackground
+    if (button.hidesSharedBackground !== undefined) {
+      data['hidesSharedBackground'] = button.hidesSharedBackground
+    }
+    if (button.badge !== undefined) data['badge'] = { value: button.badge }
     return data
   })
 

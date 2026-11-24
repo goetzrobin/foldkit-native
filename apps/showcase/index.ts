@@ -36,6 +36,7 @@ import {
   stylingOptions,
   watchStyling,
 } from './native/src'
+import { registerGlass } from './native/src/glass'
 import { configureKeyboardDock } from './native/src/keyboard'
 import { configureSkia, registerSkia } from './native/src/skia'
 import { makeDemos } from './native/test/demos'
@@ -49,6 +50,14 @@ registerNavigation()
 // build does not have it, the demo draws with plain views and says so.
 registerSkia()
 configureSkia({ nativeModule: name => TurboModuleRegistry.get(name) })
+
+// For the Glass demo. expo-glass-effect's React components are not used and
+// its package is not imported: only its native views are, found by name.
+// Expo Go includes them. Where a build does not have them, or the phone is
+// older than iOS 26, or it is Android, the demo draws plain views and says so.
+// This must run after `import 'expo'` above, which is what tells JavaScript
+// the name Expo Go gives this project's views.
+registerGlass()
 
 /**
  * React Native's animation module, which can move a view on the native side
