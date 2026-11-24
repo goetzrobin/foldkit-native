@@ -18,7 +18,11 @@ import {
   StyleSheet,
   processColor,
 } from 'react-native'
-import { getFabricUIManager, registerPlatformComponents } from '@ng-native/fabric'
+import {
+  type NativeAnimated,
+  getFabricUIManager,
+  registerPlatformComponents,
+} from '@ng-native/fabric'
 
 // Every Tailwind class the demos use, compiled by Metro (see metro.config.js).
 import sheet from './.foldkit-native/tailwind.js'
@@ -31,11 +35,35 @@ import {
   stylingOptions,
   watchStyling,
 } from './native/src'
+import { configureKeyboardDock } from './native/src/keyboard'
 import { makeDemos } from './native/test/demos'
 import { startShowcase } from './native/test/demos/shell'
 
 registerPlatformComponents(Platform.OS)
 registerNavigation()
+
+/**
+ * React Native's animation module, which can move a view on the native side
+ * with no JavaScript per frame. It has no public import path, so it is asked
+ * for by file and anything going wrong means "not available".
+ */
+const nativeAnimated = (): NativeAnimated | null => {
+  try {
+    const helper = require('react-native/src/private/animated/NativeAnimatedHelper').default as
+      | (NativeAnimated & { assertNativeAnimatedModule: () => void })
+      | undefined
+    if (helper === undefined) return null
+    helper.assertNativeAnimatedModule()
+    return helper
+  } catch {
+    return null
+  }
+}
+
+// For the keyboard dock only. With this, and react-native-keyboard-controller's
+// native views in the build, the dock follows the keyboard frame by frame.
+// Without either it uses its fallback. Nothing else in the app reads this.
+configureKeyboardDock({ nativeAnimated: nativeAnimated() })
 
 const device = {
   platform: Platform.OS,

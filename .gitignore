@@ -3,3 +3,6 @@ dist/
 .expo/
 *.log
 .DS_Store
+# Native projects that `npx expo prebuild` generates for a development build.
+apps/*/ios/
+apps/*/android/

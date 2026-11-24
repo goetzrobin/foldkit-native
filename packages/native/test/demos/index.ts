@@ -13,6 +13,7 @@ import { makeNotes } from '../notes.js'
 import { makeDemo as makeAiChat } from './aiChat.js'
 import { makeDemo as makeChat } from './chat.js'
 import { makeDemo as makeDeviceDemo } from './device.js'
+import { makeDemo as makeKeyboard } from './keyboard.js'
 import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
@@ -77,5 +78,12 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     blurb: 'Haptics, clipboard, saved text, share sheet, alerts, keyboard, network, rotation.',
     start: (container, env) =>
       Runtime.embed(makeDeviceDemo(container, env, resources.device)),
+  },
+  {
+    id: 'keyboard',
+    title: 'Keyboard dock',
+    blurb: 'A text field that rides on the keyboard. A label says if it follows natively or is the fallback.',
+    start: (container, env) =>
+      Runtime.embed(makeKeyboard(container, env, resources.device)),
   },
 ]
