@@ -19,25 +19,10 @@
  * The player will not start while a recording is running: on iOS, setting
  * the phone up for the speaker would stop the recording.
  */
-import { Context, Effect, Layer, Schema, Stream } from 'effect'
-import { Command } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
+import { Context, Effect, Layer, Schema } from 'effect'
 
-import {
-  type AudioModule,
-  type AudioSession,
-  type FakeAudio,
-  type NativePlayer,
-  makeAudioSession,
-  makeFakeAudio,
-} from './audioNative.js'
-import {
-  DeviceError,
-  type NativeSubscription,
-  type Source,
-  attempt,
-  streamOf,
-} from './common.js'
+import { type AudioModule, type AudioSession, type FakeAudio, type NativePlayer, makeAudioSession, makeFakeAudio } from './audioNative.js'
+import { DeviceError, type NativeSubscription, type Source, attempt } from './common.js'
 
 /** The speeds on offer. */
 export const Rate = Schema.Literals([1, 1.5, 2])
@@ -77,7 +62,7 @@ export type PlayerOptions = Readonly<{
   updateMs?: number
 }>
 
-const CAPABILITY = 'player'
+export const CAPABILITY = 'player'
 
 type Loaded = {
   uri: string
@@ -264,86 +249,3 @@ export const makeTest = (
     listenerCount: () => listening,
   }
 }
-
-export const Message = defineMessageUnion({
-  StartedPlayback: { uri: Schema.String },
-  PausedPlayback: {},
-  SoughtPlayback: { positionMs: Schema.Number },
-  ChangedPlaybackRate: { rate: Schema.Number },
-  StoppedPlayback: {},
-  /** `action` is play, pause, seek or rate. */
-  FailedPlayback: { action: Schema.String, reason: Schema.String },
-  /** From the Subscription: where playback has got to. */
-  ChangedPlayback: { playback: Playback },
-  /** From the Subscription: the sound played to its end. */
-  FinishedPlayback: { uri: Schema.String },
-})
-export type Message = typeof Message.Type
-
-const action = <A>(name: string, effect: Effect.Effect<A, DeviceError, Player>) =>
-  Effect.catch(effect, error =>
-    Effect.succeed(Message.FailedPlayback({ action: name, reason: error.reason })),
-  )
-
-export const Play = Command.define('Player.Play', {
-  args: { uri: Schema.String, rate: Schema.Number },
-  messages: [Message.StartedPlayback, Message.FailedPlayback],
-  execute: ({ uri, rate }) =>
-    action(
-      'play',
-      Player.use(player => player.play(uri, rate)).pipe(
-        Effect.as(Message.StartedPlayback({ uri })),
-      ),
-    ),
-})
-
-export const Pause = Command.define('Player.Pause', {
-  messages: [Message.PausedPlayback, Message.FailedPlayback],
-  execute: action(
-    'pause',
-    Player.use(player => player.pause).pipe(Effect.as(Message.PausedPlayback())),
-  ),
-})
-
-export const Seek = Command.define('Player.Seek', {
-  args: { positionMs: Schema.Number },
-  messages: [Message.SoughtPlayback, Message.FailedPlayback],
-  execute: ({ positionMs }) =>
-    action(
-      'seek',
-      Player.use(player => player.seek(positionMs)).pipe(
-        Effect.as(Message.SoughtPlayback({ positionMs })),
-      ),
-    ),
-})
-
-export const SetRate = Command.define('Player.SetRate', {
-  args: { rate: Schema.Number },
-  messages: [Message.ChangedPlaybackRate, Message.FailedPlayback],
-  execute: ({ rate }) =>
-    action(
-      'rate',
-      Player.use(player => player.setRate(rate)).pipe(
-        Effect.as(Message.ChangedPlaybackRate({ rate })),
-      ),
-    ),
-})
-
-/** Stops and frees the player. */
-export const Stop = Command.define('Player.Stop', {
-  messages: [Message.StoppedPlayback],
-  execute: Player.use(player => player.stop).pipe(Effect.as(Message.StoppedPlayback())),
-})
-
-const messageOf = (event: PlayerEvent): Message =>
-  event._tag === 'Changed'
-    ? Message.ChangedPlayback({ playback: event.playback })
-    : Message.FinishedPlayback({ uri: event.uri })
-
-/**
- * Where playback has got to, as a Stream, for a Subscription that runs only
- * while a note is loaded. Four Messages a second while it plays.
- */
-export const positions: Stream.Stream<Message, never, Player> = Stream.unwrap(
-  Player.useSync(player => Stream.map(streamOf(CAPABILITY, player.events), messageOf)),
-)

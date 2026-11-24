@@ -35,16 +35,9 @@
  * has come up. Until that says otherwise, and always without
  * `measureWindow`, Android reports `covers: 0`.
  */
-import { Context, Effect, Layer, Schema, Stream } from 'effect'
-import { Command, Subscription } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
+import { Context, Effect, Layer } from 'effect'
 
-import {
-  type NativeSubscription,
-  type Source,
-  makeTestSource,
-  streamOf,
-} from './common.js'
+import { type NativeSubscription, type Source, makeTestSource } from './common.js'
 
 /** The keyboard as it is now. Both are 0 while it is hidden. */
 export type KeyboardFrame = Readonly<{
@@ -259,45 +252,3 @@ export const makeTest = (options: Readonly<{ blurFocused?: () => void }> = {}) =
     listenerCount: frames.listenerCount,
   }
 }
-
-export const Message = defineMessageUnion({
-  CompletedDismissKeyboard: {},
-  /**
-   * The keyboard is up, or changed height while up. `covers` is how much of
-   * the app's window it covers: raise a composer by that, not by `height`.
-   */
-  ShownKeyboard: { height: Schema.Number, covers: Schema.Number },
-  HidKeyboard: {},
-})
-export type Message = typeof Message.Type
-
-/** Puts the keyboard away, as a tap outside the field does in other apps. */
-export const Dismiss = Command.define('Keyboard.Dismiss', {
-  messages: [Message.CompletedDismissKeyboard],
-  execute: Keyboard.use(keyboard => keyboard.dismiss).pipe(
-    Effect.as(Message.CompletedDismissKeyboard()),
-  ),
-})
-
-/**
- * `HidKeyboard` or `ShownKeyboard` for the keyboard as it is when the
- * Subscription starts, then one for each change.
- */
-export const changes: Stream.Stream<
-  typeof Message.ShownKeyboard.Type | typeof Message.HidKeyboard.Type,
-  never,
-  Keyboard
-> = Stream.unwrap(
-  Keyboard.useSync(keyboard =>
-    Stream.map(streamOf('keyboard', keyboard.frames), ({ height, covers }) =>
-      height > 0 ? Message.ShownKeyboard({ height, covers }) : Message.HidKeyboard(),
-    ),
-  ),
-)
-
-/** `changes` as a Subscription entry that runs for the life of the program. */
-export const changesEntry = <AppMessage>(
-  toMessage: (
-    message: typeof Message.ShownKeyboard.Type | typeof Message.HidKeyboard.Type,
-  ) => AppMessage,
-) => Subscription.persistentEntry(Stream.map(changes, toMessage))

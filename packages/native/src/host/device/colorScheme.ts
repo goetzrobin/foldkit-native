@@ -11,16 +11,9 @@
  *
  * Keep the scheme in the Model and pick colors from it in the view.
  */
-import { Context, Layer, Schema, Stream } from 'effect'
-import { Subscription } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
+import { Context, Layer, Schema } from 'effect'
 
-import {
-  type NativeSubscription,
-  type Source,
-  makeTestSource,
-  streamOf,
-} from './common.js'
+import { type NativeSubscription, type Source, makeTestSource } from './common.js'
 
 export const Scheme = Schema.Literals(['light', 'dark'])
 export type Scheme = typeof Scheme.Type
@@ -67,20 +60,3 @@ export const makeTest = (initial: Scheme = 'light') => {
     listenerCount: schemes.listenerCount,
   }
 }
-
-export const Message = defineMessageUnion({
-  ChangedColorScheme: { scheme: Scheme },
-})
-export type Message = typeof Message.Type
-
-/** The scheme when the Subscription starts, then each change. */
-export const changes: Stream.Stream<Message, never, ColorScheme> = Stream.unwrap(
-  ColorScheme.useSync(colorScheme =>
-    Stream.map(streamOf('color scheme', colorScheme.schemes), scheme =>
-      Message.ChangedColorScheme({ scheme }),
-    ),
-  ),
-)
-
-export const changesEntry = <AppMessage>(toMessage: (message: Message) => AppMessage) =>
-  Subscription.persistentEntry(Stream.map(changes, toMessage))

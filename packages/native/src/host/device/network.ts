@@ -13,16 +13,9 @@
  * sign-in page can read as online. Treat a failed request as the real
  * answer.
  */
-import { Context, Layer, Schema, Stream } from 'effect'
-import { Subscription } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
+import { Context, Layer, Schema } from 'effect'
 
-import {
-  type NativeSubscription,
-  type Source,
-  makeTestSource,
-  streamOf,
-} from './common.js'
+import { type NativeSubscription, type Source, makeTestSource } from './common.js'
 
 export const NetworkStatus = Schema.Literals(['online', 'offline'])
 export type NetworkStatus = typeof NetworkStatus.Type
@@ -96,20 +89,3 @@ export const makeTest = (initial: NetworkStatus = 'online') => {
     listenerCount: states.listenerCount,
   }
 }
-
-export const Message = defineMessageUnion({
-  ChangedNetworkStatus: { status: NetworkStatus, connection: Schema.String },
-})
-export type Message = typeof Message.Type
-
-/** The status when the Subscription starts, then each change. */
-export const changes: Stream.Stream<Message, never, Network> = Stream.unwrap(
-  Network.useSync(network =>
-    Stream.map(streamOf('network', network.states), state =>
-      Message.ChangedNetworkStatus(state),
-    ),
-  ),
-)
-
-export const changesEntry = <AppMessage>(toMessage: (message: Message) => AppMessage) =>
-  Subscription.persistentEntry(Stream.map(changes, toMessage))

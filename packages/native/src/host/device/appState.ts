@@ -13,16 +13,9 @@
  * call comes in. To stop work when the user is not looking, test for
  * "not active", not for "background".
  */
-import { Context, Layer, Schema, Stream } from 'effect'
-import { Subscription } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
+import { Context, Layer, Schema } from 'effect'
 
-import {
-  type NativeSubscription,
-  type Source,
-  makeTestSource,
-  streamOf,
-} from './common.js'
+import { type NativeSubscription, type Source, makeTestSource } from './common.js'
 
 export const AppStatus = Schema.Literals(['active', 'background', 'inactive'])
 export type AppStatus = typeof AppStatus.Type
@@ -65,20 +58,3 @@ export const makeTest = (initial: AppStatus = 'active') => {
     listenerCount: statuses.listenerCount,
   }
 }
-
-export const Message = defineMessageUnion({
-  ChangedAppState: { status: AppStatus },
-})
-export type Message = typeof Message.Type
-
-/** The status when the Subscription starts, then each change. */
-export const changes: Stream.Stream<Message, never, AppState> = Stream.unwrap(
-  AppState.useSync(appState =>
-    Stream.map(streamOf('app state', appState.statuses), status =>
-      Message.ChangedAppState({ status }),
-    ),
-  ),
-)
-
-export const changesEntry = <AppMessage>(toMessage: (message: Message) => AppMessage) =>
-  Subscription.persistentEntry(Stream.map(changes, toMessage))

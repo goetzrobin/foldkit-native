@@ -11,16 +11,9 @@
  * The size is in points, the unit styles use. It changes when the phone
  * turns, and on a tablet when the app shares the screen.
  */
-import { Context, Layer, Schema, Stream } from 'effect'
-import { Subscription } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
+import { Context, Layer, Schema } from 'effect'
 
-import {
-  type NativeSubscription,
-  type Source,
-  makeTestSource,
-  streamOf,
-} from './common.js'
+import { type NativeSubscription, type Source, makeTestSource } from './common.js'
 
 export const Orientation = Schema.Literals(['portrait', 'landscape'])
 export type Orientation = typeof Orientation.Type
@@ -67,24 +60,3 @@ export const makeTest = (initial: WindowSize = { width: 393, height: 852 }) => {
 
 export const orientationOf = (size: WindowSize): Orientation =>
   size.width > size.height ? 'landscape' : 'portrait'
-
-export const Message = defineMessageUnion({
-  ChangedWindowSize: {
-    width: Schema.Number,
-    height: Schema.Number,
-    orientation: Orientation,
-  },
-})
-export type Message = typeof Message.Type
-
-/** The size when the Subscription starts, then each change. */
-export const changes: Stream.Stream<Message, never, Window> = Stream.unwrap(
-  Window.useSync(window =>
-    Stream.map(streamOf('window', window.sizes), size =>
-      Message.ChangedWindowSize({ ...size, orientation: orientationOf(size) }),
-    ),
-  ),
-)
-
-export const changesEntry = <AppMessage>(toMessage: (message: Message) => AppMessage) =>
-  Subscription.persistentEntry(Stream.map(changes, toMessage))
