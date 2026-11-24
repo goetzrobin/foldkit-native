@@ -55,6 +55,12 @@ export type MarkdownOptions<Message> = Readonly<{
   onCopyCode?: (copy: CodeCopy) => Message
   /** New words fade in while streaming. On unless said. Native renderer only. */
   fade?: boolean
+  /**
+   * Whether a long press selects text once the reply is finished. On unless
+   * said. Off for a reply whose long press opens a menu of the app's own.
+   * Native renderer only: the fallback never selects.
+   */
+  selectable?: boolean
   /** `auto` unless said. */
   renderer?: MarkdownRenderer
   /** Layout of the box around the reply: margins, width. */
@@ -155,6 +161,7 @@ export const markdown = <Message>(h: HtmlBuilder<Message>, options: MarkdownOpti
       text: options.text,
       isStreaming: options.isStreaming,
       isFadeOn: options.fade ?? true,
+      isSelectable: options.selectable ?? true,
       theme,
     },
   )
