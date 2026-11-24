@@ -24,6 +24,7 @@ import {
   getFabricUIManager,
   registerPlatformComponents,
 } from '@ng-native/fabric'
+import remend from 'remend'
 
 // Every Tailwind class the demos use, compiled by Metro (see metro.config.js).
 import sheet from './.foldkit-native/tailwind.js'
@@ -39,6 +40,7 @@ import {
 import { registerExpoUi } from './native/src/controls'
 import { registerGlass } from './native/src/glass'
 import { configureKeyboardDock } from './native/src/keyboard'
+import { configureMarkdown } from './native/src/markdown'
 import { configureSheets } from './native/src/menus'
 import { configureSkia, registerSkia } from './native/src/skia'
 import { registerNativeSwipe } from './native/src/swipeNative'
@@ -115,6 +117,15 @@ const nativeAnimated = (): NativeAnimated | null => {
 // native views in the build, the dock follows the keyboard frame by frame.
 // Without either it uses its fallback. Nothing else in the app reads this.
 configureKeyboardDock({ nativeAnimated: nativeAnimated() })
+
+// For the Streaming markdown demo. The reply is drawn by
+// react-native-enriched-markdown's native view, found by name: none of its
+// JavaScript is imported. It is only in an app built with
+// `npx expo run:ios` or `run:android`. Expo Go lacks it, and there the demo
+// draws a plain fallback and says so. remend is pure JavaScript: it finishes
+// half-written Markdown (an open **, a link without its address) while a
+// reply streams in.
+configureMarkdown({ remend })
 
 const device = {
   platform: Platform.OS,
