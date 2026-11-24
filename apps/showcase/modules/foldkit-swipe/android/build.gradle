@@ -1,0 +1,28 @@
+// Tells the Android build (Gradle) what this module is. Expo finds this
+// file by itself: see docs/NATIVE_VIEWS.md.
+plugins {
+  id 'com.android.library'
+  // Expo's plugin. It adds Kotlin, React Native and expo-modules-core.
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.foldkitswipe'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.foldkitswipe"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // ViewCompat, for the accessibility actions.
+  implementation "androidx.core:core-ktx:1.17.0"
+  // SpringAnimation, for the spring that carries on at the finger's speed.
+  implementation "androidx.dynamicanimation:dynamicanimation:1.0.0"
+}
