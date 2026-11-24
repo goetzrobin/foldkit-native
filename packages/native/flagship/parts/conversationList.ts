@@ -43,10 +43,18 @@ export const CHAT_LIST_ID = 'chats'
 
 // MODEL
 
-export const Model = Schema.Struct({ query: Schema.String })
+export const Model = Schema.Struct({
+  query: Schema.String,
+  /**
+   * The row whose actions are showing, as the swipe row last said. The swipe
+   * is the row's own, outside this Model; it reports opening and closing so
+   * a log of Messages says what was on screen. Read by nothing.
+   */
+  openRowId: Schema.Option(Schema.String),
+})
 export type Model = typeof Model.Type
 
-export const init = (): Model => ({ query: '' })
+export const init = (): Model => ({ query: '', openRowId: Option.none() })
 
 // MESSAGE
 
@@ -58,6 +66,8 @@ export const Message = defineMessageUnion({
   /** Rename or Delete, from a row's swipe or its menu. */
   SelectedRowAction: { id: Schema.String, key: Schema.String },
   ArmedFullSwipe: { isArmed: Schema.Boolean },
+  OpenedRowActions: { id: Schema.String },
+  ClosedRowActions: { id: Schema.String },
 })
 export type Message = typeof Message.Type
 
@@ -81,6 +91,10 @@ export const update = (model: Model, message: Message): Update.ReturnWithOutMess
     PressedSettings: () => ({ model, outMessage: OutMessage.OpenedSettings() }),
     SelectedRowAction: ({ id, key }) => ({ model, outMessage: OutMessage.ChoseRowAction({ id, key }) }),
     ArmedFullSwipe: ({ isArmed }) => ({ model, outMessage: OutMessage.ArmedFullSwipe({ isArmed }) }),
+    OpenedRowActions: ({ id }) => ({ model: modifyFields(model, { openRowId: () => Option.some(id) }) }),
+    ClosedRowActions: ({ id }) => ({
+      model: modifyFields(model, { openRowId: open => Option.filter(open, each => each !== id) }),
+    }),
   })
 
 // VIEW
@@ -147,6 +161,8 @@ const chatRow = (h: HtmlBuilder<Message>, palette: Palette, item: Extract<ListIt
           mode: 'tiles',
           group: 'chats',
           cornerRadius: RADIUS.row,
+          onOpened: () => Message.OpenedRowActions({ id: summary.id }),
+          onClosed: () => Message.ClosedRowActions({ id: summary.id }),
         }),
       ],
       [held],
@@ -176,6 +192,8 @@ const chatRow = (h: HtmlBuilder<Message>, palette: Palette, item: Extract<ListIt
         { allowsFullSwipe: true },
       ),
       onFullSwipeArmed: isArmed => Message.ArmedFullSwipe({ isArmed }),
+      onOpened: () => Message.OpenedRowActions({ id: summary.id }),
+      onClosed: () => Message.ClosedRowActions({ id: summary.id }),
       accessibilityLabel: summary.title,
       attributes: [h.Key(`swipe-${summary.id}`)],
     },

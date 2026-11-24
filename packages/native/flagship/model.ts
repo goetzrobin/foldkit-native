@@ -40,13 +40,22 @@ export const DEFAULT_SETTINGS: Settings = { theme: 'system', speed: 'normal' }
 
 // SHEETS
 
+/**
+ * The two sheets with more than one height keep the one the phone last
+ * reported (`detent`, an index into the sheet's heights). The sheet moves by
+ * itself under a finger; this only records it, so a log of Messages says
+ * what was on screen.
+ */
+export const ReasoningSheetOpen = Schema.TaggedStruct('Reasoning', { rowKey: Schema.String, detent: Schema.Number })
+export const SelectTextOpen = Schema.TaggedStruct('SelectText', { rowKey: Schema.String, detent: Schema.Number })
+
 export const Sheet = Schema.Union([
   Schema.TaggedStruct('Settings', {}),
   /** The reasoning of one reply, by the row's key. */
-  Schema.TaggedStruct('Reasoning', { rowKey: Schema.String }),
+  ReasoningSheetOpen,
   Schema.TaggedStruct('Rename', { id: Schema.String, title: Schema.String }),
   /** A reply drawn with text selection on, for copying a part of it. */
-  Schema.TaggedStruct('SelectText', { rowKey: Schema.String }),
+  SelectTextOpen,
 ])
 export type Sheet = typeof Sheet.Type
 

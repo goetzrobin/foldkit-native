@@ -18,7 +18,7 @@ import { SPACE, TYPE, paletteOf } from '../theme.js'
 
 // MODEL
 
-export const Model = Schema.Struct({ rowKey: Schema.String })
+export const Model = Schema.Struct({ rowKey: Schema.String, detent: Schema.Number })
 export type Model = typeof Model.Type
 
 // MESSAGE
@@ -26,6 +26,8 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   /** Swiped down. */
   Dismissed: {},
+  /** The phone moved the sheet to another of its heights. */
+  ChangedDetent: { index: Schema.Number },
 })
 export type Message = typeof Message.Type
 
@@ -34,10 +36,11 @@ export type OutMessage = typeof OutMessage.Type
 
 // UPDATE
 
-export const update = (model: Model, _message: Message): Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources> => ({
-  model,
-  outMessage: OutMessage.Closed(),
-})
+export const update = (model: Model, message: Message): Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources> =>
+  Message.match<Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources>>(message, {
+    Dismissed: () => ({ model, outMessage: OutMessage.Closed() }),
+    ChangedDetent: ({ index }) => ({ model: { ...model, detent: index } }),
+  })
 
 // VIEW
 
@@ -61,5 +64,5 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>((_model, inp
         ],
       ),
     ]),
-  ])
+  ], index => Message.ChangedDetent({ index }))
 })

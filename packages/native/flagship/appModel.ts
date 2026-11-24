@@ -56,6 +56,8 @@ export const Message = defineMessageUnion({
   // Rename and Select text, the two sheets the app draws itself
   ClosedSheet: {},
   ChangedRenameDraft: { text: Schema.String },
+  /** The phone moved the Select text sheet to another of its heights. */
+  ChangedSheetDetent: { index: Schema.Number },
   PressedSaveRename: {},
   RenamedConversation: {},
   DeletedConversation: { id: Schema.String },

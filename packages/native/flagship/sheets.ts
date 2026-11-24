@@ -114,14 +114,18 @@ export const sheetScreens = (h: HtmlBuilder<Message>, device: Device, model: Mod
             h.submodel({
               slotId: 'sheet-reasoning',
               view: ReasoningSheet.view,
-              model: { rowKey: open.rowKey },
+              model: { rowKey: open.rowKey, detent: open.detent },
               viewInputs: { ...context, reasoning: part?._tag === 'Reasoning' ? part : undefined },
               toParentMessage: (message: ReasoningSheet.Message) => Message.GotReasoningSheetMessage({ message }),
             }),
           ]
         }
         case 'SelectText':
-          return [sheetScreen(h, device, palette, 'select', [0.6, 1], Message.ClosedSheet(), selectTextSheet(h, device, model, palette, open.rowKey))]
+          return [
+            sheetScreen(h, device, palette, 'select', [0.6, 1], Message.ClosedSheet(), selectTextSheet(h, device, model, palette, open.rowKey), index =>
+              Message.ChangedSheetDetent({ index }),
+            ),
+          ]
         case 'Rename':
           return [sheetScreen(h, device, palette, 'rename', 'fit', Message.ClosedSheet(), renameSheet(h, model, palette, open.title))]
       }

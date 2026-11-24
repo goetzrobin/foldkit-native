@@ -249,6 +249,8 @@ export const CONTENT_DATA = 'foldkitListContent'
 export const LABEL_DATA = 'foldkitListLabel'
 export const END_REACHED = 'listEndReached'
 export const AT_END_CHANGED = 'listAtEndChanged'
+export const FOLLOW_CHANGED = 'listFollowChanged'
+export const KEYBOARD_MOVED = 'listKeyboardMoved'
 
 /** How long a list that opens at its end may stay unseen while it waits for
  *  the phone to measure its rows. After this it is shown as it is. */
@@ -315,6 +317,8 @@ type ListState = {
   isAtEnd: boolean | undefined
   /** What the program was last told about `isAtEnd`. */
   toldAtEnd: boolean
+  /** What the program was last told about `isFollowing`. */
+  toldFollowing: boolean
   /**
    * The list is on its way to its end and must arrive there exactly: on
    * opening, after `scrollToEnd`, and after a new row is anchored. Row
@@ -683,10 +687,25 @@ const refreshAtEnd = (state: ListState): void => {
 
 /** Sends the at-end Message, only when the answer is not the one last sent. */
 const tellAtEnd = (state: ListState): void => {
+  tellFollowing(state)
   if (!state.isAlive || state.isAtEnd === undefined || state.isAtEnd === state.toldAtEnd) return
   state.toldAtEnd = state.isAtEnd
   const handler = handlersByNode.get(state.scroll)?.[AT_END_CHANGED] as Handler | undefined
   handler?.(customEvent(AT_END_CHANGED, { isAtEnd: state.isAtEnd }))
+}
+
+/**
+ * Tells the program when the list starts or stops following its end (see
+ * `Following`), at the same moments it is told about the end. The program
+ * hears only if it listens (`onFollowChanged`): the state stays the list's,
+ * and the Message is there so that a log of Messages says what the list did.
+ */
+const tellFollowing = (state: ListState): void => {
+  if (!state.isAlive || state.isFollowing === state.toldFollowing) return
+  const handler = handlersByNode.get(state.scroll)?.[FOLLOW_CHANGED] as Handler | undefined
+  if (handler === undefined) return
+  state.toldFollowing = state.isFollowing
+  handler(customEvent(FOLLOW_CHANGED, { isFollowing: state.isFollowing }))
 }
 
 /**
@@ -1187,6 +1206,7 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       endSpace: 0,
       isAtEnd: spec.initialScrollAtEnd ? true : undefined,
       toldAtEnd: spec.initialScrollAtEnd,
+      toldFollowing: spec.initialScrollAtEnd,
       holdEnd: spec.initialScrollAtEnd,
       holdRepeats: 0,
       // A list that opens at its end follows it (see `Following`).
@@ -1410,6 +1430,7 @@ export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }
  * keyboard starts to move and once when it has stopped, never in between.
  */
 const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent): void => {
+  tellKeyboard(state, event)
   if (event.type === 'interactive') {
     inset.keyboard.handlers.onInteractive()
     return
@@ -1479,6 +1500,24 @@ const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent)
   // With the keyboard, the phone glides. A composer that grew by a line of
   // text moves the list at once, as the composer itself did.
   sendScroll(state, target, event.type === 'start')
+}
+
+/**
+ * Tells the program that the keyboard started to move, stopped, or is being
+ * dragged, as the dock told this list. The program hears only if it listens
+ * (`onKeyboardMoved`); the list makes room by itself either way. The height
+ * the keyboard ends at also reaches the program from `Phone.Keyboard`, but
+ * not these phases.
+ */
+const tellKeyboard = (state: ListState, event: ListKeyboardEvent): void => {
+  if (event.type === 'bar') return
+  const handler = handlersByNode.get(state.scroll)?.[KEYBOARD_MOVED] as Handler | undefined
+  handler?.(
+    customEvent(KEYBOARD_MOVED, {
+      phase: event.type,
+      height: event.type === 'interactive' ? undefined : event.height,
+    }),
+  )
 }
 
 /**

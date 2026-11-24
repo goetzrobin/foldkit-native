@@ -7,7 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { prop, pressedStyle, style } from '../src/foldkit/attributes.js'
 import { text, view } from '../src/foldkit/elements.js'
-import { sheet } from '../src/foldkit/navigation/sheets.js'
+import { onDetentChanged, sheet } from '../src/foldkit/navigation/sheets.js'
 import { type Device, modalScreen, onDismissed } from '../src/foldkit/navigation/stack.js'
 import { type Palette, SPACE, TYPE } from './theme.js'
 
@@ -44,6 +44,8 @@ export const sheetScreen = <Message>(
   detents: ReadonlyArray<number> | 'fit',
   onClosed: Message,
   children: ReadonlyArray<Html>,
+  /** For a sheet with more than one height: the height the phone moved it to. */
+  onDetent?: (index: number) => Message,
 ): Html =>
   modalScreen(
     [
@@ -51,6 +53,7 @@ export const sheetScreen = <Message>(
       prop('testID', `sheet-${name}`),
       onDismissed(() => onClosed),
       ...sheet<Message>({ device, detents, hasGrabber: true, background: palette.bg }),
+      ...(onDetent === undefined ? [] : [onDetentChanged(onDetent)]),
     ] as never,
     children,
   )

@@ -413,17 +413,21 @@ export const makeChatApp = (
       GotConversationListMessage: ({ message: each }) => onList(model, each),
       GotChatScreenMessage: ({ message: each }) => onChat(model, each),
       GotSettingsSheetMessage: ({ message: each }) => onSettings(model, each),
-      GotReasoningSheetMessage: ({ message: each }) =>
-        Option.match(Option.filter(model.sheet, open => open._tag === 'Reasoning'), {
-          onNone: () => ({ model }),
-          onSome: open => {
-            const result = ReasoningSheet.update({ rowKey: open._tag === 'Reasoning' ? open.rowKey : '' }, each)
-            return result.outMessage === undefined ? { model } : closeSheet(model)
-          },
-        }),
+      GotReasoningSheetMessage: ({ message: each }) => {
+        const open = Option.getOrUndefined(model.sheet)
+        if (open?._tag !== 'Reasoning') return { model }
+        const result = ReasoningSheet.update({ rowKey: open.rowKey, detent: open.detent }, each)
+        if (result.outMessage !== undefined) return closeSheet(model)
+        return { model: modifyFields(model, { sheet: () => Option.some({ ...open, ...result.model }) }) }
+      },
 
       // RENAME AND SELECT TEXT
       ClosedSheet: () => closeSheet(model),
+      ChangedSheetDetent: ({ index }) => ({
+        model: modifyFields(model, {
+          sheet: sheet => Option.map(sheet, open => (open._tag === 'SelectText' ? { ...open, detent: index } : open)),
+        }),
+      }),
       ChangedRenameDraft: ({ text }) => ({
         model: modifyFields(model, {
           sheet: sheet => Option.map(sheet, open => (open._tag === 'Rename' ? { ...open, title: text } : open)),

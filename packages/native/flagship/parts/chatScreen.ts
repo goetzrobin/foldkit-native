@@ -34,7 +34,7 @@ import type { Context, Resources, Shared } from '../context.js'
 import { dismissKeyboard, haptics } from '../effects.js'
 import { focusField } from '../focus.js'
 import { onLongPress } from '../longPress.js'
-import { type ChatRow, MessageMenu, Notice, lastQuestionKey, textOf } from '../model.js'
+import { type ChatRow, MessageMenu, Notice, ReasoningSheetOpen, SelectTextOpen, lastQuestionKey, textOf } from '../model.js'
 import { type Palette, SPACE, TYPE, paletteOf } from '../theme.js'
 import { navBar } from '../ui.js'
 import * as Composer from './composer.js'
@@ -121,10 +121,7 @@ export const OutMessage = defineMessageUnion({
   ChoseMenuItem: { key: Schema.String },
   PressedNumbers: {},
   /** A sheet over the chat: a reply's reasoning, or a reply to select text in. */
-  OpenedSheet: { sheet: Schema.Union([
-    Schema.TaggedStruct('Reasoning', { rowKey: Schema.String }),
-    Schema.TaggedStruct('SelectText', { rowKey: Schema.String }),
-  ]) },
+  OpenedSheet: { sheet: Schema.Union([ReasoningSheetOpen, SelectTextOpen]) },
 })
 export type OutMessage = typeof OutMessage.Type
 
@@ -300,7 +297,7 @@ const onActionSheet = (model: Model, message: ActionSheet.Message, inputs: Input
         case 'share':
           return { model: closed, commands: [Command.mapMessage(Share.Open({ message: menu.text }), ignore)] }
         case 'select':
-          return { model: closed, outMessage: OutMessage.OpenedSheet({ sheet: { _tag: 'SelectText', rowKey: menu.rowKey } }) }
+          return { model: closed, outMessage: OutMessage.OpenedSheet({ sheet: { _tag: 'SelectText', rowKey: menu.rowKey, detent: 0 } }) }
         case 'regenerate':
           return regenerate(closed, inputs)
         case 'stop':
@@ -363,7 +360,7 @@ const onRow = (model: Model, message: MessageRow.OutMessage, inputs: Inputs): Re
     PressedReasoning: ({ rowKey }) => ({
       model,
       commands: [dismissKeyboard(done)],
-      outMessage: OutMessage.OpenedSheet({ sheet: { _tag: 'Reasoning', rowKey } }),
+      outMessage: OutMessage.OpenedSheet({ sheet: { _tag: 'Reasoning', rowKey, detent: 0 } }),
     }),
     PressedLink: ({ url }) => ({ model, commands: [Command.mapMessage(Linking.OpenUrl({ url }), ignore)] }),
     CopiedCode: () => {

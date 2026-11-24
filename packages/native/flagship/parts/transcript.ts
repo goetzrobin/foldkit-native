@@ -16,7 +16,8 @@
  *
  * Where the list is and whether it follows the end are the list's own,
  * outside this Model. The list reports reaching or leaving the end
- * (`ChangedAtEnd`), which is what this part keeps.
+ * (`ChangedAtEnd`) and starting or stopping to follow it
+ * (`ChangedFollowing`), so a log of Messages says what the list did.
  */
 import { Effect, Option, Schema } from 'effect'
 import { Command, Submodel, type Update } from 'foldkit'
@@ -61,15 +62,25 @@ export const Model = Schema.Struct({
   anchorKey: Schema.Option(Schema.String),
   /** Whether the end of the list is on screen, as the list last said. */
   isAtEnd: Schema.Boolean,
+  /** Whether the list follows the reply as it grows, as the list last said. Read by nothing. */
+  isFollowing: Schema.Boolean,
+  /**
+   * What the keyboard is doing, as the list last said: moving to a height,
+   * at rest, or dragged by a finger. The keyboard's own height is shared
+   * (`keyboardHeight`); this is its phase. Read by nothing.
+   */
+  keyboard: Schema.Literals(['moving', 'resting', 'dragged']),
 })
 export type Model = typeof Model.Type
 
-export const init = (): Model => ({ anchorKey: Option.none(), isAtEnd: true })
+export const init = (): Model => ({ anchorKey: Option.none(), isAtEnd: true, isFollowing: true, keyboard: 'resting' })
 
 // MESSAGE
 
 export const Message = defineMessageUnion({
   ChangedAtEnd: { isAtEnd: Schema.Boolean },
+  ChangedFollowing: { isFollowing: Schema.Boolean },
+  MovedKeyboard: { phase: Schema.Literals(['start', 'end', 'interactive']), height: Schema.UndefinedOr(Schema.Number) },
   PressedScrollToEnd: {},
   /** Android's scroll view cannot put the keyboard away by itself. */
   DraggedListWithKeyboardUp: {},
@@ -103,6 +114,12 @@ type Return = Update.ReturnWithOutMessage<Model, Message, OutMessage, Resources>
 export const update = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
     ChangedAtEnd: ({ isAtEnd }) => ({ model: modifyFields(model, { isAtEnd: () => isAtEnd }) }),
+    ChangedFollowing: ({ isFollowing }) => ({ model: modifyFields(model, { isFollowing: () => isFollowing }) }),
+    MovedKeyboard: ({ phase }) => ({
+      model: modifyFields(model, {
+        keyboard: () => (phase === 'start' ? 'moving' : phase === 'end' ? 'resting' : 'dragged'),
+      }),
+    }),
     PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
     DraggedListWithKeyboardUp: () => ({ model, outMessage: OutMessage.DraggedWithKeyboardUp() }),
     TappedTranscript: () => ({ model, outMessage: OutMessage.Tapped() }),
@@ -242,6 +259,8 @@ export const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>)
           onSome: index => ({ anchoredEndSpace: { anchorIndex: index, anchorMaxSize: ANCHOR_MAX_SIZE, anchorOffset: ANCHOR_OFFSET } }),
         }),
         onAtEndChanged: isAtEnd => Message.ChangedAtEnd({ isAtEnd }),
+        onFollowChanged: isFollowing => Message.ChangedFollowing({ isFollowing }),
+        onKeyboardMoved: (phase, height) => Message.MovedKeyboard({ phase, height }),
         attributes: [
           prop('testID', 'transcript'),
           style({ flex: 1 }),

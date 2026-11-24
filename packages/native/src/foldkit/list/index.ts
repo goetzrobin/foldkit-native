@@ -57,6 +57,8 @@ import type { KeyboardLiftBehavior } from '../../host/chat/vendor/kbc/types.js'
 import type { AnchoredEndSpace } from '../../host/list/end.js'
 import {
   AT_END_CHANGED,
+  FOLLOW_CHANGED,
+  KEYBOARD_MOVED,
   CONTENT_DATA,
   END_REACHED,
   LABEL_DATA,
@@ -152,6 +154,18 @@ export type ListConfig<Item, Message> = Readonly<{
    */
   onAtEndChanged?: (isAtEnd: boolean) => Message
   /**
+   * Sent when the list starts following its end as rows grow or arrive
+   * (`true`) or stops (`false`): see `Following` in the host list. Only for
+   * a log of what the list did; the list follows by itself either way.
+   */
+  onFollowChanged?: (isFollowing: boolean) => Message
+  /**
+   * With `keyboardInset`: sent when the keyboard starts to move (with the
+   * height it is going to), stops (with its height), or is dragged by a
+   * finger (no height). Only for a log of what happened on screen.
+   */
+  onKeyboardMoved?: (phase: 'start' | 'end' | 'interactive', height: number | undefined) => Message
+  /**
    * For a chat whose composer is a `composerDock` in `'inset'` mode with this
    * list's id as `listId`. The list then runs the full height of the screen
    * area, under the composer, and is never made shorter by the keyboard.
@@ -219,6 +233,8 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
   }
   const onEndReached = config.onEndReached
   const onAtEndChanged = config.onAtEndChanged
+  const onFollowChanged = config.onFollowChanged
+  const onKeyboardMoved = config.onKeyboardMoved
   // The one content view a scroll view needs. The list module fills it.
   const content = el('view')(
     [
@@ -257,6 +273,33 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
                     (event as { detail?: { isAtEnd?: boolean } }).detail?.isAtEnd === true,
                   ),
                 ),
+            }),
+          ]),
+      ...(onFollowChanged === undefined
+        ? []
+        : [
+            OnCustomEvent({
+              name: FOLLOW_CHANGED,
+              f: (event: unknown) =>
+                Option.some(
+                  onFollowChanged(
+                    (event as { detail?: { isFollowing?: boolean } }).detail?.isFollowing === true,
+                  ),
+                ),
+            }),
+          ]),
+      ...(onKeyboardMoved === undefined
+        ? []
+        : [
+            OnCustomEvent({
+              name: KEYBOARD_MOVED,
+              f: (event: unknown) => {
+                const detail = (event as { detail?: { phase?: unknown; height?: unknown } }).detail
+                const phase = detail?.phase
+                return phase === 'start' || phase === 'end' || phase === 'interactive'
+                  ? Option.some(onKeyboardMoved(phase, typeof detail?.height === 'number' ? detail.height : undefined))
+                  : Option.none()
+              },
             }),
           ]),
     ],

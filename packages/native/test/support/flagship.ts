@@ -16,7 +16,7 @@ import * as Device from '../../src/device/index.js'
 import { registerNavigation } from '../../src/index.js'
 import { ActionSheet } from '../../src/menus/index.js'
 import { registerSearchBar } from '../../src/foldkit/navigation/searchBar.js'
-import { makeChatApp } from '../../flagship/app.js'
+import { type ChatAppOptions, makeChatApp } from '../../flagship/app.js'
 import { appearanceTest } from '../../flagship/appearance.js'
 import { type Phone, byTestId, flatten, hasTestId, press, startPhone, textOf } from './phone.js'
 
@@ -45,6 +45,8 @@ export const startChatPhone = async (
     timing?: Timing
     device?: ReturnType<typeof Device.makeTest>
     now?: number
+    /** Hears every Message the program handles. See `ChatAppOptions.onMessage`. */
+    onMessage?: ChatAppOptions['onMessage']
   }> = {},
 ) => {
   registerNavigation()
@@ -62,7 +64,12 @@ export const startChatPhone = async (
     phone.surface.container,
     { device: { platform, osVersion: platform === 'ios' ? 26 : 35 } },
     Layer.mergeAll(device.layer, sheet.layer, appearance.layer),
-    { server, extra: Layer.succeed(Clock.Clock, clock), now: () => options.now ?? NOW },
+    {
+      server,
+      extra: Layer.succeed(Clock.Clock, clock),
+      now: () => options.now ?? NOW,
+      ...(options.onMessage === undefined ? {} : { onMessage: options.onMessage }),
+    },
   )
   const handle = Runtime.embed(app.program)
 
