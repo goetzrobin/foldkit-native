@@ -231,7 +231,7 @@ const makeUpdate = (env: DemoEnv) => {
   })
 
   return (model: Model, message: Message) =>
-    Message.match<Update.Return<Model, Message>>(message, {
+    Message.match<Update.Return<Model, Message, ActionSheet.ActionSheet>>(message, {
       PressedExit: () => ({ model, commands: [Exit()] }),
       CompletedExit: () => ({ model }),
       SelectedCardAction: ({ key }) => ({

@@ -113,10 +113,34 @@ describe('finding Expo UI', () => {
   })
 
   it("names a view as Expo does, with Expo Go's project name where there is one", async () => {
-    prepare('ios', expoWith([], 'abc123'))
+    phone = prepare('ios', expoWith([], 'abc123'))
     expect(expoViewName('ExpoUI', 'HostView')).toBe(`${UI}HostView_abc123`)
-    const { fabric } = await start('ios', true)
-    expect(byTestId(fabric, 'switch').viewName).toBe(`${UI}HostView`)
+    running = Runtime.embed(
+      makeDemo(
+        phone.surface.container,
+        { device: { platform: 'ios', osVersion: 27 }, exit: () => {} },
+        ActionSheet.makeTest().layer,
+      ),
+    )
+    await settle()
+    expect(byTestId(phone.fabric, 'switch').viewName).toBe(`${UI}HostView_abc123`)
+    expect(byTestId(phone.fabric, 'switch').children[0]!.viewName).toBe(`${UI}ToggleView_abc123`)
+  })
+
+  it('names the views again when Expo Go only tells the project name later', async () => {
+    const expo: { __expo_app_identifier__?: string } & ReturnType<typeof expoWith> = { ...expoWith() }
+    phone = prepare('ios', expo)
+    // After registerExpoUi, before the first draw.
+    expo.__expo_app_identifier__ = 'late'
+    running = Runtime.embed(
+      makeDemo(
+        phone.surface.container,
+        { device: { platform: 'ios', osVersion: 27 }, exit: () => {} },
+        ActionSheet.makeTest().layer,
+      ),
+    )
+    await settle()
+    expect(byTestId(phone.fabric, 'switch').viewName).toBe(`${UI}HostView_late`)
   })
 
   it('falls back when the build lacks the views a menu needs', () => {
