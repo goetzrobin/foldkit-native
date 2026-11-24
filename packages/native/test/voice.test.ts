@@ -719,6 +719,24 @@ describe('the audio session shared by recorder and player', () => {
     expect(fake.recorders[0]?.getStatus().isRecording).toBe(true)
   })
 
+  it('at the end the player is paused and wound back, so the next play starts from 0', async () => {
+    const player = Player.makeTest()
+    await Effect.runPromise(player.service.play('file:///a.m4a', 1))
+    player.audio.advance(4000)
+    const before = player.audio.calls.length
+    player.audio.advance(7000)
+    // Paused before the seek: on Android a seek alone would start it again.
+    expect(player.audio.calls.slice(before)).toEqual(['player.pause', 'seekTo(0)'])
+    const seen: Array<Device.Player.PlayerEvent> = []
+    player.service.events.subscribe(event => seen.push(event))
+    expect(seen).toEqual([
+      {
+        _tag: 'Changed',
+        playback: { uri: 'file:///a.m4a', positionMs: 0, durationMs: 10_000, isPlaying: false },
+      },
+    ])
+  })
+
   it('sets the phone up for the speaker once, before the first play', async () => {
     const player = Player.makeTest()
     await Effect.runPromise(player.service.play('file:///a.m4a', 1))
