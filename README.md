@@ -33,6 +33,7 @@ Foldkit program.
 | Server state | A crew list from a pretend server, kept in a cache outside the Model. A panel says what was loaded, when and why. Buttons slow the server, fail a request, and edit from "another device". See `docs/SERVER_STATE.md`. |
 | Swipe actions | Rows you drag sideways for actions: an inbox with separate rounded tiles and full swipe to delete with Undo, a task list in the classic strip, and chat bubbles that show their time. Controls pick what moves the rows (the UI thread or JavaScript) and say why. See `docs/SWIPE_ACTIONS.md`. |
 | Swipe actions (native view) | Inbox rows that swipe to show Flag, Delete and Read, drawn and moved by this project's own native view: Swift (UIKit) on iOS, Kotlin on Android, in `apps/showcase/modules/foldkit-swipe`. It needs an app you build yourself. In Expo Go the rows show but do not swipe, and a line says so. The native code has not been compiled or run yet. See `docs/NATIVE_VIEWS.md`. |
+| Sheets | The phone's own bottom sheets: three heights with the screen behind still usable, fit to content, a text field above the keyboard, a 500-row list, a footer, asking before closing, a sheet over a sheet, and screens inside a sheet. |
 
 Chat and AI chat have a button that goes round three ways of keeping the text
 field above the keyboard: "Keyboard: inset" (the default: the messages are not

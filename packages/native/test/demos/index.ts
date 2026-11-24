@@ -20,6 +20,7 @@ import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeMot } from './mot.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import { makeDemo as makeServerState } from './serverState.js'
+import { makeDemo as makeSheets } from './sheets.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
 import { makeDemo as makeSwipe } from './swipe.js'
@@ -145,5 +146,22 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Swipe actions (native view)',
     blurb: 'Rows drawn by our own Swift and Kotlin. A line says if this build has them. Not in Expo Go.',
     start: (container, env) => Runtime.embed(makeSwipeNative(container, env)),
+  },
+  },
+  {
+    id: 'sheets',
+    title: 'Sheets',
+    blurb: 'Bottom sheets: three heights, fit to content, a text field, a long list, a footer, asking before closing.',
+    start: (container, env) =>
+      Runtime.embed(
+        makeSheets(
+          container,
+          {
+            ...env,
+            ...(resources.backSource === undefined ? {} : { backSource: resources.backSource }),
+          },
+          resources.device,
+        ),
+      ),
   },
 ]
