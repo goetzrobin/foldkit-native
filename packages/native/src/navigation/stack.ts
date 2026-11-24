@@ -31,13 +31,7 @@ import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderT
 import { prop } from '../attributes.js'
 import { registerModule } from '../extend.js'
 import { nodeOf } from '../modules.js'
-import {
-  SHEET_CONTENT,
-  SHEET_CONTENT_FIT,
-  SHEET_CONTENT_FIT_STYLE,
-  SHEET_CONTENT_STYLE,
-  SHEET_FOOTER,
-} from './sheets.js'
+import { SHEET_CONTENT, SHEET_FOOTER } from './sheets.js'
 
 const el = element<any>()
 
@@ -116,8 +110,9 @@ export const registerNavigation = (): void => {
   // What goes inside a sheet: see `sheets.ts`. The footer is Android's. iOS
   // has a view of that name that does nothing, and `sheetFooter` does not
   // draw it there.
-  registerViewName(SHEET_CONTENT, 'RNSScreenContentWrapper', SHEET_CONTENT_STYLE)
-  registerViewName(SHEET_CONTENT_FIT, 'RNSScreenContentWrapper', SHEET_CONTENT_FIT_STYLE)
+  // No default styles here: the engine keeps one default per native view, not
+  // per name, and the content view needs two sets. `sheetContent` sends them.
+  registerViewName(SHEET_CONTENT, 'RNSScreenContentWrapper')
   registerViewName(SHEET_FOOTER, 'RNSScreenFooter')
   // Tabs have one native view per platform. The fills are the ones
   // react-native-screens' wrappers give them. A tab's screen is absolute

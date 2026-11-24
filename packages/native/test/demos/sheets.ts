@@ -17,6 +17,11 @@
  *   Footer       buttons that stay at the bottom edge of the sheet.
  *
  * Every sheet is the phone's own (see `src/navigation/sheets.ts`).
+ *
+ * "Show numbers" prints the sizes the app has for the open sheet's parts:
+ * the window, the sheet's screen, its content, its scroll view and its
+ * footer. Nobody who works on this can see the phone, so a screenshot of
+ * those lines is how a wrong layout is found.
  */
 import { Effect, type Layer, Schema } from 'effect'
 import { Command, Runtime, Subscription, type Update } from 'foldkit'
@@ -58,6 +63,7 @@ import {
   stackOf,
   style,
 } from '../../src/navigation.js'
+import { formatSheetNumbers, readSheetNumbers, sheetProbe } from '../../src/navigation/sheets.js'
 
 export type DemoEnv = Readonly<{
   device: Device
@@ -113,6 +119,9 @@ export const Model = Schema.Struct({
   inner: Schema.Array(Schema.Number),
   saves: Schema.Number,
   pressedRow: Schema.Number,
+  showsNumbers: Schema.Boolean,
+  /** The sizes last read, one line per part. */
+  numbers: Schema.Array(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -140,6 +149,9 @@ export const Message = defineMessageUnion({
   PressedSave: {},
   PressedRow: { index: Schema.Number },
   PressedHardwareBack: {},
+  PressedToggleNumbers: {},
+  PressedReadNumbers: {},
+  ReadNumbers: { lines: Schema.Array(Schema.String) },
   PressedExit: {},
   CompletedExit: {},
 })
@@ -172,21 +184,28 @@ const close = (model: Model, count: number, lastEvent: string): Model => {
 /** One Command, as `update` returns them. */
 type DemoCommand = NonNullable<Update.Return<Model, Message>['commands']>[number]
 
+/** How long a sheet is given to arrive before its sizes are read by themselves. */
+const SETTLE_MS = 700
+
 const makeUpdate =
-  (Exit: () => DemoCommand) =>
-  (model: Model, message: Message) =>
-    Message.match<Update.Return<Model, Message>>(message, {
+  (Exit: () => DemoCommand, ReadNumbers: (args: { afterMs: number }) => DemoCommand) =>
+  (model: Model, message: Message) => {
+    /** Reads the sizes again after a change, while they are shown. */
+    const reading = (next: Model): Update.Return<Model, Message> =>
+      next.showsNumbers ? { model: next, commands: [ReadNumbers({ afterMs: SETTLE_MS })] } : { model: next }
+    return Message.match<Update.Return<Model, Message>>(message, {
       PressedCount: () => ({
         model: modifyFields(said(model, 'The counter button was pressed.'), {
           counter: counter => counter + 1,
         }),
       }),
 
-      PressedOpen: ({ route }) => ({
-        model: modifyFields(said(model, `The Model opened: ${route._tag}.`), {
-          routes: routes => push(routes, route),
-        }),
-      }),
+      PressedOpen: ({ route }) =>
+        reading(
+          modifyFields(said(model, `The Model opened: ${route._tag}.`), {
+            routes: routes => push(routes, route),
+          }),
+        ),
       PressedClose: () => ({
         model:
           topOf(model) === 'AskFirst' && isUnsaved(model)
@@ -207,11 +226,12 @@ const makeUpdate =
             : close(model, count, 'The phone closed the sheet (a drag down or a tap beside it).'),
       }),
 
-      MovedMapsByPhone: ({ index }) => ({
-        model: modifyFields(said(model, `The phone moved the sheet to ${MAPS_NAMES[index] ?? index}.`), {
-          maps: maps => sheetMovedByPhone(maps, index),
-        }),
-      }),
+      MovedMapsByPhone: ({ index }) =>
+        reading(
+          modifyFields(said(model, `The phone moved the sheet to ${MAPS_NAMES[index] ?? index}.`), {
+            maps: maps => sheetMovedByPhone(maps, index),
+          }),
+        ),
       PressedMoveMaps: ({ index }) => ({
         model:
           topOf(model) !== 'Maps'
@@ -305,9 +325,20 @@ const makeUpdate =
               : close(model, 1, 'Back closed the sheet.'),
       }),
 
+      PressedToggleNumbers: () =>
+        model.showsNumbers
+          ? { model: modifyFields(model, { showsNumbers: () => false, numbers: () => [] }) }
+          : {
+              model: modifyFields(model, { showsNumbers: () => true }),
+              commands: [ReadNumbers({ afterMs: 0 })],
+            },
+      PressedReadNumbers: () => ({ model, commands: [ReadNumbers({ afterMs: 0 })] }),
+      ReadNumbers: ({ lines }) => ({ model: modifyFields(model, { numbers: () => lines }) }),
+
       PressedExit: () => ({ model, commands: [Exit()] }),
       CompletedExit: () => ({ model }),
     })
+  }
 
 export const init: Runtime.ElementInit<Model, Message> = () => ({
   model: {
@@ -325,6 +356,8 @@ export const init: Runtime.ElementInit<Model, Message> = () => ({
     inner: [1],
     saves: 0,
     pressedRow: -1,
+    showsNumbers: false,
+    numbers: [],
   },
 })
 
@@ -379,6 +412,43 @@ const mapsStatus = (model: Model): string =>
       `(height ${model.maps.detent + 1} of ${MAPS_DETENTS.length}).`
     : 'Maps-style sheet: closed.'
 
+/**
+ * The sizes last read, with a button to read them again. `id` keeps the
+ * button's name apart from the same block on another screen.
+ */
+const numbersBlock = (model: Model, h: HtmlBuilder<Message>, id: string): ReadonlyArray<Html> =>
+  model.showsNumbers
+    ? [
+        box(
+          [prop('testID', `${id}-numbers`), style({ paddingHorizontal: 16, paddingBottom: 8, gap: 4 })],
+          [
+            box(
+              [
+                h.Attribute('testID', `${id}-read-numbers`),
+                prop('accessibilityRole', 'button'),
+                h.OnClick(Message.PressedReadNumbers()),
+                style({
+                  alignSelf: 'flex-start',
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
+                  backgroundColor: QUIET,
+                }),
+              ],
+              [text([style({ color: PAPER, fontSize: 13, fontWeight: '600' })], ['Read numbers again'])],
+            ),
+            ...(model.numbers.length === 0 ? ['Not read yet.'] : model.numbers).map(words =>
+              text([style({ color: INK, fontSize: 12 })], [words]),
+            ),
+            hint(
+              'Sizes are width x height at left,top. Scroll a list a little first: its "native ' +
+                'viewport" is the size the phone really gave it.',
+            ),
+          ],
+        ),
+      ]
+    : []
+
 /** The part of the main screen that does not scroll. It stays above a low sheet. */
 const panel = (model: Model, h: HtmlBuilder<Message>): Html =>
   box(
@@ -405,6 +475,18 @@ const panel = (model: Model, h: HtmlBuilder<Message>): Html =>
           'slide an open sheet to another height, so the sheet leaves and comes back at the new one.',
       ),
       line('last-event', `Last event: ${model.lastEvent}`),
+      box(
+        [style({ flexDirection: 'row' })],
+        [
+          button(
+            h,
+            'toggle-numbers',
+            `Show numbers: ${model.showsNumbers ? 'ON' : 'OFF'}`,
+            QUIET,
+            Message.PressedToggleNumbers(),
+          ),
+        ],
+      ),
     ],
   )
 
@@ -481,24 +563,45 @@ const home = (model: Model, h: HtmlBuilder<Message>, device: Device): ReadonlyAr
   ]),
 ]
 
-/** A sheet's title with a Close button beside it. Always a real view: see `sheetContent`. */
-const titleRow = (h: HtmlBuilder<Message>, id: string, words: string): Html =>
+/**
+ * A sheet's title with a Close button beside it, and the numbers under it
+ * while they are shown. Always a real view: see `sheetContent`.
+ */
+const titleRow = (model: Model, h: HtmlBuilder<Message>, id: string, words: string): Html =>
   box(
+    [prop('collapsable', false)],
     [
-      prop('collapsable', false),
-      style({
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 8,
-      }),
+      box(
+        [
+          style({
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingTop: 16,
+            paddingBottom: 8,
+          }),
+        ],
+        [
+          text(
+            [prop('testID', `${id}-title`), style({ color: INK, fontSize: 20, fontWeight: '700' })],
+            [words],
+          ),
+          button(h, `${id}-close`, 'Close', QUIET, Message.PressedClose()),
+        ],
+      ),
+      ...numbersBlock(model, h, id),
     ],
-    [
-      text([prop('testID', `${id}-title`), style({ color: INK, fontSize: 20, fontWeight: '700' })], [words]),
-      button(h, `${id}-close`, 'Close', QUIET, Message.PressedClose()),
-    ],
+  )
+
+/** A sheet's content view, marked so that its size can be read. */
+const content = (
+  options: Parameters<typeof sheetContent>[0],
+  children: ReadonlyArray<Html>,
+): Html =>
+  sheetContent(
+    { ...options, attributes: [...(options.attributes ?? []), sheetProbe('content')] },
+    children,
   )
 
 const FILL = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } as const
@@ -523,10 +626,10 @@ const mapsSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => {
       }),
     ],
     children: [
-      sheetContent({ attributes: [prop('testID', 'maps-content')] }, [
+      content({ attributes: [prop('testID', 'maps-content')] }, [
         ...(hasGlass ? [glass([style(FILL)], [])] : []),
         sheetHandle(device),
-        titleRow(h, 'maps', 'Places'),
+        titleRow(model, h, 'maps', 'Places'),
         box(
           [style({ paddingHorizontal: 16, gap: 8 })],
           [
@@ -556,8 +659,8 @@ const fitSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => ({
     ...sheet<Message>({ device, detents: 'fit', cornerRadius: RADIUS, background: PAPER }),
   ],
   children: [
-    sheetContent({ fit: true, attributes: [prop('testID', 'fit-content')] }, [
-      titleRow(h, 'fit', 'Fits its content'),
+    content({ fit: true, attributes: [prop('testID', 'fit-content')] }, [
+      titleRow(model, h, 'fit', 'Fits its content'),
       box(
         [style({ paddingHorizontal: 16, paddingBottom: 32, gap: 8 })],
         [
@@ -575,7 +678,7 @@ const fitSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => ({
 
 const composerBar = (model: Model, h: HtmlBuilder<Message>): Html =>
   box(
-    [style({ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 })],
+    [sheetProbe('bar'), style({ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 })],
     [
       textInput(
         [
@@ -617,15 +720,21 @@ const composerSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) =>
   children: sheetComposer(h, device, {
     keyboardHeight: model.keyboardCovers,
     backgroundColor: BAR,
-    attributes: [prop('testID', 'composer-content')],
+    attributes: [prop('testID', 'composer-content'), sheetProbe('content')],
     above: [
       box(
         [style({ flex: 1 })],
         [
           sheetHandle(device),
-          titleRow(h, 'composer', 'Write something'),
+          titleRow(model, h, 'composer', 'Write something'),
           scrollView(
-            [prop('testID', 'lines'), ...sheetScrolls(), dismissKeyboardOnDrag(), style({ flex: 1 })],
+            [
+              prop('testID', 'lines'),
+              sheetProbe('scroll'),
+              ...sheetScrolls(),
+              dismissKeyboardOnDrag(),
+              style({ flex: 1 }),
+            ],
             model.lines.map((words, index) =>
               box(
                 [style({ paddingVertical: 10, paddingHorizontal: 16 })],
@@ -656,12 +765,12 @@ const listSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => ({
   ],
   children: [
     // A title row and then the list: iOS sizes the list to the rest of the sheet.
-    sheetContent({ attributes: [prop('testID', 'list-content')] }, [
+    content({ attributes: [prop('testID', 'list-content')] }, [
       box(
         [prop('collapsable', false)],
         [
           sheetHandle(device),
-          titleRow(h, 'list', `${ROW_COUNT} rows`),
+          titleRow(model, h, 'list', `${ROW_COUNT} rows`),
           box(
             [style({ paddingHorizontal: 16, paddingBottom: 8 })],
             [
@@ -693,7 +802,12 @@ const listSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => ({
             ],
             [text([style({ color: INK, fontSize: 16 })], [`Row ${index + 1}`])],
           ),
-        attributes: [prop('testID', 'sheet-rows'), ...sheetScrolls(), style({ flex: 1 })],
+        attributes: [
+          prop('testID', 'sheet-rows'),
+          sheetProbe('scroll'),
+          ...sheetScrolls(),
+          style({ flex: 1 }),
+        ],
       }),
     ]),
   ],
@@ -707,9 +821,9 @@ const askFirstSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) =>
     ...backBlocked(isUnsaved(model), () => Message.TriedToCloseAskFirst()),
   ],
   children: [
-    sheetContent({}, [
+    content({}, [
       sheetHandle(device),
-      titleRow(h, 'ask', 'Asks before closing'),
+      titleRow(model, h, 'ask', 'Asks before closing'),
       box(
         [style({ paddingHorizontal: 16, gap: 8 })],
         [
@@ -751,6 +865,7 @@ const askFirstSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) =>
 })
 
 const plainSheet = (
+  model: Model,
   h: HtmlBuilder<Message>,
   device: Device,
   id: string,
@@ -764,9 +879,9 @@ const plainSheet = (
     ...sheet<Message>({ device, detents: [detent], hasGrabber: true, cornerRadius: RADIUS, background: PAPER }),
   ],
   children: [
-    sheetContent({}, [
+    content({}, [
       sheetHandle(device),
-      titleRow(h, id, name),
+      titleRow(model, h, id, name),
       box([style({ paddingHorizontal: 16, gap: 8 })], children),
     ]),
   ],
@@ -798,6 +913,7 @@ const screensSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => 
               [style({ flex: 1, backgroundColor: PAPER, padding: 16, gap: 8 })],
               [
                 line(place.isTop ? 'inner-depth' : `inner-depth-${id}`, `Screen ${place.index + 1} of ${model.inner.length} inside the sheet.`),
+                ...(place.isTop ? numbersBlock(model, h, 'screens') : []),
                 hint(
                   'The title bar above belongs to the sheet. Push a screen: it should slide in ' +
                     'inside the sheet, with a back button.',
@@ -827,11 +943,11 @@ const footerSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => (
     ...sheet<Message>({ device, detents: [0.5, 1], hasGrabber: true, cornerRadius: RADIUS, background: PAPER }),
   ],
   children: [
-    sheetContent({ keepsOwnLayout: true, attributes: [prop('testID', 'footer-content')] }, [
+    content({ keepsOwnLayout: true, attributes: [prop('testID', 'footer-content')] }, [
       sheetHandle(device),
-      titleRow(h, 'footer', 'With a footer'),
+      titleRow(model, h, 'footer', 'With a footer'),
       scrollView(
-        [...sheetScrolls(), style({ flex: 1 })],
+        [prop('testID', 'footer-scroll'), sheetProbe('scroll'), ...sheetScrolls(), style({ flex: 1 })],
         [
           box(
             [style({ paddingHorizontal: 16, gap: 8, paddingBottom: 16 })],
@@ -850,7 +966,11 @@ const footerSheet = (model: Model, h: HtmlBuilder<Message>, device: Device) => (
     ]),
     sheetFooter(
       device,
-      [prop('testID', 'footer-bar'), style({ backgroundColor: BAR, borderTopWidth: 1, borderTopColor: LINE })],
+      [
+        prop('testID', 'footer-bar'),
+        sheetProbe('footer'),
+        style({ backgroundColor: BAR, borderTopWidth: 1, borderTopColor: LINE }),
+      ],
       [
         box(
           [style({ flexDirection: 'row', gap: 8, padding: 12, alignItems: 'center' })],
@@ -880,15 +1000,26 @@ const keyOf = (model: Model, route: Route): string =>
     Footer: () => 'footer',
   })
 
+type SheetView = Readonly<{
+  isModal?: boolean
+  attributes: ReadonlyArray<any>
+  children: ReadonlyArray<Html>
+}>
+
+/** Marks a sheet's screen so that its size can be read. */
+const marked = (isMarked: boolean, view: SheetView): SheetView =>
+  isMarked ? { ...view, attributes: [...view.attributes, sheetProbe('screen')] } : view
+
 export const makeView =
   (device: Device) =>
   (model: Model, h: HtmlBuilder<Message>): Html =>
     stackOf<Route, Message>(h, model.routes, {
-      attributes: [h.Attribute('testID', 'sheets')],
+      attributes: [h.Attribute('testID', 'sheets'), sheetProbe('window')],
       key: route => keyOf(model, route),
       onPoppedByPhone: count => Message.ClosedByPhone({ count }),
-      screen: route =>
-        Route.match(route, {
+      screen: (route, place) =>
+        // The sheet on top is the one whose sizes are read.
+        marked(place.isTop && !place.isRoot, Route.match(route, {
           Home: () => ({
             attributes: [h.Attribute('testID', 'home')],
             children: home(model, h, device),
@@ -899,17 +1030,17 @@ export const makeView =
           LongList: () => listSheet(model, h, device),
           AskFirst: () => askFirstSheet(model, h, device),
           Lower: () =>
-            plainSheet(h, device, 'lower', 'The first sheet', 0.7, [
+            plainSheet(model, h, device, 'lower', 'The first sheet', 0.7, [
               hint('Open a second sheet over this one. Closing the second must leave this one open.'),
               button(h, 'open-upper', 'Open a sheet over this one', ACCENT, Message.PressedOpen({ route: Route.Upper() })),
             ]),
           Upper: () =>
-            plainSheet(h, device, 'upper', 'The second sheet', 0.4, [
+            plainSheet(model, h, device, 'upper', 'The second sheet', 0.4, [
               hint('This sheet lies over the first one. Close it by its button or by a drag down.'),
             ]),
           Screens: () => screensSheet(model, h, device),
           Footer: () => footerSheet(model, h, device),
-        }),
+        })),
     })
 
 // PROGRAM
@@ -930,6 +1061,14 @@ export const makeDemo = (
       return Message.CompletedExit()
     }),
   })
+  const ReadNumbers = Command.define('ReadNumbers', {
+    args: { afterMs: Schema.Number },
+    messages: [Message.ReadNumbers],
+    execute: ({ afterMs }) =>
+      Effect.sleep(afterMs).pipe(
+        Effect.map(() => Message.ReadNumbers({ lines: [...formatSheetNumbers(readSheetNumbers())] })),
+      ),
+  })
   const subscriptions = Subscription.make<Model, Message, Keyboard.Keyboard>()(() => ({
     keyboard: Keyboard.changesEntry(message => Message.GotKeyboardMessage({ message })),
     back: hardwareBack<Model, Message>(env.backSource ?? noBackSource, {
@@ -940,7 +1079,7 @@ export const makeDemo = (
   return Runtime.makeElement({
     Model,
     init,
-    update: makeUpdate(Exit),
+    update: makeUpdate(Exit, ReadNumbers),
     view: makeView(env.device),
     subscriptions,
     resources,

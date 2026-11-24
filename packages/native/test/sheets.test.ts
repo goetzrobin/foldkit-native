@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Keyboard } from '../src/device/index.js'
 import { DOCK_CONTENT_ID } from '../src/keyboard/dock.js'
 import { configureMotion, stopMotion } from '../src/motion/clock.js'
-import { registerNavigation } from '../src/index.js'
+import { registerNavigation, style } from '../src/index.js'
 import {
   type BackSource,
   moveSheet,
@@ -14,6 +14,11 @@ import {
   sheetKey,
   sheetMovedByPhone,
 } from '../src/navigation.js'
+import {
+  formatSheetNumbers,
+  readSheetNumbers,
+  sheetContent,
+} from '../src/navigation/sheets.js'
 import { MAPS_DETENTS, makeDemo } from './demos/sheets.js'
 import type { FakeFabricNode } from '@ng-native/testing/fake'
 import {
@@ -603,5 +608,159 @@ describe('what differs between the phones', () => {
     const ios = await start('ios')
     await press(ios.phone.fabric, 'open-maps')
     expect(pill(ios.phone)).toBe(false)
+  })
+})
+
+describe("the content view's own styles", () => {
+  const styleOf = (vnode: unknown): unknown =>
+    (vnode as { data?: { props?: { style?: unknown } } }).data?.props?.style
+
+  it('fills the sheet, or is as tall as its content for a fitted sheet', () => {
+    expect(styleOf(sheetContent({}, []))).toEqual({ flex: 1 })
+    expect(styleOf(sheetContent({ fit: true }, []))).toEqual({
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+    })
+  })
+
+  it("lays the caller's style over its own and keeps both", () => {
+    expect(
+      styleOf(sheetContent({ attributes: [style({ backgroundColor: '#fff', padding: 4 })] }, [])),
+    ).toEqual({ flex: 1, backgroundColor: '#fff', padding: 4 })
+  })
+
+  for (const platform of ['ios', 'android'] as const) {
+    // The fault seen on an iPhone: every content view was taken out of the
+    // layout, so a footer after it sat at the top of the sheet.
+    it(`${platform}: a content view that is not fitted takes part in the layout`, async () => {
+      const { phone } = await start(platform)
+      for (const [open, id] of [
+        ['open-footer', 'footer-content'],
+        ['open-composer', 'composer-content'],
+        ['open-list', 'list-content'],
+        ['open-maps', 'maps-content'],
+      ] as const) {
+        await press(phone.fabric, open)
+        const content = byTestId(phone.fabric, id)
+        expect(content.props['flex']).toBe(1)
+        expect(content.props['position']).toBeUndefined()
+        expect(content.props['top']).toBeUndefined()
+      }
+    })
+  }
+
+  it('iOS: the footer comes after a content view that takes the room above it', async () => {
+    const { phone } = await start('ios')
+    await press(phone.fabric, 'open-footer')
+    const [content, bar] = byTestId(phone.fabric, 'footer').children
+    expect(content?.props['flex']).toBe(1)
+    expect(content?.props['position']).toBeUndefined()
+    // The footer has no place of its own: the column puts it under the content.
+    expect(bar?.props['testID']).toBe('footer-bar')
+    expect(bar?.props['position']).toBeUndefined()
+    expect(bar?.props['flex']).toBeUndefined()
+    // The scroll view is inside a view that fills the content view.
+    expect(content?.children[0]?.props['flex']).toBe(1)
+    expect(byTestId(phone.fabric, 'footer-scroll').props['flex']).toBe(1)
+  })
+
+  it('iOS: the keyboard dock is inside a view that fills the content view', async () => {
+    const { phone } = await start('ios')
+    await press(phone.fabric, 'open-composer')
+    const content = byTestId(phone.fabric, 'composer-content')
+    expect(content.props['flex']).toBe(1)
+    expect(content.children[0]?.props['flex']).toBe(1)
+  })
+})
+
+describe('the numbers of a sheet', () => {
+  const PROBE = 'foldkit-sheet-probe:'
+
+  it('formats what is and is not known', () => {
+    expect(formatSheetNumbers([])).toEqual(['No marked view on screen.'])
+    expect(
+      formatSheetNumbers([
+        {
+          name: 'screen',
+          layout: { x: 0, y: 0, width: 393, height: 767.4 },
+          inWindow: null,
+          scrolled: null,
+          detent: 1,
+        },
+        {
+          name: 'scroll',
+          layout: null,
+          inWindow: { x: 0, y: 150, width: 393, height: 600 },
+          scrolled: {
+            viewport: { x: 0, y: 0, width: 393, height: 598 },
+            content: { x: 0, y: 0, width: 393, height: 1200 },
+          },
+          detent: null,
+        },
+      ]),
+    ).toEqual([
+      'screen: layout 393x767 at 0,0, in window not reported, detent 1',
+      'scroll: layout not reported, in window 393x600 at 0,150, native viewport 393x598, content height 1200',
+    ])
+  })
+
+  it('shows nothing until asked, then one line for each part of the open sheet', async () => {
+    const { phone } = await start('ios')
+    await press(phone.fabric, 'open-footer')
+    expect(hasTestId(phone.fabric, 'footer-numbers')).toBe(false)
+    expect(readSheetNumbers().map(each => each.name).sort()).toEqual([
+      'content',
+      'footer',
+      'screen',
+      'scroll',
+      'window',
+    ])
+
+    phone.fabric.frames.set(`${PROBE}screen`, { x: 0, y: 107, width: 393, height: 767 })
+    phone.fabric.frames.set(`${PROBE}footer`, { x: 0, y: 772, width: 393, height: 102 })
+    phone.fabric.emit(byTestId(phone.fabric, 'footer'), 'topLayout', {
+      layout: { x: 0, y: 0, width: 393, height: 767 },
+    })
+    phone.fabric.emit(byTestId(phone.fabric, 'footer'), 'topSheetDetentChanged', {
+      index: 1,
+      isStable: true,
+    })
+    phone.fabric.emit(byTestId(phone.fabric, 'footer-bar'), 'topLayout', {
+      layout: { x: 0, y: 665, width: 393, height: 102 },
+    })
+    phone.fabric.emit(byTestId(phone.fabric, 'footer-scroll'), 'topScroll', {
+      contentOffset: { x: 0, y: 10 },
+      layoutMeasurement: { width: 393, height: 580 },
+      contentSize: { width: 393, height: 900 },
+    })
+
+    // The home screen is under the sheet, and its button still takes a press.
+    await press(phone.fabric, 'toggle-numbers')
+    const shown = textOf(byTestId(phone.fabric, 'footer-numbers'))
+    expect(shown).toContain('screen: layout 393x767 at 0,0, in window 393x767 at 0,107, detent 1')
+    expect(shown).toContain('footer: layout 393x102 at 0,665, in window 393x102 at 0,772')
+    expect(shown).toContain('native viewport 393x580, content height 900')
+    expect(shown).toContain('content: layout not reported')
+
+    // Read again after the phone says something new.
+    phone.fabric.emit(byTestId(phone.fabric, 'footer-bar'), 'topLayout', {
+      layout: { x: 0, y: 300, width: 393, height: 102 },
+    })
+    await press(phone.fabric, 'footer-read-numbers')
+    expect(textOf(byTestId(phone.fabric, 'footer-numbers'))).toContain(
+      'footer: layout 393x102 at 0,300',
+    )
+
+    await press(phone.fabric, 'toggle-numbers')
+    expect(hasTestId(phone.fabric, 'footer-numbers')).toBe(false)
+  })
+
+  it('forgets the parts of a sheet that has closed', async () => {
+    const { phone } = await start('android')
+    await press(phone.fabric, 'open-footer')
+    await press(phone.fabric, 'footer-cancel')
+    expect(readSheetNumbers().map(each => each.name)).toEqual(['window'])
   })
 })
