@@ -15,7 +15,7 @@
  * same screens and agree with the phone again.
  *
  * A screen can also arrive as a modal or a sheet: see `modalScreen`,
- * `presentation` and `sheet`. And it can refuse to be closed by the phone:
+ * `presentation` and `sheet`. Sheets have more in `sheets.ts`. And it can refuse to be closed by the phone:
  * see `backBlocked`.
  *
  * The views are react-native-screens' native ones. None of its JavaScript is
@@ -31,6 +31,13 @@ import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderT
 import { prop } from '../attributes.js'
 import { registerModule } from '../extend.js'
 import { nodeOf } from '../modules.js'
+import {
+  SHEET_CONTENT,
+  SHEET_CONTENT_FIT,
+  SHEET_CONTENT_FIT_STYLE,
+  SHEET_CONTENT_STYLE,
+  SHEET_FOOTER,
+} from './sheets.js'
 
 const el = element<any>()
 
@@ -106,6 +113,12 @@ export const registerNavigation = (): void => {
     justifyContent: 'center',
   })
   registerViewName('screen-safe-area', 'RNSSafeAreaView', { flex: 1 })
+  // What goes inside a sheet: see `sheets.ts`. The footer is Android's. iOS
+  // has a view of that name that does nothing, and `sheetFooter` does not
+  // draw it there.
+  registerViewName(SHEET_CONTENT, 'RNSScreenContentWrapper', SHEET_CONTENT_STYLE)
+  registerViewName(SHEET_CONTENT_FIT, 'RNSScreenContentWrapper', SHEET_CONTENT_FIT_STYLE)
+  registerViewName(SHEET_FOOTER, 'RNSScreenFooter')
   // Tabs have one native view per platform. The fills are the ones
   // react-native-screens' wrappers give them. A tab's screen is absolute
   // because all of them share one space, with one visible at a time.
@@ -197,34 +210,9 @@ export const scrollEdgeEffects = (
   prop('rightScrollEdgeEffect', edges.right ?? 'automatic'),
 ]
 
-export type SheetOptions = Readonly<{
-  /** Heights the sheet rests at, as parts of the screen: `[0.5, 1]`. */
-  detents?: ReadonlyArray<number>
-  /** Which of `detents` it opens at. The first, unless said. */
-  initialDetent?: number
-  /** The small bar at the top that says "drag me". */
-  hasGrabber?: boolean
-  /** Corner radius in points. The phone's own, unless said. */
-  cornerRadius?: number
-}>
-
-/**
- * A sheet that slides up from the bottom: `modalScreen([...sheet({ detents:
- * [0.5, 1] }), ...], [...])`. Spread it into the screen's attributes.
- *
- * Each value is sent every time, as react-native-screens' own wrapper sends
- * them: two of its defaults differ from the native ones.
- */
-export const sheet = (options: SheetOptions = {}) => [
-  presentation('formSheet'),
-  prop('sheetAllowedDetents', [...(options.detents ?? [1])]),
-  prop('sheetInitialDetent', options.initialDetent ?? 0),
-  // -1: the screen behind is dimmed at every height.
-  prop('sheetLargestUndimmedDetent', -1),
-  prop('sheetGrabberVisible', options.hasGrabber ?? false),
-  prop('sheetCornerRadius', options.cornerRadius ?? -1),
-  prop('sheetExpandsWhenScrolledToEdge', true),
-]
+// Sheets have a file of their own. `sheet` is exported from here as before.
+export { sheet } from './sheets.js'
+export type { SheetOptions } from './sheets.js'
 
 /**
  * The phone tried to close this screen (swipe, the bar's back button, a tap

@@ -3,6 +3,7 @@
  * this one:
  *
  *   stack.ts   the screen stack, modals and sheets, blocking back, safe area
+ *   sheets.ts  bottom sheets: heights, what goes inside, the detent in the Model
  *   header.ts  the navigation bar
  *   tabs.ts    the tab bar
  *   back.ts    Android's Back button
@@ -33,6 +34,21 @@ export type {
   ScrollEdgeEffect,
   SheetOptions,
 } from './stack.js'
+export {
+  SheetPlace,
+  moveSheet,
+  onDetentChanged,
+  presentAgain,
+  sheetAt,
+  sheetComposer,
+  sheetContent,
+  sheetFooter,
+  sheetHandle,
+  sheetKey,
+  sheetMovedByPhone,
+  sheetScrolls,
+} from './sheets.js'
+export type { SheetComposer, SheetContentOptions } from './sheets.js'
 export {
   backButtonHidden,
   backTitle,
