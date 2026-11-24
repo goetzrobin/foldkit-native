@@ -153,6 +153,14 @@ const now = (): number => {
   return typeof clock?.now === 'function' ? clock.now() : Date.now()
 }
 
+/**
+ * remend points an image whose address has not fully arrived at a made-up
+ * address, so it is not drawn with half an address. The native view would
+ * try to load that address and draw a broken picture, so such an image is
+ * left out until its address is complete.
+ */
+const INCOMPLETE_IMAGE = /!\[[^\]]*\]\(streamdown:incomplete-image\)/g
+
 /** The text to send: finished by remend while it streams, as it is once it is done. */
 const prepare = (text: string, isStreaming: boolean, count: MarkdownNumbers): string => {
   const remend = remendOf()
@@ -160,7 +168,7 @@ const prepare = (text: string, isStreaming: boolean, count: MarkdownNumbers): st
   const started = now()
   let ready = text
   try {
-    ready = remend(text, REMEND_OPTIONS)
+    ready = remend(text, REMEND_OPTIONS).replace(INCOMPLETE_IMAGE, '')
   } catch {
     // A remend failure must not lose the reply: the text goes as it is.
     ready = text
@@ -184,8 +192,8 @@ type ViewState = {
   isAlive: boolean
   /** The newest text the view was drawn with. */
   given: string
-  /** The text last sent to native code. */
-  sent: string
+  /** The text last sent to native code. Nothing yet: the first text always goes. */
+  sent: string | undefined
   isStreaming: boolean
   isFadeOn: boolean
   isFrameAsked: boolean
@@ -273,7 +281,7 @@ const nativeMarkdownModule: ModuleFactory = (engine, afterCommit) => {
       const state: ViewState = {
         isAlive: true,
         given: data.text,
-        sent: '',
+        sent: undefined,
         isStreaming: data.isStreaming,
         isFadeOn: data.isFadeOn,
         isFrameAsked: false,

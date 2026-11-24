@@ -259,7 +259,8 @@ const init: Runtime.ElementInit<Model, Message> = () => ({
     shown: 0,
     isStreaming: false,
     speed: 'normal',
-    renderer: markdownRenderer('auto').renderer,
+    // Native where the build has it: the status line says when it does not.
+    renderer: 'native',
     isFadeOn: true,
     isNumbersShown: false,
     numbers: ZERO,
