@@ -79,3 +79,4 @@ export type {
   LegendListConfig,
   LegendPlatform,
 } from './legend/index.js'
+export * from './markdown/index.js'
