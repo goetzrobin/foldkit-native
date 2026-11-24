@@ -26,8 +26,8 @@ export {
   uiRuntimeCheck,
   viewUpdatesCheck,
   workletsUnavailableReason,
-} from './host.js'
-export type { Check, WorkletsOptions, WorkletsPackage } from './host.js'
+} from '../../host/worklets/host.js'
+export type { Check, WorkletsOptions, WorkletsPackage } from '../../host/worklets/host.js'
 export {
   isCompiledWorklet,
   readShared,
@@ -37,8 +37,8 @@ export {
   shared,
   workletCheck,
   writeShared,
-} from './run.js'
-export type { Shared, UiResult } from './run.js'
+} from '../../host/worklets/run.js'
+export type { Shared, UiResult } from '../../host/worklets/run.js'
 export {
   PAN_ACTIVE,
   PAN_BEGAN,
@@ -51,11 +51,11 @@ export {
   sendMessage,
   springTo,
   stopAnimation,
-} from './ui.js'
-export type { Measured, PanEvent, Spring, UiTarget } from './ui.js'
-export { listenToChannel, uiChannel } from './channel.js'
-export type { UiChannel } from './channel.js'
+} from '../../host/worklets/ui.js'
+export type { Measured, PanEvent, Spring, UiTarget } from '../../host/worklets/ui.js'
+export { listenToChannel, uiChannel } from '../../host/worklets/channel.js'
+export type { UiChannel } from '../../host/worklets/channel.js'
 export { gestureRoot, gestureTag, onUiMessage, uiRef, uiThread } from './views.js'
 export type { GestureTag, PanConfig, PanRelations, UiConfig, UiRef, UiStyle } from './views.js'
-export { ranOnUiCheck, sharedRoundTripCheck, workletsStatus } from './status.js'
-export type { WorkletsStatus } from './status.js'
+export { ranOnUiCheck, sharedRoundTripCheck, workletsStatus } from '../../host/worklets/status.js'
+export type { WorkletsStatus } from '../../host/worklets/status.js'

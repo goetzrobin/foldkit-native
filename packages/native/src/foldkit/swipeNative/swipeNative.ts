@@ -47,7 +47,7 @@ import {
   noteNativeSwipeRegistered,
   swipeExpoGlobal,
   swipeModule,
-} from './detect.js'
+} from '../../host/swipeNative/detect.js'
 
 const el = element<any>()
 

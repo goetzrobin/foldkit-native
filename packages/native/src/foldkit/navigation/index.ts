@@ -68,7 +68,7 @@ export type {
   TabSystemItem,
   TabsOptions,
 } from './tabs.js'
-export { backSourceFrom, hardwareBack, noBackSource } from './back.js'
-export type { BackHandlerLike, BackSource, HardwareBackConfig } from './back.js'
+export { backSourceFrom, hardwareBack, noBackSource } from '../../host/navigation/back.js'
+export type { BackHandlerLike, BackSource, HardwareBackConfig } from '../../host/navigation/back.js'
 export { canPop, pop, popByPhone, popTo, popToRoot, push, replace, stackOf } from './route.js'
 export type { Place, Routes, ScreenView, StackOfOptions } from './route.js'

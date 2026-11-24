@@ -20,9 +20,9 @@ import type { Engine, EngineNode, ResponderEvent } from '@ng-native/fabric'
 import { Option } from 'effect'
 import { OnCustomEvent, type VNode } from 'foldkit/renderTarget'
 
-import { prop } from '../src/attributes.js'
-import { type ModuleFactory, registerModule } from '../src/extend.js'
-import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../src/modules.js'
+import { prop } from '../src/foldkit/attributes.js'
+import { type ModuleFactory, registerModule } from '../src/foldkit/extend.js'
+import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../src/host/fabric/nodes.js'
 
 /** How far a finger may drift and still tap, in points, as for a press. */
 const SLOP = 10

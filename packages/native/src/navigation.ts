@@ -6,4 +6,4 @@
  * The code lives in `./navigation/`, one file per subject. This file keeps
  * the old import path working.
  */
-export * from './navigation/index.js'
+export * from './foldkit/navigation/index.js'

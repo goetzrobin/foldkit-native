@@ -6,7 +6,7 @@
 import type { Engine, EngineNode } from '@ng-native/fabric'
 import type { Module, VNode } from 'foldkit/renderTarget'
 
-import { registeredModules } from './extend.js'
+import { registeredModules } from '../../foldkit/extend.js'
 
 export type Bag = Record<string, unknown>
 

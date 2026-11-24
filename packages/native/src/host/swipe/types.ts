@@ -5,8 +5,8 @@
  */
 import type { Html } from 'foldkit/html'
 
-import type { NativeStyle } from '../attributes.js'
-import type { GestureTag } from '../worklets/index.js'
+import type { NativeStyle } from '../../foldkit/attributes.js'
+import type { GestureTag } from '../../foldkit/worklets/index.js'
 
 /**
  * What kind of action it is. A style colours each kind differently.

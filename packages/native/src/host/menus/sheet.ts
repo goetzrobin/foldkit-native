@@ -14,7 +14,7 @@
  * Nothing here throws while looking. `sheetRoute()` says which of the two
  * this phone has, or `'none'`.
  */
-import { platformName } from '../controls/expoUi.js'
+import { platformName } from '../../foldkit/controls/expoUi.js'
 
 export type SheetOption = Readonly<{
   key: string

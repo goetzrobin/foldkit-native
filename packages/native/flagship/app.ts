@@ -50,7 +50,7 @@ import {
 } from '../src/device/index.js'
 import { scrollListToEnd } from '../src/list/index.js'
 import { ActionSheet } from '../src/menus/index.js'
-import { type Device, stack } from '../src/navigation/stack.js'
+import { type Device, stack } from '../src/foldkit/navigation/stack.js'
 import { type ServerState, focusEntry, watchAtom } from '../src/serverState/index.js'
 import { closeAllSwipes } from '../src/swipe/index.js'
 import { closeNativeSwipes } from '../src/swipeNative/index.js'

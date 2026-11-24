@@ -16,7 +16,7 @@
  */
 import { Exit, Schema } from 'effect'
 
-import { claim, remember } from './store.js'
+import { claim, remember } from '../../host/devLoop/store.js'
 
 type Keepable = Readonly<{
   Model: Schema.Top

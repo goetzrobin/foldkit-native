@@ -17,7 +17,7 @@ import {
   getScrollEffective,
   isScrollAtEnd,
   shouldShiftContent,
-} from '../src/chat/vendor/kbc/helpers.js'
+} from '../src/host/chat/vendor/kbc/helpers.js'
 
 describe("`isScrollAtEnd` specification", () => {
   it("should return true when scrolled exactly to end", () => {

@@ -33,10 +33,10 @@ import { OnCustomEvent, Prop, element } from 'foldkit/renderTarget'
 
 import { gesturesCheck, uiThread, workletCheck } from '../worklets/index.js'
 import { type SwipeDriver, registerSwipeDriver, resolveSwipeDriver } from './drivers.js'
-import { DEFAULT_GROUP } from './group.js'
-import { PART_DATA, ROW_DATA, pressTile } from './module.js'
-import { type BuiltInKind, type Stage, countOf, stageFor } from './stage.js'
-import { tiles } from './styles.js'
+import { DEFAULT_GROUP } from '../../host/swipe/group.js'
+import { PART_DATA, ROW_DATA, pressTile } from '../../host/swipe/rows.js'
+import { type BuiltInKind, type Stage, countOf, stageFor } from '../../host/swipe/stage.js'
+import { tiles } from '../../host/swipe/styles.js'
 import {
   SWIPE_ARMED,
   SWIPE_CLOSED,
@@ -51,8 +51,8 @@ import {
   type SwipeSideOption,
   type SwipeSideSpec,
   type SwipeTriggered,
-} from './types.js'
-import { makeTileStyle, makeUiParts, panStep } from './uiSide.js'
+} from '../../host/swipe/types.js'
+import { makeTileStyle, makeUiParts, panStep } from '../../host/swipe/uiSide.js'
 
 const el = element<any>()
 

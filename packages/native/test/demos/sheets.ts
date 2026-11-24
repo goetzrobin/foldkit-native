@@ -63,7 +63,7 @@ import {
   stackOf,
   style,
 } from '../../src/navigation.js'
-import { formatSheetNumbers, readSheetNumbers, sheetProbe } from '../../src/navigation/sheets.js'
+import { formatSheetNumbers, readSheetNumbers, sheetProbe } from '../../src/foldkit/navigation/sheets.js'
 
 export type DemoEnv = Readonly<{
   device: Device

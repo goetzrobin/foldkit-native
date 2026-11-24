@@ -13,8 +13,8 @@
  */
 import type { EngineNode } from '@ng-native/fabric'
 
-import { type ModuleFactory, registerModule } from '../extend.js'
-import { nodeOf } from '../modules.js'
+import { type ModuleFactory, registerModule } from '../../foldkit/extend.js'
+import { nodeOf } from '../fabric/nodes.js'
 
 type Measure = (use: (height: number) => void) => void
 

@@ -1,6 +1,6 @@
 // Copies react-native-keyboard-controller's own test cases for its chat
 // scroll view into packages/native/test, so that our port of its arithmetic
-// (packages/native/src/chat/vendor/kbc) is checked against the numbers the
+// (packages/native/src/host/chat/vendor/kbc) is checked against the numbers the
 // library itself expects.
 //
 //   node scripts/port-kbc-specs.mjs /path/to/react-native-keyboard-controller
@@ -57,7 +57,7 @@ import {
   getScrollEffective,
   isScrollAtEnd,
   shouldShiftContent,
-} from '../src/chat/vendor/kbc/helpers.js'
+} from '../src/host/chat/vendor/kbc/helpers.js'
 
 ` +
       casesOf(read(path)),

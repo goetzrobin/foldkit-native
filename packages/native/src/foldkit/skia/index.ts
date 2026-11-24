@@ -12,12 +12,12 @@
  */
 export { canvas, registerSkia, rendererFor } from './canvas.js'
 export type { CanvasConfig, CanvasSurface, Renderer, Scene, SceneRun } from './canvas.js'
-export type { Paint, Pen, Size, TextPaint } from './draw.js'
+export type { Paint, Pen, Size, TextPaint } from '../../host/skia/draw.js'
 export {
   configureSkia,
   isSkiaAvailable,
   resetSkia,
   skiaHost,
   skiaUnavailableReason,
-} from './host.js'
-export type { SkiaApi, SkiaHost, SkiaOptions, SkiaViewApi } from './host.js'
+} from '../../host/skia/host.js'
+export type { SkiaApi, SkiaHost, SkiaOptions, SkiaViewApi } from '../../host/skia/host.js'

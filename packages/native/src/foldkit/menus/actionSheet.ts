@@ -32,8 +32,8 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { Command } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 
-import { DeviceError, makeFailure, reasonOf } from '../device/common.js'
-import { type SheetAnswer, type SheetRequest, presentSheet } from './sheet.js'
+import { DeviceError, makeFailure, reasonOf } from '../../host/device/common.js'
+import { type SheetAnswer, type SheetRequest, presentSheet } from '../../host/menus/sheet.js'
 
 export const ActionSheetItem = Schema.Struct({
   /** Comes back in `SelectedActionSheetItem`. */

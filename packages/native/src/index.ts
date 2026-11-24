@@ -1,9 +1,9 @@
-export { createNativeSurface } from './mount.js'
-export type { NativeSurface, NativeSurfaceOptions } from './mount.js'
-export { image, pressable, scrollView, text, textInput, view } from './elements.js'
+export { createNativeSurface } from './foldkit/mount.js'
+export type { NativeSurface, NativeSurfaceOptions } from './foldkit/mount.js'
+export { image, pressable, scrollView, text, textInput, view } from './foldkit/elements.js'
 export * from './navigation.js'
-export { registerModule } from './extend.js'
-export type { ModuleFactory } from './extend.js'
+export { registerModule } from './foldkit/extend.js'
+export type { ModuleFactory } from './foldkit/extend.js'
 export {
   accessibilityLabel,
   onPress,
@@ -11,7 +11,7 @@ export {
   pressedStyle,
   testId,
   value,
-} from './attributes.js'
+} from './foldkit/attributes.js'
 export type {
   AutoLength,
   Color,
@@ -20,16 +20,16 @@ export type {
   LookStyle,
   NativeStyle,
   TextStyle,
-} from './attributes.js'
-export { crashView, nativeCrash } from './crash.js'
-export * from './styling/index.js'
+} from './foldkit/attributes.js'
+export { crashView, nativeCrash } from './foldkit/crash.js'
+export * from './host/styling/index.js'
 // The phone's own features: haptics, clipboard, storage, share and more.
 // Named Phone here because Device is already the type for platform and OS version.
-export * as Phone from './device/index.js'
+export * as Phone from './foldkit/device/index.js'
 // Reload that keeps the Model while developing. The dev loop has its own,
 // fuller crash screen: import that one from './devLoop/index.js' directly.
-export { hasFoldkitTransport, hotProgram, keepModel } from './devLoop/index.js'
-export type { HotModule, HotProgram, HotProgramOptions, ProgramFactory } from './devLoop/index.js'
+export { hasFoldkitTransport, hotProgram, keepModel } from './foldkit/devLoop/index.js'
+export type { HotModule, HotProgram, HotProgramOptions, ProgramFactory } from './foldkit/devLoop/index.js'
 // Long lists that only draw the rows near the screen, and pull to refresh.
 export {
   list,
@@ -37,13 +37,13 @@ export {
   refreshScrollView,
   scrollListToEnd,
   scrollListToIndex,
-} from './list/index.js'
-export type { AnchoredEndSpace, ListConfig, ListStats, Refresh, RowKey } from './list/index.js'
+} from './foldkit/list/index.js'
+export type { AnchoredEndSpace, ListConfig, ListStats, Refresh, RowKey } from './foldkit/list/index.js'
 // A chat screen: the composer above the keyboard, and the safe area around it.
-export { chatSafeArea, composerDock } from './chat/index.js'
-export type { ComposerDock, ComposerDockMode } from './chat/index.js'
+export { chatSafeArea, composerDock } from './foldkit/chat/index.js'
+export type { ComposerDock, ComposerDockMode } from './foldkit/chat/index.js'
 // A bar that follows the keyboard frame by frame where the phone can do that.
-export * from './keyboard/index.js'
+export * from './foldkit/keyboard/index.js'
 // Movement: eased style changes, enter and exit, and dragging.
 export {
   animated,
@@ -52,7 +52,7 @@ export {
   keepMoving,
   stopMotion,
   transition,
-} from './motion/index.js'
+} from './foldkit/motion/index.js'
 export type {
   Animated,
   Curve,
@@ -63,7 +63,7 @@ export type {
   Exit,
   MotionOptions,
   Timing,
-} from './motion/index.js'
+} from './foldkit/motion/index.js'
 export {
   legendContainers,
   legendHandles,
@@ -73,11 +73,11 @@ export {
   scrollLegendListToIndex,
   setPixelRatio,
   setScreenReaderEnabled,
-} from './legend/index.js'
+} from './foldkit/legend/index.js'
 export type {
   AnchoredEndSpace as LegendAnchoredEndSpace,
   LegendListConfig,
   LegendPlatform,
-} from './legend/index.js'
-export * from './markdown/index.js'
-export * as AiChat from './aiChat/index.js'
+} from './foldkit/legend/index.js'
+export * from './foldkit/markdown/index.js'
+export * as AiChat from './foldkit/aiChat/index.js'

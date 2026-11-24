@@ -33,22 +33,22 @@ import { Effect, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
 
-import { customEvent, handlersByNode, type Handler } from '../modules.js'
+import { customEvent, handlersByNode, type Handler } from '../../host/fabric/nodes.js'
 import {
   LEGEND_CONTENT_DATA,
   LEGEND_DATA,
   type LegendSpec,
   legendHandles,
 } from './module.js'
-import type { LegendPlatform } from './platform/Platform.js'
-import type { MaintainScrollAtEndOptions } from './vendor/types.base.js'
+import type { LegendPlatform } from '../../host/legend/platform/Platform.js'
+import type { MaintainScrollAtEndOptions } from '../../host/legend/vendor/types.base.js'
 
 export { legendContainers, legendHandles, legendNumbers } from './module.js'
 export type { LegendContainerInfo } from './module.js'
-export { setPixelRatio } from './platform/PixelRatio.js'
-export { setScreenReaderEnabled } from './platform/screenReader.js'
-export type { LegendPlatform } from './platform/Platform.js'
-export type { MaintainScrollAtEndOptions } from './vendor/types.base.js'
+export { setPixelRatio } from '../../host/legend/platform/PixelRatio.js'
+export { setScreenReaderEnabled } from '../../host/legend/platform/screenReader.js'
+export type { LegendPlatform } from '../../host/legend/platform/Platform.js'
+export type { MaintainScrollAtEndOptions } from '../../host/legend/vendor/types.base.js'
 
 const el = element<any>()
 

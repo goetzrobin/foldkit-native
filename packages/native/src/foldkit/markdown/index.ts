@@ -18,8 +18,8 @@ export {
   isNativeMarkdownAvailable,
   nativeMarkdownUnavailableReason,
   resetMarkdownSetup,
-} from './detect.js'
-export type { MarkdownSetup, Remend, RemendOptions } from './detect.js'
+} from '../../host/markdown/detect.js'
+export type { MarkdownSetup, Remend, RemendOptions } from '../../host/markdown/detect.js'
 export {
   NATIVE_MARKDOWN_TAG,
   REMEND_OPTIONS,
@@ -29,7 +29,7 @@ export {
 export type { MarkdownNumbers } from './native.js'
 export { forgetFallback } from './fallback.js'
 export type { CodeCopy } from './fallback.js'
-export { markdownTheme } from './theme.js'
+export { markdownTheme } from '../../host/markdown/theme.js'
 export type {
   MarkdownColorScheme,
   MarkdownColors,
@@ -39,4 +39,4 @@ export type {
   MarkdownStyle,
   MarkdownTheme,
   SyntaxColors,
-} from './theme.js'
+} from '../../host/markdown/theme.js'

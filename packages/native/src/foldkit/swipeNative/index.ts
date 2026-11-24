@@ -46,5 +46,5 @@ export {
   resetNativeSwipeDetection,
   swipeExpoGlobal,
   swipeModule,
-} from './detect.js'
-export type { NativeSwipeOptions, SwipeExpoGlobal, SwipeModule } from './detect.js'
+} from '../../host/swipeNative/detect.js'
+export type { NativeSwipeOptions, SwipeExpoGlobal, SwipeModule } from '../../host/swipeNative/detect.js'

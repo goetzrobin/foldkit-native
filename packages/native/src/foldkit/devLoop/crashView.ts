@@ -17,7 +17,7 @@ import type { Runtime } from 'foldkit'
 import type { Html } from 'foldkit/html'
 
 import { scrollView, text, view } from '../elements.js'
-import { prop, style } from '../navigation.js'
+import { prop, style } from '../../navigation.js'
 
 export type NativeCrashOptions = Readonly<{
   /** The line under the error. Defaults to how to reload in Expo Go. */

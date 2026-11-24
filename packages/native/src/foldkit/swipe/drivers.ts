@@ -21,7 +21,7 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { SwipeCheck, SwipeDriverName, SwipeRowSpec } from './types.js'
+import type { SwipeCheck, SwipeDriverName, SwipeRowSpec } from '../../host/swipe/types.js'
 
 export type SwipeDriver = Readonly<{
   /** A short name for a person: "UI thread". */

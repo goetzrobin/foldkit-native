@@ -10,8 +10,8 @@
  *
  * Start with `docs/SERVER_STATE.md`. It explains the idea in plain words.
  */
-export { Sync, makeSync } from './sync.js'
-export type { SyncBus, SyncService } from './sync.js'
+export { Sync, makeSync } from '../../host/serverState/sync.js'
+export type { SyncBus, SyncService } from '../../host/serverState/sync.js'
 export {
   ServerState,
   focusEntry,
@@ -28,4 +28,4 @@ export type {
   WriteConfig,
   WriteFailure,
 } from './bridge.js'
-export * as Optimistic from './optimistic.js'
+export * as Optimistic from '../../host/serverState/optimistic.js'

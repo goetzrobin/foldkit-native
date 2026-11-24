@@ -29,10 +29,10 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
 import { type NativeStyle, style as styleAttribute, testId } from '../attributes.js'
-import { isNativeMarkdownAvailable, nativeMarkdownUnavailableReason, remendOf } from './detect.js'
+import { isNativeMarkdownAvailable, nativeMarkdownUnavailableReason, remendOf } from '../../host/markdown/detect.js'
 import { type CodeCopy, fallbackMarkdown } from './fallback.js'
 import { NATIVE_MARKDOWN_TAG, REMEND_OPTIONS, numbersFor, withNativeData } from './native.js'
-import { type MarkdownColorScheme, type MarkdownStyle, markdownTheme } from './theme.js'
+import { type MarkdownColorScheme, type MarkdownStyle, markdownTheme } from '../../host/markdown/theme.js'
 
 const el = element<any>()
 

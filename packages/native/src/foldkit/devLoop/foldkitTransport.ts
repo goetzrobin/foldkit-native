@@ -14,7 +14,7 @@
 import { Effect } from 'effect'
 import * as Host from 'foldkit/renderTarget'
 
-import { claim, onBeforeSwap, remember } from './store.js'
+import { claim, onBeforeSwap, remember } from '../../host/devLoop/store.js'
 
 type Transport = Readonly<{
   preserve: (id: string, encodedModel: unknown, isReloadFlush: boolean) => void

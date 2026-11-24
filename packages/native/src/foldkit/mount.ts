@@ -19,9 +19,9 @@ import {
   registerRenderTarget,
 } from 'foldkit/renderTarget'
 
-import { makeModules } from './modules.js'
-import { stopMotion } from './motion/clock.js'
-import { makeNodeApi } from './nodeApi.js'
+import { makeModules } from '../host/fabric/nodes.js'
+import { stopMotion } from '../host/motion/clock.js'
+import { makeNodeApi } from '../host/fabric/nodeApi.js'
 
 export type NativeSurface = Readonly<{
   /** Give this to `Runtime.makeElement({ container })`. */

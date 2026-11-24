@@ -27,10 +27,10 @@
 import type { EngineNode, ResponderEvent, ResponderHandlers } from '@ng-native/fabric'
 import type { VNode } from 'foldkit/renderTarget'
 
-import { type ModuleFactory, registerModule } from '../extend.js'
-import { type Handler, customEvent, handlersByNode, nodeOf } from '../modules.js'
+import { type ModuleFactory, registerModule } from '../../foldkit/extend.js'
+import { type Handler, customEvent, handlersByNode, nodeOf } from '../fabric/nodes.js'
 import { onNextFrame } from '../motion/clock.js'
-import { listenToChannel, runOnUi, writeShared } from '../worklets/index.js'
+import { listenToChannel, runOnUi, writeShared } from '../../foldkit/worklets/index.js'
 import {
   FULL_SPRING,
   type Limits,

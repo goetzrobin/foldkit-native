@@ -17,7 +17,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { type NativeStyle, onPress, prop, style, testId } from '../attributes.js'
 import { scrollView, text, view } from '../elements.js'
 import { numbersFor } from './native.js'
-import type { MarkdownTheme } from './theme.js'
+import type { MarkdownTheme } from '../../host/markdown/theme.js'
 
 type Block = Readonly<{ kind: 'code' | 'text'; source: string; body: string; language: string }>
 

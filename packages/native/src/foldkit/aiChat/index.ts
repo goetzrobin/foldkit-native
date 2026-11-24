@@ -12,7 +12,7 @@
  *
  * Start with `docs/AI_BACKEND.md`.
  */
-export * as AiWire from './wire.js'
+export * as AiWire from '../../host/aiChat/wire.js'
 export {
   AiChatRpcs,
   AiChatSync,
@@ -33,8 +33,8 @@ export {
   Usage,
   applyToParts,
   isLastEvent,
-} from './wire.js'
-export type { AiChatTopic } from './wire.js'
+} from '../../host/aiChat/wire.js'
+export type { AiChatTopic } from '../../host/aiChat/wire.js'
 
 export {
   DiskError,
@@ -44,13 +44,13 @@ export {
   diskFromStorage,
   makeAiServer,
   memoryDisk,
-} from './server.js'
-export type { AiServer, AiServerOptions, Chaos, Disk, Speed, Timing } from './server.js'
-export { pickReply, titleFrom, tokenize } from './replies.js'
-export type { Script, ScriptedTool } from './replies.js'
+} from '../../host/aiChat/server.js'
+export type { AiServer, AiServerOptions, Chaos, Disk, Speed, Timing } from '../../host/aiChat/server.js'
+export { pickReply, titleFrom, tokenize } from '../../host/aiChat/replies.js'
+export type { Script, ScriptedTool } from '../../host/aiChat/replies.js'
 
-export { AiChatRpcClient, layerInProcess, makeInProcessLink } from './transport.js'
-export type { AiChatRpcClientService, InProcessLink, LinkStats } from './transport.js'
+export { AiChatRpcClient, layerInProcess, makeInProcessLink } from '../../host/aiChat/transport.js'
+export type { AiChatRpcClientService, InProcessLink, LinkStats } from '../../host/aiChat/transport.js'
 
 export {
   ChatError,
@@ -73,7 +73,7 @@ export {
   toUpdates,
   transcript,
   turnKeeperLayer,
-} from './client.js'
+} from '../../host/aiChat/client.js'
 export type {
   AiChat,
   AiChatOptions,
@@ -83,4 +83,4 @@ export type {
   TurnKeeperService,
   TurnStart,
   TurnStartedEvent,
-} from './client.js'
+} from '../../host/aiChat/client.js'

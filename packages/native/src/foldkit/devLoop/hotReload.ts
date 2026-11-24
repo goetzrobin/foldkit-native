@@ -34,7 +34,7 @@
 import { Runtime } from 'foldkit'
 
 import { connectFoldkitTransport } from './foldkitTransport.js'
-import { beginNextRun, flushBeforeSwap, forget, store } from './store.js'
+import { beginNextRun, flushBeforeSwap, forget, store } from '../../host/devLoop/store.js'
 
 /** The part of Metro's `module` this needs. */
 export type HotModule = Readonly<{

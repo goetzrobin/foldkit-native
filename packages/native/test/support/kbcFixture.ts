@@ -11,8 +11,8 @@ import {
   type ChatKeyboard,
   type ChatKeyboardEvent,
   createChatKeyboard,
-} from '../../src/chat/vendor/kbc/chatKeyboard.js'
-import type { KeyboardLiftBehavior } from '../../src/chat/vendor/kbc/types.js'
+} from '../../src/host/chat/vendor/kbc/chatKeyboard.js'
+import type { KeyboardLiftBehavior } from '../../src/host/chat/vendor/kbc/types.js'
 
 export type SharedValue<T> = Box<T>
 export const sv = <T>(value: T): Box<T> => ({ value })

@@ -14,12 +14,12 @@ import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as AsyncResult from 'effect/reactivity/AsyncResult'
 
-import { prop, pressedStyle, style } from '../src/attributes.js'
-import { text, textInput, view } from '../src/elements.js'
+import { prop, pressedStyle, style } from '../src/foldkit/attributes.js'
+import { text, textInput, view } from '../src/foldkit/elements.js'
 import { list } from '../src/list/index.js'
 import { contextMenu } from '../src/menus/index.js'
-import { searchBar } from '../src/navigation/searchBar.js'
-import { type Device, safeArea, screen } from '../src/navigation/stack.js'
+import { searchBar } from '../src/foldkit/navigation/searchBar.js'
+import { type Device, safeArea, screen } from '../src/foldkit/navigation/stack.js'
 import { swipeAction, swipeActions, swipeRow, tiles } from '../src/swipe/index.js'
 import {
   isNativeSwipeAvailable,

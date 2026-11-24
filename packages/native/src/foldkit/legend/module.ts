@@ -37,18 +37,18 @@ import type { Html } from 'foldkit/html'
 import { type VNode, h, init, onUnmountModule } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { makeModules, nodeOf } from '../modules.js'
-import { makeNodeApi } from '../nodeApi.js'
+import { makeModules, nodeOf } from '../../host/fabric/nodes.js'
+import { makeNodeApi } from '../../host/fabric/nodeApi.js'
 import {
   type LegendDriver,
   type LegendDriverProps,
   type ScrollEvent,
   createLegendDriver,
-} from './driver.js'
-import { type LegendPlatform, Platform, setLegendPlatform } from './platform/Platform.js'
-import { POSITION_OUT_OF_VIEW } from './vendor/constants.js'
-import { type ListenerType, listen$, peek$ } from './vendor/state/state.js'
-import type { LegendListInternalRef } from './vendor/types.internal.js'
+} from '../../host/legend/driver.js'
+import { type LegendPlatform, Platform, setLegendPlatform } from '../../host/legend/platform/Platform.js'
+import { POSITION_OUT_OF_VIEW } from '../../host/legend/vendor/constants.js'
+import { type ListenerType, listen$, peek$ } from '../../host/legend/vendor/state/state.js'
+import type { LegendListInternalRef } from '../../host/legend/vendor/types.internal.js'
 
 /** What `legendList(...)` leaves on its scroll view for this module to read. */
 export type LegendSpec = Readonly<{

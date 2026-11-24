@@ -58,7 +58,7 @@ import {
   uiText,
 } from '../controls/expoUi.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../modules.js'
+import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../../host/fabric/nodes.js'
 import {
   type FlatAction,
   type MenuAction,
@@ -68,8 +68,8 @@ import {
   flatten,
   isSection,
   isSubmenu,
-} from './items.js'
-import { presentSheet, sheetRoute, sheetRouteName } from './sheet.js'
+} from '../../host/menus/items.js'
+import { presentSheet, sheetRoute, sheetRouteName } from '../../host/menus/sheet.js'
 
 const el = element<any>()
 const view = el('view')

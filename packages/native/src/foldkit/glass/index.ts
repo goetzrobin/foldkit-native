@@ -33,5 +33,5 @@ export {
   liquidGlassStatus,
   liquidGlassUnavailableReason,
   resetGlass,
-} from './detect.js'
-export type { ExpoGlobal, GlassOptions } from './detect.js'
+} from '../../host/glass/detect.js'
+export type { ExpoGlobal, GlassOptions } from '../../host/glass/detect.js'

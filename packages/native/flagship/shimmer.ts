@@ -13,8 +13,8 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { prop, style } from '../src/attributes.js'
-import { text } from '../src/elements.js'
+import { prop, style } from '../src/foldkit/attributes.js'
+import { text } from '../src/foldkit/elements.js'
 import { type CanvasSurface, type Scene, canvas, rendererFor } from '../src/skia/index.js'
 import { MOTION, type Palette, TYPE } from './theme.js'
 

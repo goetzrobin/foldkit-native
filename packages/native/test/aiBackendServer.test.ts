@@ -11,7 +11,7 @@ import * as RpcSerialization from 'effect/rpc/RpcSerialization'
 import * as TestClock from 'effect/testing/TestClock'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import * as Storage from '../src/device/storage.js'
+import * as Storage from '../src/host/device/storage.js'
 import {
   AiChatRpcClient,
   ChatMessage,

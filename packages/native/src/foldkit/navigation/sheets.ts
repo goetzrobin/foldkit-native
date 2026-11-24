@@ -65,8 +65,8 @@ import type { VNode } from 'foldkit/renderTarget'
 
 import { prop } from '../attributes.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { keyboardDock } from '../keyboard/dock.js'
-import { bagOf, nodeOf } from '../modules.js'
+import { keyboardDock } from '../../host/keyboard/dock.js'
+import { bagOf, nodeOf } from '../../host/fabric/nodes.js'
 
 const el = element<any>()
 

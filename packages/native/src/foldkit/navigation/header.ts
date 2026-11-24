@@ -25,7 +25,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, element } from 'foldkit/renderTarget'
 
 import { prop, style } from '../attributes.js'
-import { type MenuItem, barMenuData } from '../menus/items.js'
+import { type MenuItem, barMenuData } from '../../host/menus/items.js'
 import { menuButton } from '../menus/menu.js'
 import { type Attributes, type Device, header, title } from './stack.js'
 

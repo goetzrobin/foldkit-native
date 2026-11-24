@@ -52,9 +52,9 @@ import { Effect, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
 
-import { chatInsetAvailable } from '../chat/chatScroll.js'
-import type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
-import type { AnchoredEndSpace } from './end.js'
+import { chatInsetAvailable } from '../../host/chat/chatScroll.js'
+import type { KeyboardLiftBehavior } from '../../host/chat/vendor/kbc/types.js'
+import type { AnchoredEndSpace } from '../../host/list/end.js'
 import {
   AT_END_CHANGED,
   CONTENT_DATA,
@@ -67,18 +67,18 @@ import {
   type RowKey,
   scrollToEnd,
   scrollToRow,
-} from './module.js'
+} from '../../host/list/controller.js'
 import { type Refresh, scrollWithRefresh } from './refresh.js'
 
-export type { ListKeyboardEvent, ListNumbers, ListStats, RowKey } from './module.js'
-export { listNumbers, tellListKeyboard } from './module.js'
-export type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
+export type { ListKeyboardEvent, ListNumbers, ListStats, RowKey } from '../../host/list/controller.js'
+export { listNumbers, tellListKeyboard } from '../../host/list/controller.js'
+export type { KeyboardLiftBehavior } from '../../host/chat/vendor/kbc/types.js'
 export { refreshScrollView } from './refresh.js'
 export type { Refresh } from './refresh.js'
-export { Heights, chooseWindow, rowsBetween } from './window.js'
-export { endOffset, endSpaceFor, isAtEnd } from './end.js'
-export type { AnchoredEndSpace } from './end.js'
-export type { Range } from './window.js'
+export { Heights, chooseWindow, rowsBetween } from '../../host/list/window.js'
+export { endOffset, endSpaceFor, isAtEnd } from '../../host/list/end.js'
+export type { AnchoredEndSpace } from '../../host/list/end.js'
+export type { Range } from '../../host/list/window.js'
 
 const el = element<any>()
 

@@ -19,5 +19,5 @@ export {
   straightDistances,
   step,
   summarise,
-} from './mot.js'
-export type { Dot, MotState, Point, Timing, TrialResult, TrialSpec } from './mot.js'
+} from '../../host/game/mot.js'
+export type { Dot, MotState, Point, Timing, TrialResult, TrialSpec } from '../../host/game/mot.js'

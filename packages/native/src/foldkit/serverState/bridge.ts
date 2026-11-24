@@ -51,8 +51,8 @@ import * as AtomRegistry from 'effect/reactivity/AtomRegistry'
 import type * as Reactivity from 'effect/reactivity/Reactivity'
 import { Subscription } from 'foldkit'
 
-import { AppState } from '../device/appState.js'
-import { streamOf } from '../device/common.js'
+import { AppState } from '../../host/device/appState.js'
+import { streamOf } from '../../host/device/common.js'
 
 // SERVICE
 

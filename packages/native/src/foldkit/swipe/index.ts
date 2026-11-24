@@ -24,7 +24,7 @@ export {
   swipeAction,
   swipeActions,
   swipeInfo,
-} from './types.js'
+} from '../../host/swipe/types.js'
 export type {
   SwipeAction,
   SwipeArmed,
@@ -43,8 +43,8 @@ export type {
   SwipeTileLayout,
   SwipeTileLook,
   SwipeTriggered,
-} from './types.js'
-export { info, strip, swipeStyle, tiles } from './styles.js'
+} from '../../host/swipe/types.js'
+export { info, strip, swipeStyle, tiles } from '../../host/swipe/styles.js'
 export {
   registerSwipeDriver,
   resolveSwipeDriver,
@@ -61,15 +61,15 @@ export {
   closeSwipe,
   joinSwipeGroup,
   openSwipeCount,
-} from './group.js'
-export type { CloseOptions, SwipeMember } from './group.js'
+} from '../../host/swipe/group.js'
+export type { CloseOptions, SwipeMember } from '../../host/swipe/group.js'
 export {
   swipeAccessibilityAttributes,
   swipeEventAttributes,
   swipeRow,
   swipeRowSpec,
 } from './row.js'
-export { stageCount as swipeStageCount } from './stage.js'
+export { stageCount as swipeStageCount } from '../../host/swipe/stage.js'
 export {
   ASSUMED_ROW_WIDTH,
   FLICK_SPEED,
@@ -78,5 +78,5 @@ export {
   dragTo,
   fullSwipeAt,
   restAt,
-} from './core.js'
-export type { Limits as SwipeLimits } from './core.js'
+} from '../../host/swipe/core.js'
+export type { Limits as SwipeLimits } from '../../host/swipe/core.js'

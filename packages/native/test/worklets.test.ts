@@ -52,7 +52,7 @@ import {
   workletsUnavailableReason,
   writeShared,
 } from '../src/worklets/index.js'
-import { addOnUi } from '../src/worklets/ui.js'
+import { addOnUi } from '../src/host/worklets/ui.js'
 import { makeDemos } from './demos/index.js'
 import { BAR_WANTED, TRAVEL, makeDemo } from './demos/worklets.js'
 import { byTestId, hasTestId, press, settle, startPhone, textOf } from './support/phone.js'

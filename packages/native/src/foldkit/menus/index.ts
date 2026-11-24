@@ -14,20 +14,20 @@
 import type { RouteLine } from '../controls/controls.js'
 import { platformName } from '../controls/expoUi.js'
 import { menuRoute, menuRouteName } from './menu.js'
-import { sheetRoute, sheetRouteName } from './sheet.js'
+import { sheetRoute, sheetRouteName } from '../../host/menus/sheet.js'
 
 export { HOLD_MS, contextMenu, menuButton, menuRoute, menuRouteName } from './menu.js'
 export type { ContextMenuSettings, MenuButtonSettings, MenuRoute, MenuSettings } from './menu.js'
-export { barMenuData, checkedTitle, flatten, isSection, isSubmenu } from './items.js'
-export type { FlatAction, MenuAction, MenuItem, MenuSection, MenuSubmenu } from './items.js'
-export { configureSheets, presentSheet, sheetRoute, sheetRouteName } from './sheet.js'
+export { barMenuData, checkedTitle, flatten, isSection, isSubmenu } from '../../host/menus/items.js'
+export type { FlatAction, MenuAction, MenuItem, MenuSection, MenuSubmenu } from '../../host/menus/items.js'
+export { configureSheets, presentSheet, sheetRoute, sheetRouteName } from '../../host/menus/sheet.js'
 export type {
   NativeModuleLookup,
   SheetAnswer,
   SheetOption,
   SheetRequest,
   SheetRoute,
-} from './sheet.js'
+} from '../../host/menus/sheet.js'
 export * as ActionSheet from './actionSheet.js'
 // The title bar's part lives with the bar. It is listed here so the menus
 // are found in one place.

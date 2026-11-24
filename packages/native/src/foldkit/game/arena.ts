@@ -25,7 +25,7 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { type CanvasSurface, type Renderer, type Scene, canvas } from '../skia/canvas.js'
-import type { Pen, Size } from '../skia/draw.js'
+import type { Pen, Size } from '../../host/skia/draw.js'
 import {
   type MotState,
   type Point,
@@ -40,7 +40,7 @@ import {
   step,
   straightDistances,
   summarise,
-} from './mot.js'
+} from '../../host/game/mot.js'
 
 export type Phase = 'Ready' | 'Cueing' | 'Moving' | 'Answering' | 'Feedback'
 

@@ -40,9 +40,9 @@ import { type EngineNode, nativePlatform, registerViewName } from '@ng-native/fa
 import type { VNode } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { onNextFrame } from '../motion/clock.js'
-import { nodeOf } from '../modules.js'
-import { NATIVE_MARKDOWN_VIEW, remendOf } from './detect.js'
+import { onNextFrame } from '../../host/motion/clock.js'
+import { nodeOf } from '../../host/fabric/nodes.js'
+import { NATIVE_MARKDOWN_VIEW, remendOf } from '../../host/markdown/detect.js'
 import {
   ACCESSIBILITY_LABELS,
   LINK_RECOGNITION,
@@ -50,8 +50,8 @@ import {
   SELECTION_MENU,
   STREAMING_CONFIG,
   nativeMarkdownStyle,
-} from './nativeStyle.js'
-import type { MarkdownTheme } from './theme.js'
+} from '../../host/markdown/nativeStyle.js'
+import type { MarkdownTheme } from '../../host/markdown/theme.js'
 
 /** The element name the engine knows the native view by. */
 export const NATIVE_MARKDOWN_TAG = 'enriched-markdown'

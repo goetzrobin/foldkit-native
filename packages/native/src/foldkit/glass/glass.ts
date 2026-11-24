@@ -43,7 +43,7 @@ import {
   expoGlobal,
   isLiquidGlassAvailable,
   noteRegistered,
-} from './detect.js'
+} from '../../host/glass/detect.js'
 
 const el = element<any>()
 

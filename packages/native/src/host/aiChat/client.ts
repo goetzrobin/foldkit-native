@@ -53,7 +53,7 @@ import {
   focusSignal,
   makeServerState,
   runWrite,
-} from '../serverState/bridge.js'
+} from '../../foldkit/serverState/bridge.js'
 import { Sync } from '../serverState/sync.js'
 import { AiChatRpcClient } from './transport.js'
 import {
