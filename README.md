@@ -98,6 +98,7 @@ supplies ones that call the ng-native engine.
 |---|---|
 | `packages/native/` | The adapter, with its demos and tests that run on a simulated phone |
 | `apps/showcase/` | The app with every demo in a menu |
+| `apps/chat/` | Fold Chat, the flagship: one finished AI chat app. Its program is in `packages/native/flagship`, its look in `docs/flagship/DESIGN.md`, how to build it in `apps/chat/README.md` |
 | `apps/devloop/` | A small app for trying reload that keeps your state |
 | `apps/notes/`, `apps/counter/` | The first two apps, kept as the smallest examples |
 | `foldkit-fork/` | The change Foldkit needs, as a patch against 0.171.0 |

@@ -21,6 +21,12 @@ import { contextMenu } from '../src/menus/index.js'
 import { searchBar } from '../src/navigation/searchBar.js'
 import { type Device, safeArea, screen } from '../src/navigation/stack.js'
 import { swipeAction, swipeActions, swipeRow, tiles } from '../src/swipe/index.js'
+import {
+  isNativeSwipeAvailable,
+  nativeSwipeOptions,
+  nativeSwipeRow,
+  swipeAction as nativeAction,
+} from '../src/swipeNative/index.js'
 import { type ListItem, Message, type Model, listItems } from './model.js'
 import { type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
 import { navBar, solidButton, spinner } from './ui.js'
@@ -72,6 +78,26 @@ const chatRow = (h: HtmlBuilder<Message>, model: Model, palette: Palette, item: 
     },
     content,
   )
+  if (isNativeSwipeAvailable()) {
+    // The project's own native swipe view, when the build has it (see the
+    // README): the drag is UIKit's or Android's from the first touch.
+    return nativeSwipeRow(
+      [
+        h.Key(`swipe-${summary.id}`),
+        nativeSwipeOptions<Message>({
+          trailing: [
+            nativeAction({ key: 'delete', label: 'Delete', symbol: 'trash', role: 'destructive', onTriggered: Message.SelectedRowAction({ id: summary.id, key: 'delete' }) }),
+            nativeAction({ key: 'rename', label: 'Rename', symbol: 'pencil', tint: '#8E8E93', onTriggered: Message.SelectedRowAction({ id: summary.id, key: 'rename' }) }),
+          ],
+          allowsFullSwipe: true,
+          mode: 'tiles',
+          group: 'chats',
+          cornerRadius: RADIUS.row,
+        }),
+      ],
+      [held],
+    )
+  }
   return swipeRow(
     h,
     {

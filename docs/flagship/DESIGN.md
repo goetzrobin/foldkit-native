@@ -76,8 +76,9 @@ tables 12. Pressed row highlight 12.
 
 | What | How long | Curve |
 |---|---|---|
-| Your new message appears | 220 ms, rises 8 points and fades in | ease out |
+| Your new message appears | 380 ms, rises 24 points and fades in | fast then gentle (0.16, 1, 0.3, 1) |
 | Question moves to the top | the list's own scroll | native |
+| "Thinking" appears | fades in over 200 ms after 300 ms, once your message has risen | ease out |
 | Reply words fade in | 200 ms | native (Markdown view) |
 | Thinking shimmer | one sweep every 1.4 s | linear |
 | Send turns into Stop | 120 ms cross fade | ease out |
@@ -113,6 +114,9 @@ on, the Markdown view skips its fade by itself.
 - **Thinking.** Before the first word: the word "Thinking" with a slow
   light sweep across it, drawn with Skia. Plain grey text where Skia is
   missing.
+- **Finished.** Under each reply, three small grey icons: Copy, Share and,
+  under the newest, Regenerate. Holding a message opens Copy, Select text,
+  Share and Regenerate in the phone's action sheet.
 - **Streaming.** Words fade in. The Send button is a Stop button (a filled
   square in a circle). Reasoning shows as "Thought for 4 s ›"; a tool call
   as a quiet row with a small spinner, then "Checked the weather".

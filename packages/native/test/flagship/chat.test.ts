@@ -52,6 +52,7 @@ describe('sending a message and reading the reply', () => {
     expect(at.screens()).toEqual(['screen-chats', 'screen-chat'])
     expect(at.has('empty-chat')).toBe(true)
 
+    const listTag = byTestId(at.phone.fabric, 'transcript').reactTag
     await at.type('draft', RUNNING)
     expect(at.has('send')).toBe(true)
     await at.tap('send')
@@ -62,6 +63,9 @@ describe('sending a message and reading the reply', () => {
 
     await at.until(() => at.has('thinking'))
     expect(at.has('thinking')).toBe(true)
+    // The new chat got its id from the server meanwhile. The list was not
+    // made again for it: same native view, so nothing jumped.
+    expect(byTestId(at.phone.fabric, 'transcript').reactTag).toBe(listTag)
     expect(at.has('stop')).toBe(true)
     expect(at.has('send')).toBe(false)
 

@@ -53,6 +53,7 @@ import { ActionSheet } from '../src/menus/index.js'
 import { type Device, stack } from '../src/navigation/stack.js'
 import { type ServerState, focusEntry, watchAtom } from '../src/serverState/index.js'
 import { closeAllSwipes } from '../src/swipe/index.js'
+import { closeNativeSwipes } from '../src/swipeNative/index.js'
 import { Appearance } from './appearance.js'
 import { TRANSCRIPT_ID, chatScreen, chatTitle, voiceNoteText } from './chatScreen.js'
 import { listScreen } from './listScreen.js'
@@ -216,7 +217,10 @@ export const makeChatApp = (
 
   const CloseSwipes = Command.define('ChatCloseSwipes', {
     messages: [Message.CompletedSideEffect],
-    execute: closeAllSwipes('chats').pipe(Effect.as(Message.CompletedSideEffect())),
+    execute: closeAllSwipes('chats').pipe(
+      Effect.andThen(closeNativeSwipes('chats')),
+      Effect.as(Message.CompletedSideEffect()),
+    ),
   })
 
   const ReadClock = Command.define('ChatReadClock', {

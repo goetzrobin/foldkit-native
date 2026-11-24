@@ -546,7 +546,9 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
   const isInset = chatInsetAvailable()
 
   const transcript = view(
-    [h.Key(`messages-${Option.getOrElse(model.openId, () => 'new')}`), style({ flex: 1, backgroundColor: palette.bg })],
+    // One key for the chat's whole life on screen: a new chat gets its id
+    // after the first Send, and the list must not be built again then.
+    [h.Key('messages'), style({ flex: 1, backgroundColor: palette.bg })],
     [
       list(h, {
         id: TRANSCRIPT_ID,

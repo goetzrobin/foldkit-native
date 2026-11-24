@@ -44,6 +44,7 @@ import { configureMarkdown } from './native/src/markdown'
 import { ActionSheet, configureSheets } from './native/src/menus'
 import { registerSearchBar } from './native/src/navigation/searchBar'
 import { configureSkia, registerSkia } from './native/src/skia'
+import { registerNativeSwipe } from './native/src/swipeNative'
 import { configureWorklets } from './native/src/worklets'
 import { makeChatApp } from './native/flagship/app'
 import { appearanceLive } from './native/flagship/appearance'
@@ -66,6 +67,10 @@ registerGlass()
 registerExpoUi()
 // The action sheet a held message opens: React Native's own native modules.
 configureSheets({ nativeModule: name => TurboModuleRegistry.get(name) })
+
+// The project's own native swipe view, if a build includes its module (it
+// is left out for now: see README.md). Without it nothing changes.
+registerNativeSwipe()
 
 // The swipe rows' UI-thread driver. react-native-worklets is loaded on first
 // use, inside a try: it throws where its native code is missing, and the
