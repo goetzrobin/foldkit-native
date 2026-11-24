@@ -16,6 +16,7 @@ import { makeDemo as makeDeviceDemo } from './device.js'
 import { makeDemo as makeKeyboard } from './keyboard.js'
 import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
+import { makeDemo as makeMot } from './mot.js'
 import { makeDemo as makeNavigation } from './navigation.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
@@ -92,5 +93,11 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     blurb: 'A text field that rides on the keyboard. A label says if it follows natively or is the fallback.',
     start: (container, env) =>
       Runtime.embed(makeKeyboard(container, env, resources.device)),
+  },
+  {
+    id: 'mot',
+    title: 'Object tracking',
+    blurb: 'A tracking game drawn every frame. Watch the orange dots, follow them, then tap them.',
+    start: (container, env) => Runtime.embed(makeMot(container, env)),
   },
 ]

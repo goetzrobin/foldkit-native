@@ -18,8 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show nine rows: Notes, Navigation, Lists and motion, Chat,
-   AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock?
+1. Does the menu show ten rows: Notes, Navigation, Lists and motion, Chat,
+   AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
+   Object tracking?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -214,3 +215,31 @@ L7. Tap the text field. Does the bar end on top of the keyboard, and does the
 L8. Fling fast up and down. Are there blank gaps?
 L9. Does scrolling feel as smooth as in "Lists and motion"?
 L10. Are the answers to L1 to L9 the same on Android?
+
+## Object tracking
+
+A tracking game. Dots sit in a dark square. A few blink orange, then all turn
+white and move. When they stop, you tap the ones that were orange. It has not
+been seen on a phone. Use the first settings (8 dots, 3 targets) unless a
+question says otherwise.
+
+M1. What does the orange line at the top say after "Drawing with:"? Write it
+    down in full.
+M2. Before you press Start, is the dark square there, square, and empty?
+M3. Press Start. Do 3 dots blink orange for about 2 seconds, then turn white?
+M4. Do the dots move smoothly, with no stutter and no jumps?
+M5. Do the dots stay inside the square and turn back at its edges?
+M6. When they stop, tap a dot. Does a blue ring appear round the dot you
+    tapped, and not round another one?
+M7. After your third tap, do right picks turn green and wrong picks red, with
+    an orange ring round any target you missed?
+M8. Scroll down to "Timing of the last trial". What are the numbers for
+    frames drawn, late frames, and usual and worst frame time?
+M9. On the same screen, what are the measured dot speed and the measured
+    moving time? (Set: 140 points a second and 8000 ms.)
+M10. Press "Replay same trial". Do the same dots blink and take the same
+     paths as before?
+M11. Set 20 dots and the highest speed, then press Start. Is the movement
+     still smooth? Write down the late frames number again.
+M12. If there is a button "Draw with plain views", press it and play a trial.
+     Is it less smooth than before? Write down its late frames number.

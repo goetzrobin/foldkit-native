@@ -133,6 +133,34 @@ because the app uses none of their JavaScript.
 If you want to undo it: delete the three lines from `package.json`, run
 `npm install`, and delete the `ios` and `android` folders.
 
+## Skia, for the Object tracking demo
+
+The Object tracking demo draws with a graphics library called Skia where the
+app has its native code, and with ordinary views where it does not. The
+orange line at the top of the demo says which: "Drawing with: Skia" or
+"Drawing with: plain views" followed by the reason.
+
+Expo's documentation for SDK 58 lists Skia (`@shopify/react-native-skia`,
+version 2.14.0) as "Included in Expo Go". If the line says "Skia" in Expo Go,
+there is nothing to do.
+
+A development build gets Skia with no extra step. The package is already in
+`apps/showcase/package.json`, so the commands above include its native code:
+`npm install`, `npx expo prebuild`, `npx expo run:ios --device`. On Android,
+`npx expo run:android` does the same.
+
+The app uses none of the package's JavaScript. It asks the phone for Skia's
+native code by name when the app starts.
+
+| The line says | What it means |
+|---|---|
+| Drawing with: Skia | Skia's native code is there and in use. |
+| Drawing with: plain views (Skia's native code is not in this build) | This build does not have it. In a development build, run `npx expo prebuild --clean` and build again. |
+| Drawing with: plain views (Skia was found but did not start), or (Skia failed to start ...) | The native code is there but refused to start. Tell an engineer, with the full line. |
+| Drawing with: plain views (switched here) | You pressed "Draw with plain views" in the demo. |
+
+Nobody has run this on a phone, in Expo Go or in a development build.
+
 ## What was checked, and what was not
 
 Checked on the engineer's Linux machine:
