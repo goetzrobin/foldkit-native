@@ -650,6 +650,19 @@ describe('the Worklets demo', () => {
     running.dispose()
   })
 
+  it('stops its worklets when it is left', async () => {
+    const fake = withWorklets()
+    const { phone, running } = await open()
+    fake.flushUi()
+    fake.frame()
+    expect(fake.framesAsked()).toBeGreaterThan(0)
+    await press(phone.fabric, 'exit')
+    fake.flushUi()
+    for (let frame = 0; frame < 40; frame++) fake.frame()
+    expect(fake.framesAsked()).toBe(0)
+    running.dispose()
+  })
+
   it('leaves through its Exit button', async () => {
     let exits = 0
     const phone = startPhone()

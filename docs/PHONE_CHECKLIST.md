@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show eleven rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show twelve rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass?
+   Object tracking, Glass, Worklets?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -272,3 +272,29 @@ G9. Press "Open the tabs screen" and scroll the list up. Does the tab bar
 G10. On the tabs screen, switch "Strip above the tab bar" on. Does a glass
      strip with the words "Strip above the bar" appear above the tab bar,
      with no crash?
+
+## Worklets
+
+A worklet is a small piece of code that runs on the thread that draws the
+screen, so it keeps going while the rest of the app is busy. This demo has
+not been seen on a phone. Its status lines are the main thing: they say
+which pieces Expo Go has. See `docs/WORKLETS.md`.
+
+W1. What does each of the six status lines under "1. What this build can do"
+    say? Write them down in full, or send a screenshot. Wait three seconds
+    first, so no line still says "waiting".
+W2. Is the grey bar under the status lines short (about as wide as a
+    fingertip is tall) or about four times that?
+W3. Under "2. Block JavaScript", is there an orange box moving from side to
+    side on its own? Is the blue box under it moving too?
+W4. Press "Block JavaScript for 2 seconds". While the button is stuck, does
+    the blue box stop? Does the orange box keep moving smoothly?
+W5. When the button comes back, what number does the line under it give for
+    how long JavaScript was blocked?
+W6. Under "3. Drag the card", drag the orange card sideways. Does it stay
+    under your finger with no lag?
+W7. Let go of the card far from the middle. Does it spring back, and does
+    the line under it say "Messages from releases: 1"? Let go close to the
+    middle. Does the count stay the same?
+W8. Leave the demo with Exit, open it again, and repeat W4. Is it the same,
+    with no crash and no red box on the menu?

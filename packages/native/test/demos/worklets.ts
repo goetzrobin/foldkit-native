@@ -190,6 +190,9 @@ const makeCommands = (env: DemoEnv, stage: Stage, options: WorkletsDemoOptions) 
   const Exit = Command.define('Exit', {
     messages: [Message.CompletedExit],
     execute: Effect.sync(() => {
+      // The orange box's worklet would bounce on for ever with nobody watching.
+      runOnUi(stopAnimation, stage.boxX)
+      runOnUi(stopAnimation, stage.cardX)
       env.exit()
       return Message.CompletedExit()
     }),
