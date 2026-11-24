@@ -174,6 +174,8 @@ export const Message = defineMessageUnion({
   ChangedAtEnd: { isAtEnd: Schema.Boolean },
   PressedScrollToEnd: {},
   DraggedListWithKeyboardUp: {},
+  /** A tap on the transcript that no button, link or hold took. */
+  TappedTranscript: {},
   LongPressedMessage: { rowKey: Schema.String },
   /** One of the small buttons under a finished reply: copy, share, regenerate. */
   PressedReplyAction: { rowKey: Schema.String, key: Schema.String },

@@ -30,6 +30,7 @@ import { animated } from '../src/motion/index.js'
 import { type Device, onDismissed, screen } from '../src/navigation/stack.js'
 import { LiveTurnOps, MAX_RECONNECTS, type Part, type ReasoningPart, type ToolCallPart } from '../src/aiChat/index.js'
 import { onLongPress } from './longPress.js'
+import { onTapAway } from './tapAway.js'
 import { type ChatRow, Message, type Model, chatRows, clockOf, textOf, thoughtFor } from './model.js'
 import { thinkingLabel } from './shimmer.js'
 import { EASE_OUT_EXPO, ENTER_RISE, MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
@@ -243,7 +244,9 @@ const replyRow = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
     [
       prop('testID', `row-${row.key}`),
       // Held while it streams too: the menu then offers Copy so far and Stop.
-      ...(hasText || isStreamingRow(row) ? onLongPress(Message.LongPressedMessage({ rowKey: row.key })) : []),
+      ...(hasText || isStreamingRow(row)
+        ? onLongPress(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript())
+        : []),
       style({ paddingHorizontal: SPACE.xl, paddingTop: SPACE.m, gap: SPACE.s, backgroundColor: palette.bg }),
     ],
     [
@@ -278,7 +281,7 @@ const questionRow = (h: HtmlBuilder<Message>, palette: Palette, row: ChatRow, is
   const bubble = view(
     [
       prop('testID', `row-${row.key}`),
-      ...onLongPress(Message.LongPressedMessage({ rowKey: row.key })),
+      ...onLongPress(Message.LongPressedMessage({ rowKey: row.key }), Message.TappedTranscript()),
       style({
         maxWidth: '84%',
         paddingVertical: 10,
@@ -572,6 +575,10 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
           style({ flex: 1 }),
           prop('indicatorStyle', model.scheme === 'dark' ? 'white' : 'black'),
           dismissKeyboardOnDrag(),
+          // A tap that no row or button takes puts the keyboard away, as in
+          // Messages. A drag is not a tap, and the keyboard still follows the
+          // finger down. See `tapAway.ts`.
+          ...onTapAway(Message.TappedTranscript()),
           // Android's scroll view cannot put the keyboard away by itself.
           OnCustomEvent<Message>({
             name: 'scrollBeginDrag',

@@ -711,6 +711,7 @@ export const makeChatApp = (
       PressedScrollToEnd: () => ({ model, commands: [ScrollToEnd()] }),
       // Android's scroll view cannot put the keyboard away by itself.
       DraggedListWithKeyboardUp: () => ({ model, commands: [dismissKeyboard()] }),
+      TappedTranscript: () => ({ model, commands: model.keyboardHeight > 0 ? [dismissKeyboard()] : [] }),
       LongPressedMessage: ({ rowKey }) => {
         const row = chatRows(model).find(each => each.key === rowKey)
         if (row === undefined) return { model }

@@ -397,6 +397,87 @@ describe('holding a message', () => {
   })
 })
 
+describe('putting the keyboard away', () => {
+  const touch = (id: string, phase: 'start' | 'end') => {
+    const node = byTestId(at.phone.fabric, id)
+    const point = { identifier: 0, target: node.reactTag, pageX: 0, pageY: 0, locationX: 0, locationY: 0, timestamp: Date.now() }
+    at.phone.fabric.emit(node, phase === 'start' ? 'topTouchStart' : 'topTouchEnd', {
+      ...point,
+      touches: phase === 'start' ? [point] : [],
+      changedTouches: [point],
+    })
+  }
+
+  it('a tap on the transcript, or on a message, puts the keyboard away; a button keeps it', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    const before = at.device.keyboard.dismissCount()
+
+    // Between the rows: nothing there takes the touch but the list itself.
+    await at.tap('transcript')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 1)
+
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap(`row-${replyKey()}`)
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 2)
+
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap('row-c1')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 3)
+
+    // A button under a reply does its own job and leaves the keyboard up.
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap(`${replyKey()}-share`)
+    await at.advance(50)
+    expect(at.device.share.calls).toHaveLength(1)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 3)
+  })
+
+  it('a drag is not a tap, and the keyboard still follows a drag down', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    const before = at.device.keyboard.dismissCount()
+    touch('transcript', 'start')
+    at.phone.fabric.emit(byTestId(at.phone.fabric, 'transcript'), 'topScrollBeginDrag', {
+      contentOffset: { x: 0, y: 0 },
+      layoutMeasurement: { width: 390, height: 600 },
+    })
+    touch('transcript', 'end')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before)
+    // The phone's own way: the keyboard follows the finger down, or leaves as the drag starts.
+    expect(['interactive', 'on-drag']).toContain(byTestId(at.phone.fabric, 'transcript').props['keyboardDismissMode'])
+  })
+
+  it('holding a message is not a tap', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    const before = at.device.keyboard.dismissCount()
+    at.sheet.answerWith(null)
+    await hold(at.phone.fabric, `row-${replyKey()}`, LONG_PRESS_MS + 80)
+    expect(at.sheet.shown).toHaveLength(1)
+    expect(at.device.keyboard.dismissCount()).toBe(before)
+  })
+})
+
 describe('a voice note', () => {
   it('records, then attaches the note with a transcript placeholder in the field', async () => {
     at = await startChatPhone()
