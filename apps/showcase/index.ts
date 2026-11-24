@@ -16,6 +16,7 @@ import {
   PixelRatio,
   Platform,
   StyleSheet,
+  TurboModuleRegistry,
   processColor,
 } from 'react-native'
 import {
@@ -36,11 +37,18 @@ import {
   watchStyling,
 } from './native/src'
 import { configureKeyboardDock } from './native/src/keyboard'
+import { configureSkia, registerSkia } from './native/src/skia'
 import { makeDemos } from './native/test/demos'
 import { startShowcase } from './native/test/demos/shell'
 
 registerPlatformComponents(Platform.OS)
 registerNavigation()
+
+// For the object tracking demo. Skia's React components are not used and its
+// package is not imported: only its native code is, found by name. Where the
+// build does not have it, the demo draws with plain views and says so.
+registerSkia()
+configureSkia({ nativeModule: name => TurboModuleRegistry.get(name) })
 
 /**
  * React Native's animation module, which can move a view on the native side

@@ -27,6 +27,7 @@ Foldkit program.
 | Styling | Tailwind classes, with colors that change when the phone goes to dark mode. |
 | Phone features | Haptics, clipboard, saved text, share sheet, alerts, keyboard, network, rotation. |
 | Keyboard dock | A text field that rides on the keyboard. A label says which of its two modes is in use. |
+| Object tracking | A tracking game drawn every frame with Skia, or with plain views where Skia is missing. Shows frame timing after each trial. |
 
 Chat and AI chat have a button, "Keyboard: following" or "Keyboard: simple",
 that switches between two ways of keeping the text field above the keyboard.
