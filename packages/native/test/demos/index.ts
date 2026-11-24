@@ -147,7 +147,6 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     blurb: 'Rows drawn by our own Swift and Kotlin. A line says if this build has them. Not in Expo Go.',
     start: (container, env) => Runtime.embed(makeSwipeNative(container, env)),
   },
-  },
   {
     id: 'sheets',
     title: 'Sheets',

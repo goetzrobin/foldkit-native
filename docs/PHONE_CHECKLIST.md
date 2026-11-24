@@ -21,7 +21,7 @@ Do this before anything else. It tells us which demos work at all.
 1. Does the menu show sixteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
    Object tracking, Glass, Worklets, Server state, Swipe actions,
-   Swipe actions (native view)?
+   Swipe actions (native view), Sheets?
 
 1. Does the menu show fourteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
