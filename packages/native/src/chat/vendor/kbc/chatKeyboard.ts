@@ -12,7 +12,9 @@
  * Those are React hooks that run on the phone's UI thread through Reanimated.
  * This project has neither React nor Reanimated in its drawing, so the hooks
  * are rewritten here as one plain object with the same handlers and the same
- * arithmetic, line for line where that was possible. The values are plain
+ * arithmetic, line for line where that was possible. Two things are ours:
+ * `keyboardLiftBehavior` and `offset` are read from `options` on every event
+ * (so they may be changed), and `forgetLift`. The values are plain
  * `{ value }` boxes, which is what the library's own tests pass in, so its
  * test cases run against this file unchanged (see
  * `test/kbcChatKeyboard.test.ts`).
@@ -76,22 +78,21 @@ export type ChatKeyboard = {
    * `undefined` to stay. `extraContentPadding.value` must already be `current`.
    */
   onExtraContentPadding: (current: number, previous: number | null) => number | undefined;
+  /**
+   * Not in the library. The list has put itself somewhere on its own account
+   * (a new question went to the top) while the keyboard was up. The lift
+   * that opening the keyboard gave is forgotten, so that closing it does not
+   * take the list back down by as much. The library's users reach the same
+   * end with `freeze` around the scroll.
+   */
+  forgetLift: () => void;
   totalPadding: () => number;
   indicatorPadding: () => number;
 };
 
 export const createChatKeyboard = (options: ChatKeyboardOptions): ChatKeyboard => {
-  const {
-    inverted,
-    keyboardLiftBehavior,
-    freeze,
-    offset,
-    blankSpace,
-    extraContentPadding,
-    scroll,
-    layout,
-    size,
-  } = options;
+  const { inverted, freeze, blankSpace, extraContentPadding, scroll, layout, size } =
+    options;
 
   const padding: Box<number> = { value: 0 };
   const contentOffsetY: Box<number> = { value: options.initialContentOffsetY ?? 0 };
@@ -103,6 +104,9 @@ export const createChatKeyboard = (options: ChatKeyboardOptions): ChatKeyboard =
     if (freeze.value) {
       return;
     }
+
+    // Read on every event, so that the caller may change them between two.
+    const { keyboardLiftBehavior, offset } = options;
 
     if (e.height > 0) {
       targetKeyboardHeight.value = e.height;
@@ -257,7 +261,7 @@ export const createChatKeyboard = (options: ChatKeyboardOptions): ChatKeyboard =
     const effective = getEffectiveHeight(
       e.height,
       targetKeyboardHeight.value,
-      offset,
+      options.offset,
     );
 
     padding.value = effective;
@@ -273,6 +277,7 @@ export const createChatKeyboard = (options: ChatKeyboardOptions): ChatKeyboard =
       return undefined;
     }
 
+    const { keyboardLiftBehavior } = options;
     const rawDelta = current - previous;
 
     if (rawDelta === 0) {
@@ -340,6 +345,9 @@ export const createChatKeyboard = (options: ChatKeyboardOptions): ChatKeyboard =
       onEnd,
     },
     onExtraContentPadding,
+    forgetLift: () => {
+      prevAbsorption.value = padding.value;
+    },
     // From KeyboardChatScrollView: blank space is clamped at one viewport.
     totalPadding: () =>
       Math.min(
