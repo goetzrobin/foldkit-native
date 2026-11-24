@@ -84,6 +84,39 @@ export const tick = (color: string): Html =>
     ],
   )
 
+/** Two sheets of paper, one over the other: Copy. 16 points square. */
+export const copyIcon = (color: string, paper: string): Html =>
+  view(
+    [style({ width: 16, height: 16 })],
+    [
+      bar({ left: 5, top: 1, width: 10, height: 11, borderRadius: 2.5, borderWidth: 1.6, borderColor: color }),
+      bar({ left: 1, top: 4.5, width: 10, height: 11, borderRadius: 2.5, borderWidth: 1.6, borderColor: color, backgroundColor: paper }),
+    ],
+  )
+
+/** A tray with an arrow leaving it: Share. 16 points square. */
+export const shareIcon = (color: string): Html =>
+  view(
+    [style({ width: 16, height: 16 })],
+    [
+      bar({ left: 1.5, top: 6, width: 13, height: 10, borderWidth: 1.6, borderTopWidth: 0, borderColor: color, borderBottomLeftRadius: 2.5, borderBottomRightRadius: 2.5 }),
+      bar({ left: 7.2, top: 0.5, width: 1.6, height: 10, borderRadius: 0.8, backgroundColor: color }),
+      bar({ left: 5.5, top: -0.2, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '45deg' }] }),
+      bar({ left: 8.9, top: -0.2, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-45deg' }] }),
+    ],
+  )
+
+/** A circle that does not close, with a point at its end: Regenerate. 16 points square. */
+export const regenerateIcon = (color: string): Html =>
+  view(
+    [style({ width: 16, height: 16 })],
+    [
+      bar({ left: 1.5, top: 1.5, width: 13, height: 13, borderRadius: 6.5, borderWidth: 1.6, borderColor: color, borderTopColor: 'transparent', transform: [{ rotate: '45deg' }] }),
+      bar({ left: 10.6, top: 0.4, width: 1.6, height: 5, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] }),
+      bar({ left: 11.6, top: 3.1, width: 4.6, height: 1.6, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] }),
+    ],
+  )
+
 /**
  * The phone's own spinner. It has no size of its own, so it is given one:
  * without it the box would swallow touches across its parent.
@@ -133,6 +166,8 @@ export const roundButton = <Message>(
         height: size,
         borderRadius: size / 2,
         backgroundColor: options.fill,
+        // Written out, so a fade in has a value to ease to.
+        opacity: 1,
         alignItems: 'center',
         justifyContent: 'center',
         ...(options.border === undefined
@@ -273,7 +308,8 @@ export const navBar = <Message>(
     prop('titleColor', palette.ink),
     prop('largeTitle', options.isLargeTitle ?? false),
     prop('largeTitleColor', palette.ink),
-    prop('backTitle', ''),
+    // The back button shows its arrow alone, as in Messages.
+    prop('backButtonDisplayMode', 'minimal'),
     ...(options.testID === undefined ? [] : [prop('testID', options.testID)]),
   ]
   if (isAndroid) {

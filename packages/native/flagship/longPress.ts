@@ -46,9 +46,7 @@ export const onLongPress = <Message>(message: Message) => [
 const longPressModule: ModuleFactory = (engine: Engine) => {
   const stops = new WeakMap<EngineNode, () => void>()
 
-  const create = (_empty: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined || bagOf(vnode, 'props')[MARK] !== true) return
+  const wire = (node: EngineNode): void => {
     let timer: ReturnType<typeof setTimeout> | undefined
     let start: Point | undefined
     const cancel = (): void => {
@@ -83,14 +81,29 @@ const longPressModule: ModuleFactory = (engine: Engine) => {
     })
   }
 
-  const destroy = (vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
+  const unwire = (node: EngineNode): void => {
     stops.get(node)?.()
     stops.delete(node)
   }
 
-  return { create, destroy }
+  /** A view may gain or lose its hold between draws: a reply does when it finishes. */
+  const sync = (vnode: VNode): void => {
+    const node = nodeOf(vnode)
+    if (node === undefined) return
+    const wants = bagOf(vnode, 'props')[MARK] === true
+    if (wants && !stops.has(node)) wire(node)
+    else if (!wants && stops.has(node)) unwire(node)
+  }
+
+  const create = (_empty: VNode, vnode: VNode): void => sync(vnode)
+  const update = (_old: VNode, vnode: VNode): void => sync(vnode)
+
+  const destroy = (vnode: VNode): void => {
+    const node = nodeOf(vnode)
+    if (node !== undefined) unwire(node)
+  }
+
+  return { create, update, destroy }
 }
 
 registerModule(longPressModule)

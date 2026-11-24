@@ -17,7 +17,7 @@ import { type Device, modalScreen, onDismissed } from '../src/navigation/stack.j
 import { sheet, sheetContent, sheetHandle } from '../src/navigation/sheets.js'
 import { isSkiaAvailable } from '../src/skia/index.js'
 import { chatInsetAvailable, chatInsetFallbackReason } from '../src/chat/index.js'
-import { type ChaosName, Message, type Model, type Sheet, chatRows, textOf } from './model.js'
+import { type ChaosName, Message, type Model, type Sheet, chatRows, textOf, thoughtFor } from './model.js'
 import { type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
 import { StyleHairline } from './ui.js'
 
@@ -140,7 +140,7 @@ const reasoningSheet = (h: HtmlBuilder<Message>, device: Device, model: Model, p
   const part = findRow(model, rowKey)?.parts.find(each => each._tag === 'Reasoning')
   const reasoning = part?._tag === 'Reasoning' ? part : undefined
   const title =
-    reasoning === undefined || reasoning.seconds === 0 ? 'Thinking' : `Thought for ${reasoning.seconds} s`
+    reasoning === undefined || reasoning.seconds === 0 ? 'Thinking' : thoughtFor(reasoning.seconds)
   return [
     sheetHandle(device, palette.line),
     sheetContent({ attributes: [prop('testID', 'reasoning')] }, [
@@ -236,13 +236,13 @@ export const sheetScreens = (h: HtmlBuilder<Message>, device: Device, model: Mod
       ]
       switch (open._tag) {
         case 'Settings':
-          return [modalScreen([h.Key('sheet-settings'), ...shared([1])] as never, settingsSheet(h, device, model, palette))]
+          return [modalScreen([h.Key('sheet-settings'), prop('testID', 'sheet-settings'), ...shared([1])] as never, settingsSheet(h, device, model, palette))]
         case 'Reasoning':
-          return [modalScreen([h.Key('sheet-reasoning'), ...shared([0.5, 1])] as never, reasoningSheet(h, device, model, palette, open.rowKey))]
+          return [modalScreen([h.Key('sheet-reasoning'), prop('testID', 'sheet-reasoning'), ...shared([0.5, 1])] as never, reasoningSheet(h, device, model, palette, open.rowKey))]
         case 'SelectText':
-          return [modalScreen([h.Key('sheet-select'), ...shared([0.6, 1])] as never, selectTextSheet(h, device, model, palette, open.rowKey))]
+          return [modalScreen([h.Key('sheet-select'), prop('testID', 'sheet-select'), ...shared([0.6, 1])] as never, selectTextSheet(h, device, model, palette, open.rowKey))]
         case 'Rename':
-          return [modalScreen([h.Key('sheet-rename'), ...shared('fit')] as never, renameSheet(h, model, palette, open.title))]
+          return [modalScreen([h.Key('sheet-rename'), prop('testID', 'sheet-rename'), ...shared('fit')] as never, renameSheet(h, model, palette, open.title))]
       }
     },
   })

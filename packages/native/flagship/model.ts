@@ -175,6 +175,8 @@ export const Message = defineMessageUnion({
   PressedScrollToEnd: {},
   DraggedListWithKeyboardUp: {},
   LongPressedMessage: { rowKey: Schema.String },
+  /** One of the small buttons under a finished reply: copy, share, regenerate. */
+  PressedReplyAction: { rowKey: Schema.String, key: Schema.String },
   GotActionSheetMessage: { message: ActionSheet.Message },
   PressedLink: { url: Schema.String },
   CopiedCode: { language: Schema.String },
@@ -316,6 +318,9 @@ export const listItems = (
   }
   return items
 }
+
+/** "Thought for 4 s": whole seconds, at least one. */
+export const thoughtFor = (seconds: number): string => `Thought for ${Math.max(1, Math.round(seconds))} s`
 
 /** Minutes and seconds, as a voice note's length is shown: 0:07. */
 export const clockOf = (seconds: number): string => {

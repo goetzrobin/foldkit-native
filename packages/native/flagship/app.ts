@@ -728,6 +728,15 @@ export const makeChatApp = (
         }
       },
       GotActionSheetMessage: ({ message: sheetMessage }) => onActionSheet(model, sheetMessage),
+      PressedReplyAction: ({ rowKey, key }) => {
+        const row = chatRows(model).find(each => each.key === rowKey)
+        if (row === undefined) return { model }
+        const menu = { rowKey, text: textOf(row.parts), canRegenerate: row.isLastReply }
+        return onActionSheet(
+          modifyFields(model, { menu: () => Option.some(menu) }),
+          ActionSheet.Message.SelectedActionSheetItem({ key }),
+        )
+      },
       PressedLink: ({ url }) => ({ model, commands: [Command.mapMessage(Linking.OpenUrl({ url }), ignore)] }),
       CopiedCode: () => {
         const shown = withNotice(model, 'Code copied', 'info')

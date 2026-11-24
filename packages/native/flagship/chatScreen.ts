@@ -30,17 +30,20 @@ import { animated } from '../src/motion/index.js'
 import { type Device, onDismissed, screen } from '../src/navigation/stack.js'
 import { LiveTurnOps, MAX_RECONNECTS, type Part, type ReasoningPart, type ToolCallPart } from '../src/aiChat/index.js'
 import { onLongPress } from './longPress.js'
-import { type ChatRow, Message, type Model, chatRows, clockOf, textOf } from './model.js'
+import { type ChatRow, Message, type Model, chatRows, clockOf, textOf, thoughtFor } from './model.js'
 import { thinkingLabel } from './shimmer.js'
-import { ENTER_RISE, MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
+import { EASE_OUT_EXPO, ENTER_RISE, MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from './theme.js'
 import {
   StyleHairline,
   arrowDown,
   arrowUp,
+  copyIcon,
   cross,
   microphone,
   navBar,
+  regenerateIcon,
   roundButton,
+  shareIcon,
   spinner,
   stopSquare,
   textButton,
@@ -88,7 +91,7 @@ const metaRow = (
   view(
     [
       prop('testID', id),
-      style({ flexDirection: 'row', alignItems: 'center', gap: SPACE.s, minHeight: TYPE.meta.lineHeight }),
+      style({ flexDirection: 'row', alignItems: 'center', gap: SPACE.s, minHeight: TYPE.meta.lineHeight, opacity: 1 }),
       ...(attributes as ReadonlyArray<never>),
     ],
     children,
@@ -109,7 +112,7 @@ const reasoningRow = <Message_>(
       : [
           text(
             [style({ ...TYPE.meta, color: palette.ink2 })],
-            [part.seconds > 0 ? `Thought for ${part.seconds} s` : 'Thought for a moment'],
+            [part.seconds > 0 ? thoughtFor(part.seconds) : 'Thought for a moment'],
           ),
           text([style({ ...TYPE.meta, color: palette.ink3 })], ['›']),
         ],
@@ -207,6 +210,27 @@ const endOfReply = (h: HtmlBuilder<Message>, model: Model, palette: Palette, row
   return []
 }
 
+/** The small buttons under a finished reply. Regenerate only under the newest. */
+const replyActions = (h: HtmlBuilder<Message>, palette: Palette, row: ChatRow): Html => {
+  const action = (key: string, label: string, icon: Html) =>
+    roundButton(
+      h,
+      { id: `${row.key}-${key}`, label, fill: 'transparent', size: 32, onPress: Message.PressedReplyAction({ rowKey: row.key, key }) },
+      icon,
+    )
+  return view(
+    [style({ flexDirection: 'row', gap: 2, marginLeft: -8 })],
+    [
+      action('copy', 'Copy', copyIcon(palette.ink3, palette.bg)),
+      action('share', 'Share', shareIcon(palette.ink3)),
+      ...(row.isLastReply ? [action('regenerate', 'Regenerate', regenerateIcon(palette.ink3))] : []),
+    ],
+  )
+}
+
+/** Fades in once your question has risen into place, as it does in Margelo's app. */
+const THINKING_ENTER = { from: { opacity: 0 }, delay: 300, duration: 200, easing: 'easeOut' } as const
+
 const replyRow = (h: HtmlBuilder<Message>, device: Device, model: Model, palette: Palette, row: ChatRow): Html => {
   const hasText = row.parts.some(part => part._tag === 'Text' && part.text !== '')
   // "Thinking" until the first word, except while a running tool or the
@@ -222,9 +246,12 @@ const replyRow = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
       style({ paddingHorizontal: SPACE.xl, paddingTop: SPACE.m, gap: SPACE.s, backgroundColor: palette.bg }),
     ],
     [
-      ...(isWaiting ? [metaRow(`${row.key}-thinking`, [thinkingLabel(h, palette)])] : []),
+      ...(isWaiting
+        ? [animated({ enter: THINKING_ENTER }, metaRow(`${row.key}-thinking`, [thinkingLabel(h, palette)], [h.Key('thinking')]))]
+        : []),
       ...row.parts.map((part, index) => partView(h, device, model, palette, row, part, index)),
       ...endOfReply(h, model, palette, row),
+      ...(hasText && (row.status === 'complete' || row.status === 'stopped') ? [replyActions(h, palette, row)] : []),
     ],
   )
 }
@@ -283,7 +310,7 @@ const questionRow = (h: HtmlBuilder<Message>, palette: Palette, row: ChatRow, is
   // a saved row scrolled back into view must not move again.
   return row.source === 'pending'
     ? animated(
-        { enter: { from: { opacity: 0, transform: [{ translateY: ENTER_RISE }] }, duration: MOTION.messageEnter, easing: 'easeOut' } },
+        { enter: { from: { opacity: 0, transform: [{ translateY: ENTER_RISE }] }, duration: MOTION.messageEnter, easing: EASE_OUT_EXPO } },
         outer,
       )
     : outer
@@ -346,7 +373,13 @@ const composerHeight = (model: Model): number => {
   return 56 + (lines - 1) * TYPE.message.lineHeight + (Option.isSome(model.attachment) ? 40 : 0)
 }
 
-const sendOrStop = (h: HtmlBuilder<Message>, model: Model, palette: Palette): Html => {
+/** Send, Stop and the microphone take each other's place with a quick fade. */
+const swapIn = (button: Html): Html =>
+  animated({ enter: { from: { opacity: 0 }, duration: MOTION.sendStop, easing: 'easeOut' } }, button)
+
+const sendOrStop = (h: HtmlBuilder<Message>, model: Model, palette: Palette): Html => swapIn(sendOrStopButton(h, model, palette))
+
+const sendOrStopButton = (h: HtmlBuilder<Message>, model: Model, palette: Palette): Html => {
   const isStreaming = LiveTurnOps.isStreaming(model.live)
   if (isStreaming) {
     return roundButton(h, { id: 'stop', label: 'Stop the reply', fill: palette.ink, onPress: Message.PressedStop() }, stopSquare(palette.bg))
@@ -393,6 +426,8 @@ const composer = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
       prop('cursorColor', palette.accent),
       prop('multiline', true),
       prop('editable', true),
+      // A new chat opens ready to type, as in other chat apps.
+      prop('autoFocus', Option.isNone(model.openId) && model.pending.length === 0),
       prop('keyboardAppearance', model.scheme),
       h.OnInput(words => Message.ChangedDraft({ text: words })),
       style({
@@ -468,10 +503,16 @@ const numbersStrip = (palette: Palette): Html =>
 const scrollButton = (h: HtmlBuilder<Message>, model: Model, palette: Palette): Html => {
   const covered = chatInsetAvailable() ? composerHeight(model) + (model.keyboardCovers > 0 ? model.keyboardCovers : 34) : 0
   const place: NativeStyle = { position: 'absolute', alignSelf: 'center', bottom: covered + SPACE.m, left: '50%', marginLeft: -18 }
-  return roundButton(
+  return animated(
+    {
+      enter: { from: { opacity: 0 }, duration: MOTION.scrollButton, easing: 'easeOut' },
+      exit: { to: { opacity: 0 }, duration: MOTION.scrollButton, easing: 'easeOut' },
+    },
+    roundButton(
     h,
     { id: 'scroll-to-end', label: 'Scroll to the newest message', fill: palette.bg, size: 36, border: palette.line, onPress: Message.PressedScrollToEnd(), extra: { ...place, shadowColor: '#000000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } } },
     arrowDown(palette.ink),
+    ),
   )
 }
 
@@ -559,6 +600,7 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
     [
       navBar(h, device, palette, {
         title: chatTitle(model),
+        testID: 'bar-chat',
         center: barTitle(palette, chatTitle(model)),
         right: {
           id: 'chat-menu',

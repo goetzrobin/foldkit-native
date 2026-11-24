@@ -188,6 +188,7 @@ export const listScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
     [
       navBar(h, device, palette, {
         title: 'Chats',
+        testID: 'bar-chats',
         isLargeTitle: isIos,
         left: { id: 'settings', symbol: 'gearshape', label: 'Settings', onPress: Message.PressedSettings() },
         right: { id: 'new-chat', symbol: 'square.and.pencil', label: 'New', onPress: Message.PressedNewChat() },

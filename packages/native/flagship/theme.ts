@@ -78,11 +78,14 @@ export const RADIUS = { bubble: 20, field: 22, chip: 12, row: 12 } as const
 
 /** Milliseconds. */
 export const MOTION = {
-  messageEnter: 220,
+  messageEnter: 380,
   sendStop: 120,
   scrollButton: 150,
   shimmerSweep: 1400,
 } as const
 
 /** How far your new message rises as it fades in, in points. */
-export const ENTER_RISE = 8
+export const ENTER_RISE = 24
+
+/** Fast at first, then a long gentle stop: the curve your message rises on. */
+export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const
