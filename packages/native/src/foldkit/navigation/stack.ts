@@ -30,7 +30,7 @@ import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderT
 
 import { prop } from '../attributes.js'
 import { registerModule } from '../extend.js'
-import { nodeOf } from '../../host/fabric/nodes.js'
+import { nodeOf } from '../modules.js'
 import { SHEET_CONTENT, SHEET_FOOTER } from './sheets.js'
 
 const el = element<any>()

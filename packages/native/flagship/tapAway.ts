@@ -22,7 +22,7 @@ import { OnCustomEvent, type VNode } from 'foldkit/renderTarget'
 
 import { prop } from '../src/foldkit/attributes.js'
 import { type ModuleFactory, registerModule } from '../src/foldkit/extend.js'
-import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../src/host/fabric/nodes.js'
+import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../src/foldkit/modules.js'
 
 /** How far a finger may drift and still tap, in points, as for a press. */
 const SLOP = 10

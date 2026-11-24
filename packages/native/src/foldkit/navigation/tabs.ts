@@ -32,7 +32,7 @@ import type { Html } from 'foldkit/html'
 import { type Module, OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 
 import { registerModule } from '../extend.js'
-import { bagOf, nodeOf } from '../../host/fabric/nodes.js'
+import { bagOf, nodeOf } from '../modules.js'
 import { prop } from '../attributes.js'
 import type { Attributes, Device } from './stack.js'
 

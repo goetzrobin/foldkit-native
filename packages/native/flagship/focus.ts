@@ -19,7 +19,7 @@ import type { VNode } from 'foldkit/renderTarget'
 
 import { prop } from '../src/foldkit/attributes.js'
 import { type ModuleFactory, registerModule } from '../src/foldkit/extend.js'
-import { bagOf, nodeOf } from '../src/host/fabric/nodes.js'
+import { bagOf, nodeOf } from '../src/foldkit/modules.js'
 
 const NAME = 'flagshipFieldName'
 

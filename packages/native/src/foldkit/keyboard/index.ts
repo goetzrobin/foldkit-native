@@ -7,8 +7,8 @@
  *
  * `dock.ts` explains the two modes and `detect.ts` how one is chosen.
  */
-export { dismissKeyboardOnDrag, keyboardDock } from '../../host/keyboard/dock.js'
-export type { KeyboardDock } from '../../host/keyboard/dock.js'
+export { dismissKeyboardOnDrag, keyboardDock } from './dock.js'
+export type { KeyboardDock } from './dock.js'
 export {
   configureKeyboardDock,
   forceKeyboardDockFallback,

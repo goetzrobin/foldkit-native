@@ -37,8 +37,8 @@ import type { Html } from 'foldkit/html'
 import { type VNode, h, init, onUnmountModule } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { makeModules, nodeOf } from '../../host/fabric/nodes.js'
-import { makeNodeApi } from '../../host/fabric/nodeApi.js'
+import { makeModules, nodeOf } from '../modules.js'
+import { makeNodeApi } from '../nodeApi.js'
 import {
   type LegendDriver,
   type LegendDriverProps,

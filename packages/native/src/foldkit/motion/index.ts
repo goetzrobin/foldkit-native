@@ -42,7 +42,7 @@ import type { Html } from 'foldkit/html'
 import { OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { type Bag, type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../../host/fabric/nodes.js'
+import { type Bag, type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../modules.js'
 import { keepMoving } from '../../host/motion/clock.js'
 
 export { configureMotion, keepMoving, stopMotion } from '../../host/motion/clock.js'

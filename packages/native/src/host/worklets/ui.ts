@@ -309,3 +309,6 @@ export const eventWorklet = <Event>(handler: (event: Event) => void) => {
     handler(event)
   }
 }
+
+/** A gesture's number, as the gesture handler gave it to a native view. */
+export type GestureTag = Readonly<{ handlerTag: number }>

@@ -68,17 +68,16 @@ export {
   TurnKeeper,
   TurnUpdate,
   describeFailure,
-  makeAiChat,
   reconnectDelayMs,
   toUpdates,
   transcript,
   turnKeeperLayer,
 } from '../../host/aiChat/client.js'
+export { makeAiChat } from './client.js'
+export type { AiChat, LiveTurnEntryConfig } from './client.js'
 export type {
-  AiChat,
   AiChatOptions,
   AiChatServices,
-  LiveTurnEntryConfig,
   TranscriptRow,
   TurnKeeperService,
   TurnStart,

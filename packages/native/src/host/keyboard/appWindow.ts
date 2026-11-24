@@ -13,15 +13,14 @@
  */
 import type { EngineNode } from '@ng-native/fabric'
 
-import { type ModuleFactory, registerModule } from '../../foldkit/extend.js'
-import { nodeOf } from '../fabric/nodes.js'
+import { type NodeHooksFactory, registerNodeHooks } from '../fabric/registry.js'
 
 type Measure = (use: (height: number) => void) => void
 
 /** The surface now on screen. An app has one. */
 let measure: Measure | undefined
 
-const appWindowModule: ModuleFactory = engine => {
+const appWindowHooks: NodeHooksFactory = engine => {
   let sample: EngineNode | undefined
   let windowView: EngineNode | undefined
 
@@ -51,16 +50,16 @@ const appWindowModule: ModuleFactory = engine => {
   }
 
   return {
-    create: (_empty, vnode) => {
+    create: node => {
       if (windowView !== undefined) return
       // Any view will do. It is not yet in the tree here, so the walk up
       // waits until someone asks.
-      sample = nodeOf(vnode) ?? sample
+      sample = node
     },
   }
 }
 
-registerModule(appWindowModule)
+registerNodeHooks(appWindowHooks)
 
 /**
  * Asks for the height of the app's window, in points. `use` is called when

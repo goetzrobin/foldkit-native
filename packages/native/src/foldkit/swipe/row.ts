@@ -51,7 +51,7 @@ import {
   type SwipeSideOption,
   type SwipeSideSpec,
   type SwipeTriggered,
-} from '../../host/swipe/types.js'
+} from './types.js'
 import { makeTileStyle, makeUiParts, panStep } from '../../host/swipe/uiSide.js'
 
 const el = element<any>()

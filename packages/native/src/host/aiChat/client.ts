@@ -44,7 +44,6 @@ import {
 import * as AsyncResult from 'effect/reactivity/AsyncResult'
 import * as Atom from 'effect/reactivity/Atom'
 import type * as Reactivity from 'effect/reactivity/Reactivity'
-import { Subscription } from 'foldkit'
 
 import {
   type ServerState,
@@ -53,7 +52,7 @@ import {
   focusSignal,
   makeServerState,
   runWrite,
-} from '../../foldkit/serverState/bridge.js'
+} from '../serverState/store.js'
 import { Sync } from '../serverState/sync.js'
 import { AiChatRpcClient } from './transport.js'
 import {
@@ -647,15 +646,6 @@ export type TurnStart =
   | Readonly<{ _tag: 'Started'; started: TurnStartedEvent }>
   | Readonly<{ _tag: 'Failed'; error: ChatError }>
 
-export type LiveTurnEntryConfig<Model, Message> = Readonly<{
-  /** The turn to follow, or none. Following starts when this turns to some. */
-  modelToTurnId: (model: Model) => Option.Option<string>
-  /** `receivedAt` is the clock's time in milliseconds when the update left the client. */
-  toMessage: (update: TurnUpdate, receivedAt: number) => Message
-  /** The window in which text pieces are joined into one Message. Default 32 ms. */
-  batchMs?: number
-}>
-
 /**
  * Makes the client for one program. Put `layer` in the program's
  * `resources`. The handle points at that program's registry: two programs
@@ -829,43 +819,35 @@ export const makeAiChat = (options: AiChatOptions) => {
       ),
 
     /**
-     * A Subscription entry that follows the live turn. Text and reasoning
-     * that arrive within `batchMs` of the first piece are joined into one
-     * update. Everything else is its own update. Following a turn again
-     * (the screen closed and opened) replays it from the start; `LiveTurn`
-     * skips what it has.
+     * The live turn as a Stream of Messages. Text and reasoning that arrive
+     * within `batchMs` of the first piece are joined into one update.
+     * Everything else is its own update. Following a turn again (the screen
+     * closed and opened) replays it from the start; `LiveTurn` skips what it
+     * has. The Foldkit binding wraps this in a Subscription entry
+     * (`liveTurnEntry`).
      */
-    liveTurnEntry: <Model, Message>(config: LiveTurnEntryConfig<Model, Message>) =>
-      Subscription.make<Model, Message, ServerState>()(entry => ({
-        turn: entry(
-          { maybeTurnId: Schema.Option(Schema.String) },
-          {
-            modelToDependencies: model => ({ maybeTurnId: config.modelToTurnId(model) }),
-            dependenciesToStream: ({ maybeTurnId }) =>
-              Option.match(maybeTurnId, {
-                onNone: () => Stream.empty,
-                onSome: turnId =>
-                  server.provideStream(
-                    Stream.unwrap(
-                      TurnKeeper.use(keeper =>
-                        Effect.succeed(
-                          keeper.follow(turnId).pipe(
-                            Stream.groupedWithin(4096, Duration.millis(config.batchMs ?? 32)),
-                            Stream.mapEffect(items =>
-                              Effect.map(Clock.currentTimeMillis, at =>
-                                toUpdates(items).map(update => config.toMessage(update, at)),
-                              ),
-                            ),
-                            Stream.flatMap(messages => Stream.fromIterable(messages)),
-                          ),
-                        ),
-                      ),
-                    ),
+    followTurn: <Message>(
+      turnId: string,
+      toMessage: (update: TurnUpdate, receivedAt: number) => Message,
+      batchMs = 32,
+    ): Stream.Stream<Message, never, ServerState> =>
+      server.provideStream(
+        Stream.unwrap(
+          TurnKeeper.use(keeper =>
+            Effect.succeed(
+              keeper.follow(turnId).pipe(
+                Stream.groupedWithin(4096, Duration.millis(batchMs)),
+                Stream.mapEffect(items =>
+                  Effect.map(Clock.currentTimeMillis, at =>
+                    toUpdates(items).map(update => toMessage(update, at)),
                   ),
-              }),
-          },
+                ),
+                Stream.flatMap(messages => Stream.fromIterable(messages)),
+              ),
+            ),
+          ),
         ),
-      })).turn,
+      ),
   }
 }
 

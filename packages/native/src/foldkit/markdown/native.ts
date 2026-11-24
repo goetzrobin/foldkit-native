@@ -41,7 +41,7 @@ import type { VNode } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { onNextFrame } from '../../host/motion/clock.js'
-import { nodeOf } from '../../host/fabric/nodes.js'
+import { nodeOf } from '../modules.js'
 import { NATIVE_MARKDOWN_VIEW, remendOf } from '../../host/markdown/detect.js'
 import {
   ACCESSIBILITY_LABELS,

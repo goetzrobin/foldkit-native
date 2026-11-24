@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { Keyboard } from '../src/device/index.js'
 import { type NativeSurface, createNativeSurface, registerNavigation } from '../src/index.js'
-import { DOCK_CONTENT_ID } from '../src/host/keyboard/dock.js'
+import { DOCK_CONTENT_ID } from '../src/foldkit/keyboard/dock.js'
 import { configureKeyboardDock, measureAppWindow } from '../src/keyboard/index.js'
 import { configureMotion, stopMotion } from '../src/motion/index.js'
 import { makeDemo as makeAiChat } from './demos/aiChat.js'

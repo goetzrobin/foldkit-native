@@ -24,7 +24,7 @@ export {
   swipeAction,
   swipeActions,
   swipeInfo,
-} from '../../host/swipe/types.js'
+} from './types.js'
 export type {
   SwipeAction,
   SwipeArmed,
@@ -43,7 +43,7 @@ export type {
   SwipeTileLayout,
   SwipeTileLook,
   SwipeTriggered,
-} from '../../host/swipe/types.js'
+} from './types.js'
 export { info, strip, swipeStyle, tiles } from '../../host/swipe/styles.js'
 export {
   registerSwipeDriver,

@@ -25,12 +25,11 @@
  * for the rest of that touch.
  */
 import type { EngineNode, ResponderEvent, ResponderHandlers } from '@ng-native/fabric'
-import type { VNode } from 'foldkit/renderTarget'
 
-import { type ModuleFactory, registerModule } from '../../foldkit/extend.js'
-import { type Handler, customEvent, handlersByNode, nodeOf } from '../fabric/nodes.js'
+import { type Handler, type NodeData, customEvent, handlersByNode } from '../fabric/nodes.js'
+import { type NodeHooksFactory, registerNodeHooks } from '../fabric/registry.js'
 import { onNextFrame } from '../motion/clock.js'
-import { listenToChannel, runOnUi, writeShared } from '../../foldkit/worklets/index.js'
+import { listenToChannel, runOnUi, writeShared } from '../worklets/index.js'
 import {
   FULL_SPRING,
   type Limits,
@@ -150,7 +149,7 @@ export const pressTile = (stage: Stage, side: SwipeSide, index: number): void =>
   if (row !== null) tilePresses.get(row)?.(side, index)
 }
 
-const swipeModule: ModuleFactory = engine => {
+const swipeHooks: NodeHooksFactory = engine => {
   const rows = new Map<EngineNode, Row>()
   const changed = new Set<Row>()
   /** What was last set on each moving view, as text, so nothing is set twice. */
@@ -716,28 +715,24 @@ const swipeModule: ModuleFactory = engine => {
     }
   }
 
-  const notePart = (vnode: VNode): void => {
-    const data = vnode.data?.[PART_DATA] as PartData | undefined
-    const node = nodeOf(vnode)
-    if (data === undefined || node === undefined) return
+  const notePart = (node: EngineNode, element: NodeData): void => {
+    const data = element[PART_DATA] as PartData | undefined
+    if (data === undefined) return
     if (data.part === 'content') data.stage.content = node
     else data.stage.tiles.set(data.part, node)
   }
 
-  const forgetPart = (vnode: VNode): void => {
-    const data = vnode.data?.[PART_DATA] as PartData | undefined
-    const node = nodeOf(vnode)
-    if (data === undefined || node === undefined) return
+  const forgetPart = (node: EngineNode, element: NodeData): void => {
+    const data = element[PART_DATA] as PartData | undefined
+    if (data === undefined) return
     // Only if this view still holds the place: a newer one may have taken it.
     if (data.part === 'content') {
       if (data.stage.content === node) data.stage.content = null
     } else if (data.stage.tiles.get(data.part) === node) data.stage.tiles.delete(data.part)
   }
 
-  const noteRow = (vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
-    const stage = vnode.data?.[ROW_DATA] as Stage | undefined
+  const noteRow = (node: EngineNode, element: NodeData): void => {
+    const stage = element[ROW_DATA] as Stage | undefined
     const row = rows.get(node)
     if (stage === undefined) {
       // The updater reused this view for something that is not a swipe row.
@@ -755,19 +750,19 @@ const swipeModule: ModuleFactory = engine => {
   }
 
   return {
-    create: (_empty, vnode) => {
-      notePart(vnode)
-      noteRow(vnode)
+    create: (node, element) => {
+      notePart(node, element)
+      noteRow(node, element)
     },
-    update: (old, vnode) => {
-      if (old.data?.[PART_DATA] !== vnode.data?.[PART_DATA]) forgetPart(old)
-      notePart(vnode)
-      noteRow(vnode)
+    update: (node, before, after) => {
+      // The same view, drawn again: the part it held before is let go first.
+      if (before[PART_DATA] !== after[PART_DATA]) forgetPart(node, before)
+      notePart(node, after)
+      noteRow(node, after)
     },
-    destroy: vnode => {
-      forgetPart(vnode)
-      const node = nodeOf(vnode)
-      const row = node === undefined ? undefined : rows.get(node)
+    destroy: (node, element) => {
+      forgetPart(node, element)
+      const row = rows.get(node)
       if (row !== undefined) unmake(row)
     },
     // After the whole draw, when a row's new tiles and content exist.
@@ -780,4 +775,4 @@ const swipeModule: ModuleFactory = engine => {
   }
 }
 
-registerModule(swipeModule)
+registerNodeHooks(swipeHooks)

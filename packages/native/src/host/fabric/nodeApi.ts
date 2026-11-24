@@ -1,10 +1,14 @@
 /**
- * Foldkit's updater changes the screen through a small set of node functions.
- * In a browser those call the DOM. Here they call ng-native's engine, which
- * turns them into Fabric commits.
+ * A view updater changes the screen through a small set of node functions:
+ * create an element, insert it, remove it, set its text. In a browser those
+ * call the DOM. Here they call ng-native's engine, which turns them into
+ * Fabric commits.
+ *
+ * The functions are named as the DOM names them, because that is what an
+ * updater written for the browser expects. Foldkit's binding hands this
+ * object to Foldkit's updater (see `src/foldkit/nodeApi.ts`).
  */
 import type { Engine, EngineNode } from '@ng-native/fabric'
-import type { DOMAPI } from 'foldkit/renderTarget'
 
 const clearChildren = (engine: Engine, node: EngineNode): void => {
   for (const child of [...node.childList]) {
@@ -13,8 +17,7 @@ const clearChildren = (engine: Engine, node: EngineNode): void => {
   }
 }
 
-export const makeNodeApi = (engine: Engine): DOMAPI => {
-  const api = {
+export const makeEngineNodeApi = (engine: Engine) => ({
     createElement: (tagName: string) => engine.createElement(tagName),
     createElementNS: (_namespace: string, tagName: string) =>
       engine.createElement(tagName),
@@ -54,8 +57,6 @@ export const makeNodeApi = (engine: Engine): DOMAPI => {
     isElement: (node: EngineNode) => node.nodeKind === 'element',
     isText: (node: EngineNode) => node.nodeKind === 'text',
     isComment: (node: EngineNode) => node.nodeKind === 'anchor',
-  }
-  // The updater is typed against browser nodes. The engine's nodes stand in
-  // for them here, and nothing outside this file sees the difference.
-  return api as unknown as DOMAPI
-}
+})
+
+export type EngineNodeApi = ReturnType<typeof makeEngineNodeApi>

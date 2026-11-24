@@ -6,14 +6,19 @@
  */
 import { Prop, element } from 'foldkit/renderTarget'
 
+import { ELEMENTS, SCROLL_CONTENT_PROPS, SCROLL_VIEW_PROPS } from '../host/elements.js'
+
 const el = element<any>()
 
+const propsOf = (props: Readonly<Record<string, unknown>>) =>
+  Object.entries(props).map(([key, value]) => Prop({ key, value }))
+
 /** A box. `UIView` on iOS, `android.view.View` on Android. */
-export const view = el('view')
+export const view = el(ELEMENTS.view)
 /** A box meant to be pressed. The same view as `view`: the name is for the reader. */
-export const pressable = el('view')
+export const pressable = el(ELEMENTS.view)
 /** Text. Words must sit inside one of these. */
-export const text = el('text')
+export const text = el(ELEMENTS.text)
 /**
  * A box that scrolls.
  *
@@ -26,11 +31,11 @@ export const scrollView = (
   attributes: ReadonlyArray<any>,
   children: ReadonlyArray<any>,
 ) =>
-  el('scroll-view')(
-    [Prop({ key: 'alwaysBounceVertical', value: true }), ...attributes] as never,
-    [el('view')([Prop({ key: 'collapsable', value: false })] as never, children as never)],
+  el(ELEMENTS.scrollView)(
+    [...propsOf(SCROLL_VIEW_PROPS), ...attributes] as never,
+    [el(ELEMENTS.view)(propsOf(SCROLL_CONTENT_PROPS) as never, children as never)],
   )
 /** A picture. */
-export const image = el('image')
+export const image = el(ELEMENTS.image)
 /** A text field. Bind it with `h.Attribute('value', text)` and `h.OnInput`. */
-export const textInput = el('text-input')
+export const textInput = el(ELEMENTS.textInput)

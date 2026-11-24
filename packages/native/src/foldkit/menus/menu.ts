@@ -58,7 +58,7 @@ import {
   uiText,
 } from '../controls/expoUi.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../../host/fabric/nodes.js'
+import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../modules.js'
 import {
   type FlatAction,
   type MenuAction,

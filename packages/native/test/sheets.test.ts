@@ -2,7 +2,7 @@ import { Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { Keyboard } from '../src/device/index.js'
-import { DOCK_CONTENT_ID } from '../src/host/keyboard/dock.js'
+import { DOCK_CONTENT_ID } from '../src/foldkit/keyboard/dock.js'
 import { configureMotion, stopMotion } from '../src/host/motion/clock.js'
 import { registerNavigation, style } from '../src/index.js'
 import {

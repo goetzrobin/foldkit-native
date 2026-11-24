@@ -20,7 +20,7 @@ import { OnCustomEvent, type VNode } from 'foldkit/renderTarget'
 
 import { prop } from '../src/foldkit/attributes.js'
 import { type ModuleFactory, registerModule } from '../src/foldkit/extend.js'
-import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../src/host/fabric/nodes.js'
+import { type Handler, bagOf, customEvent, handlersByNode, nodeOf } from '../src/foldkit/modules.js'
 
 /** How long a finger rests before it is a hold, as on the phone's own menus. */
 export const LONG_PRESS_MS = 500

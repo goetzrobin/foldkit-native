@@ -22,7 +22,7 @@ import {
   stopAnimation,
   uiChannel,
   type UiChannel,
-} from '../../foldkit/worklets/index.js'
+} from '../worklets/index.js'
 import type { SharedHost } from '../worklets/ui.js'
 import {
   FULL_SPRING,

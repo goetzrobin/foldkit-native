@@ -4,13 +4,12 @@
  * It returns a `container`. Pass that to `Runtime.makeElement` exactly as a
  * web program passes a DOM element, then start the program with
  * `Runtime.embed` or `Runtime.run`.
+ *
+ * The engine, the full-screen view and the commits are the host layer's
+ * (`src/host/fabric/surface.ts`). This file builds Foldkit's updater over
+ * the engine's nodes and registers it as the container's render target.
  */
-import {
-  Engine,
-  type EngineNode,
-  type EngineOptions,
-  type FabricUIManager,
-} from '@ng-native/fabric'
+import type { Engine, FabricUIManager } from '@ng-native/fabric'
 import {
   type RenderTarget,
   type VNode,
@@ -19,9 +18,9 @@ import {
   registerRenderTarget,
 } from 'foldkit/renderTarget'
 
-import { makeModules } from '../host/fabric/nodes.js'
-import { stopMotion } from '../host/motion/clock.js'
-import { makeNodeApi } from '../host/fabric/nodeApi.js'
+import { type HostSurfaceOptions, createHostSurface } from '../host/fabric/surface.js'
+import { makeModules } from './modules.js'
+import { makeNodeApi } from './nodeApi.js'
 
 export type NativeSurface = Readonly<{
   /** Give this to `Runtime.makeElement({ container })`. */
@@ -31,110 +30,55 @@ export type NativeSurface = Readonly<{
   dispose: () => void
 }>
 
-export type NativeSurfaceOptions = EngineOptions &
+export type NativeSurfaceOptions = HostSurfaceOptions &
   Readonly<{
     /** Names the program for Foldkit's runtime. Defaults to `app`. */
     id?: string
-    /**
-     * EXPERIMENT. On a first launch in Expo Go the first screen came up with
-     * its content missing until the app was reloaded. With this on, the
-     * surface commits again 0.1, 0.5 and 1.5 seconds after the first draw.
-     * If the content then appears by itself, the first draw came too early.
-     */
-    recommitAfterFirstDraw?: boolean
   }>
 
-const HOST_STYLE = { height: '100%' } as const
 
 export const createNativeSurface = (
   fabric: FabricUIManager,
   rootTag: number,
   options: NativeSurfaceOptions = {},
 ): NativeSurface => {
-  const { id = 'app', recommitAfterFirstDraw = false, ...engineOptions } = options
-  const engine = new Engine(fabric, rootTag, engineOptions)
-  const api = makeNodeApi(engine)
-  // Work that needs the latest draw to have reached the phone first.
-  const afterCommitJobs: Array<() => void> = []
-  const patch = init(
-    [...makeModules(engine, job => afterCommitJobs.push(job)), onUnmountModule],
-    api,
-  )
-
-  // Work the engine does on its own clock, such as a style transition, asks
-  // for a commit here. One per task is enough.
-  let isCommitQueued = false
-  engine.setOnDirty(() => {
-    if (isCommitQueued) return
-    isCommitQueued = true
-    queueMicrotask(() => {
-      isCommitQueued = false
-      engine.commit()
-    })
+  const { id = 'app', ...hostOptions } = options
+  let patch: ReturnType<typeof init> | undefined
+  const surface = createHostSurface(fabric, rootTag, hostOptions, (engine, afterCommit) => {
+    const api = makeNodeApi(engine)
+    patch = init([...makeModules(engine, afterCommit), onUnmountModule], api)
   })
-
-  // A view that fills the screen, committed now, in the same turn the phone
-  // started this surface. ng-native does the same. The program draws inside
-  // it a frame later. Without it the first screen stayed blank on a real
-  // iPhone until the app was sent to the background and brought back.
-  const host = engine.createElement('view')
-  engine.appendChild(engine.root, host)
-  engine.setDefaultStyle(host, HOST_STYLE)
-  engine.commit()
+  const draw = patch as ReturnType<typeof init>
 
   const container = { id }
 
   const commitAfter = (vnode: VNode): VNode => {
-    engine.commit()
-    for (const job of afterCommitJobs.splice(0)) job()
+    surface.commit()
     return vnode
-  }
-
-  const nudges: Array<ReturnType<typeof setTimeout>> = []
-  const scheduleNudges = (): void => {
-    if (!recommitAfterFirstDraw) return
-    for (const [index, delay] of [100, 500, 1500].entries()) {
-      nudges.push(
-        setTimeout(() => {
-          // A changed prop makes a real commit: one that changes nothing is skipped.
-          engine.setProp(host, 'nativeID', `foldkit-host-${index}`)
-          engine.commit()
-        }, delay),
-      )
-    }
   }
 
   const target: RenderTarget = {
     mount: (_container, vnode, onRootPatched) => {
-      scheduleNudges()
+      surface.scheduleNudges()
       // The updater replaces the node it is given, so it gets a placeholder
       // inside the host view to replace with the program's first tree.
-      const placeholder = engine.createAnchor()
-      engine.appendChild(host, placeholder)
       const placeholderVNode: VNode = {
         sel: '!',
         data: {},
         children: undefined,
         text: '',
-        elm: placeholder as unknown as Element,
+        elm: surface.placeholder() as unknown as Element,
         key: undefined,
       }
-      return commitAfter(patch(placeholderVNode, vnode, onRootPatched))
+      return commitAfter(draw(placeholderVNode, vnode, onRootPatched))
     },
     patch: (currentVNode, vnode, onRootPatched) =>
-      commitAfter(patch(currentVNode, vnode, onRootPatched)),
+      commitAfter(draw(currentVNode, vnode, onRootPatched)),
     // Foldkit draws on the browser's next animation frame by default. On a
     // phone that clock can be paused while the app is still coming to the
     // front, which left the first screen blank. A microtask always runs.
     requestFrame: run => queueMicrotask(run),
-    unmount: (_container, emptyVNode) => {
-      const left = emptyVNode.elm as unknown as EngineNode | undefined
-      if (left !== undefined) {
-        engine.removeChild(host, left)
-        engine.destroyNode(left)
-      }
-      engine.commit()
-    },
+    unmount: (_container, emptyVNode) => surface.release(emptyVNode.elm as never),
   }
 
   const unregister = registerRenderTarget(container, target)
@@ -143,14 +87,7 @@ export const createNativeSurface = (
     // Foldkit types its container as a DOM element. The registration above is
     // what makes this object stand in for one.
     container: container as unknown as HTMLElement,
-    engine,
-    dispose: () => {
-      for (const nudge of nudges) clearTimeout(nudge)
-      // A queued animation frame must not commit on an engine that is gone.
-      stopMotion({ engine })
-      unregister()
-      // Newer engines have a `dispose`. The published 0.25.0 does not.
-      ;(engine as { dispose?: () => void }).dispose?.()
-    },
+    engine: surface.engine,
+    dispose: () => surface.dispose(unregister),
   }
 }

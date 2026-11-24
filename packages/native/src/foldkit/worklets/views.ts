@@ -37,7 +37,7 @@ import type { Html } from 'foldkit/html'
 import { OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { type Handler, customEvent, handlersByNode, nodeOf } from '../../host/fabric/nodes.js'
+import { type Handler, customEvent, handlersByNode, nodeOf } from '../modules.js'
 import { type UiChannel, listenToChannel } from '../../host/worklets/channel.js'
 import {
   gestureModule,
@@ -47,7 +47,14 @@ import {
   workletsPackage,
 } from '../../host/worklets/host.js'
 import { type Shared, runOnUi, shared, workletCheck } from '../../host/worklets/run.js'
-import { type PanEvent, type UiTarget, bindStyle, eventWorklet, unbindStyle } from '../../host/worklets/ui.js'
+import {
+  type GestureTag,
+  type PanEvent,
+  type UiTarget,
+  bindStyle,
+  eventWorklet,
+  unbindStyle,
+} from '../../host/worklets/ui.js'
 
 /** A style as React Native names it. See the top of this file for what is allowed. */
 export type UiStyle = Readonly<Record<string, unknown>>
@@ -112,8 +119,6 @@ export type PanConfig = Readonly<{
   enabled?: boolean
 }>
 
-/** A gesture's number. See `gestureTag`. */
-export type GestureTag = Readonly<{ handlerTag: number }>
 
 export type PanRelations = Readonly<{
   /** Both may run at once. */

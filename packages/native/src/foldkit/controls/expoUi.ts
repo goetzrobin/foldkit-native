@@ -32,10 +32,11 @@
  * Nothing in this file throws. Where Expo UI is missing, `expoUiKind()` is
  * `'none'` and `expoUiUnavailableReason()` says why in plain words.
  */
-import { nativePlatform, registerViewName } from '@ng-native/fabric'
+import { registerViewName } from '@ng-native/fabric'
 import type { Html } from 'foldkit/html'
 import { element } from 'foldkit/renderTarget'
 
+import { platformName } from '../../host/platform.js'
 import { prop } from '../attributes.js'
 
 const el = element<any>()
@@ -115,13 +116,7 @@ const expoGlobal = (): ExpoGlobal | undefined => {
 }
 
 /** `ios`, `android`, or whatever else the engine was told. Never throws. */
-export const platformName = (): string => {
-  try {
-    return String(nativePlatform())
-  } catch {
-    return 'unknown'
-  }
-}
+export { platformName }
 
 const isAndroid = (): boolean => platformName() === 'android'
 

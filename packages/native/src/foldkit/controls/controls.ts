@@ -39,7 +39,7 @@ import { OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 import { type NativeStyle, onPress, prop, style } from '../attributes.js'
 import { type ModuleFactory, registerModule } from '../extend.js'
 import { menuButton, menuRouteName } from '../menus/menu.js'
-import { bagOf, nodeOf } from '../../host/fabric/nodes.js'
+import { bagOf, nodeOf } from '../modules.js'
 import {
   type Modifier,
   disabledModifier,

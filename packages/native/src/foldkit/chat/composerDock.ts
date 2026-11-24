@@ -74,7 +74,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { element } from 'foldkit/renderTarget'
 
 import { prop, style } from '../attributes.js'
-import { keyboardDock } from '../../host/keyboard/dock.js'
+import { keyboardDock } from '../keyboard/dock.js'
 import { chatInsetAvailable } from '../../host/chat/chatScroll.js'
 
 const el = element<any>()

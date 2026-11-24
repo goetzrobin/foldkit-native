@@ -1,24 +1,42 @@
 /**
  * What an element carries besides its children: properties, classes, inline
- * styles and event handlers. Foldkit's web modules write these to browser
- * elements. These write them to engine nodes.
+ * styles and event handlers, written to engine nodes. A browser framework's
+ * modules write the same things to DOM elements.
+ *
+ * Each behaviour here is a set of node hooks: called when an element's node
+ * is made, when it is drawn again, and when it goes, with the element's data
+ * (its props, attrs, class, style and on bags, and any marker a feature put
+ * there). They know nothing of the view library that drew the element. The
+ * Foldkit binding (`src/foldkit/modules.ts`) calls them from Foldkit's
+ * updater.
  */
 import type { Engine, EngineNode } from '@ng-native/fabric'
-import type { Module, VNode } from 'foldkit/renderTarget'
 
-import { registeredModules } from '../../foldkit/extend.js'
+import { PRESSED_STYLE } from '../style.js'
 
 export type Bag = Record<string, unknown>
 
 const EMPTY: Bag = {}
 
-export const nodeOf = (vnode: VNode): EngineNode | undefined => {
-  const node = vnode.elm as unknown as EngineNode | undefined
-  return node !== undefined && node.nodeKind === 'element' ? node : undefined
-}
+/** What a view library knows about one element besides its children. */
+export type NodeData = Readonly<Record<string, unknown>>
 
-export const bagOf = (vnode: VNode, key: 'props' | 'attrs' | 'class' | 'style' | 'on') =>
-  ((vnode.data as Bag | undefined)?.[key] as Bag | undefined) ?? EMPTY
+export const EMPTY_DATA: NodeData = EMPTY
+
+/** One of the element's bags: `props`, `attrs`, `class`, `style` or `on`. */
+export const bagIn = (data: NodeData, key: 'props' | 'attrs' | 'class' | 'style' | 'on') =>
+  (data[key] as Bag | undefined) ?? EMPTY
+
+/**
+ * What runs when an element's node is made, drawn again, or goes. `post`
+ * runs once after a whole draw. Called for element nodes only.
+ */
+export type NodeHooks = Partial<{
+  create: (node: EngineNode, data: NodeData) => void
+  update: (node: EngineNode, before: NodeData, after: NodeData) => void
+  destroy: (node: EngineNode, data: NodeData) => void
+  post: () => void
+}>
 
 const TEXT_INPUT = 'text-input'
 
@@ -36,25 +54,21 @@ const isSame = (before: unknown, after: unknown): boolean => {
   )
 }
 
-/** Read by the press handling in this file. Not a native prop. */
-const PRESSED_STYLE = 'pressedStyle'
 
 /**
  * Props the adapter consumes itself. A text field's `value` is kept in step
- * by `textInputModule`, and `pressedStyle` is applied while a finger is down.
+ * by `textInputHooks`, and `pressedStyle` is applied while a finger is down.
  */
 const isFieldValue = (node: EngineNode, name: string): boolean =>
   (name === 'value' && node.tag === TEXT_INPUT) || name === PRESSED_STYLE
 
 /** Properties and attributes both become native props. */
-const propsModule = (engine: Engine): Partial<Module> => {
-  const update = (oldVnode: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
-    propsByNode.set(node, bagOf(vnode, 'props'))
+const propsHooks = (engine: Engine): NodeHooks => {
+  const update = (node: EngineNode, oldData: NodeData, data: NodeData): void => {
+    propsByNode.set(node, bagIn(data, 'props'))
     for (const key of ['props', 'attrs'] as const) {
-      const before = bagOf(oldVnode, key)
-      const after = bagOf(vnode, key)
+      const before = bagIn(oldData, key)
+      const after = bagIn(data, key)
       if (before === after) continue
       for (const name in before) {
         if (isFieldValue(node, name)) continue
@@ -66,15 +80,13 @@ const propsModule = (engine: Engine): Partial<Module> => {
       }
     }
   }
-  return { create: update, update }
+  return { create: (node, data) => update(node, EMPTY, data), update }
 }
 
-const classModule = (engine: Engine): Partial<Module> => {
-  const update = (oldVnode: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
-    const before = bagOf(oldVnode, 'class')
-    const after = bagOf(vnode, 'class')
+const classHooks = (engine: Engine): NodeHooks => {
+  const update = (node: EngineNode, oldData: NodeData, data: NodeData): void => {
+    const before = bagIn(oldData, 'class')
+    const after = bagIn(data, 'class')
     if (before === after) return
     for (const name in before) {
       if (before[name] && !after[name]) engine.removeClass(node, name)
@@ -83,7 +95,7 @@ const classModule = (engine: Engine): Partial<Module> => {
       if (after[name] && !before[name]) engine.addClass(node, name)
     }
   }
-  return { create: update, update }
+  return { create: (node, data) => update(node, EMPTY, data), update }
 }
 
 /** A CSS-style name and text value, as the native view reads it. */
@@ -96,12 +108,10 @@ const styleValue = (value: unknown): unknown => {
   return match ? Number(match[1]) : value
 }
 
-const styleModule = (engine: Engine): Partial<Module> => {
-  const update = (oldVnode: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
-    const before = bagOf(oldVnode, 'style')
-    const after = bagOf(vnode, 'style')
+const styleHooks = (engine: Engine): NodeHooks => {
+  const update = (node: EngineNode, oldData: NodeData, data: NodeData): void => {
+    const before = bagIn(oldData, 'style')
+    const after = bagIn(data, 'style')
     if (before === after) return
     const names = Object.keys(after)
     if (names.length === 0) {
@@ -112,7 +122,7 @@ const styleModule = (engine: Engine): Partial<Module> => {
     for (const name of names) style[styleKey(name)] = styleValue(after[name])
     engine.setProp(node, 'style', style)
   }
-  return { create: update, update }
+  return { create: (node, data) => update(node, EMPTY, data), update }
 }
 
 export type Handler = (event: unknown) => void
@@ -121,14 +131,14 @@ type Stops = Map<string, () => void>
 const stopsByNode = new WeakMap<EngineNode, Stops>()
 export const handlersByNode = new WeakMap<EngineNode, Bag>()
 
-/** An engine event name for a Foldkit handler name: `scroll` is `topScroll`. */
+/** An engine event name for a handler name: `scroll` is `topScroll`. */
 const topLevelType = (name: string): string =>
   'top' + name.charAt(0).toUpperCase() + name.slice(1)
 
 type CustomEventMaker = new (name: string, init: { detail: unknown }) => unknown
 
 /**
- * Foldkit's custom-event handlers check `event instanceof CustomEvent`. Where
+ * Custom-event handlers (Foldkit's among them) check `event instanceof CustomEvent`. Where
  * the phone's JavaScript engine has no such class, this one stands in.
  */
 const customEventClass = (): CustomEventMaker => {
@@ -227,12 +237,10 @@ const listenForPress = (engine: Engine, node: EngineNode): (() => void) => {
   })
 }
 
-const eventsModule = (engine: Engine): Partial<Module> => {
-  const update = (oldVnode: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
-    const before = bagOf(oldVnode, 'on')
-    const after = bagOf(vnode, 'on')
+const eventsHooks = (engine: Engine): NodeHooks => {
+  const update = (node: EngineNode, oldData: NodeData, data: NodeData): void => {
+    const before = bagIn(oldData, 'on')
+    const after = bagIn(data, 'on')
     if (before === after) return
     // Listeners stay attached across renders and read the newest handler.
     handlersByNode.set(node, after)
@@ -258,16 +266,14 @@ const eventsModule = (engine: Engine): Partial<Module> => {
       )
     }
   }
-  const destroy = (vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
+  const destroy = (node: EngineNode): void => {
     const stops = stopsByNode.get(node)
     if (stops === undefined) return
     for (const stop of stops.values()) stop()
     stopsByNode.delete(node)
     handlersByNode.delete(node)
   }
-  return { create: update, update, destroy }
+  return { create: (node, data) => update(node, EMPTY, data), update, destroy }
 }
 
 type Field = {
@@ -281,8 +287,8 @@ type Field = {
 
 const fields = new WeakMap<EngineNode, Field>()
 
-const valueOf = (vnode: VNode): string => {
-  const value = bagOf(vnode, 'attrs')['value'] ?? bagOf(vnode, 'props')['value']
+const valueOf = (data: NodeData): string => {
+  const value = bagIn(data, 'attrs')['value'] ?? bagIn(data, 'props')['value']
   return typeof value === 'string' ? value : ''
 }
 
@@ -295,16 +301,15 @@ const valueOf = (vnode: VNode): string => {
  * reported (the program changed or refused what was typed), the Model's text
  * is sent back with the latest count.
  */
-const textInputModule = (
+const textInputHooks = (
   engine: Engine,
   afterCommit: (job: () => void) => void,
-): Partial<Module> => {
-  const create = (_empty: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined || node.tag !== TEXT_INPUT) return
+): NodeHooks => {
+  const create = (node: EngineNode, data: NodeData): void => {
+    if (node.tag !== TEXT_INPUT) return
     const field: Field = { lastNativeText: null, eventCount: 0, stop: () => {} }
     fields.set(node, field)
-    engine.setProp(node, 'text', valueOf(vnode))
+    engine.setProp(node, 'text', valueOf(data))
     engine.setProp(node, 'latestEventCount', 0)
     field.stop = engine.setEventListener(node, 'topChange', event => {
       const native = (event as { nativeEvent?: { text?: string; eventCount?: number } })
@@ -318,12 +323,10 @@ const textInputModule = (
       handler?.({ ...stubEvent(native), target: { value: text } })
     })
   }
-  const update = (_oldVnode: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
+  const update = (node: EngineNode, _oldData: NodeData, data: NodeData): void => {
     const field = fields.get(node)
     if (field === undefined) return
-    const desired = valueOf(vnode)
+    const desired = valueOf(data)
     engine.setProp(node, 'text', desired)
     if (field.lastNativeText === null || field.lastNativeText === desired) return
     field.lastNativeText = desired
@@ -336,9 +339,7 @@ const textInputModule = (
       engine.remeasure(node)
     })
   }
-  const destroy = (vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
+  const destroy = (node: EngineNode): void => {
     fields.get(node)?.stop()
     fields.delete(node)
   }
@@ -359,25 +360,24 @@ const UNLIMITED_SWIPE = { start: -1, end: -1, top: -1, bottom: -1 } as const
 const ACTIVE = 2
 
 /** What every screen in a native stack needs before it joins the stack. */
-const screenModule = (engine: Engine): Partial<Module> => ({
-  create: (_empty: VNode, vnode: VNode): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined || node.tag !== SCREEN) return
+const screenHooks = (engine: Engine): NodeHooks => ({
+  create: (node: EngineNode): void => {
+    if (node.tag !== SCREEN) return
     engine.setDefaultStyle(node, SCREEN_FILL)
     engine.setProp(node, 'activityState', ACTIVE)
     engine.setProp(node, 'gestureResponseDistance', UNLIMITED_SWIPE)
   },
 })
 
-export const makeModules = (
+/** The behaviours every element has, in the order they run. */
+export const makeNodeHooks = (
   engine: Engine,
   afterCommit: (job: () => void) => void,
-): Array<Partial<Module>> => [
-  propsModule(engine),
-  classModule(engine),
-  styleModule(engine),
-  eventsModule(engine),
-  textInputModule(engine, afterCommit),
-  screenModule(engine),
-  ...registeredModules().map(factory => factory(engine, afterCommit)),
+): Array<NodeHooks> => [
+  propsHooks(engine),
+  classHooks(engine),
+  styleHooks(engine),
+  eventsHooks(engine),
+  textInputHooks(engine, afterCommit),
+  screenHooks(engine),
 ]

@@ -2,11 +2,13 @@
  * The words a swipe row is described with. Every driver (the UI thread one,
  * the JavaScript one, and any driver another folder registers) takes these
  * same shapes, so a row can change driver without its program changing.
+ *
+ * `Info` is whatever a view library draws passive content with (Foldkit's
+ * `Html`): this layer only carries it to the driver. The binding fixes it
+ * (`src/foldkit/swipe/types.ts`).
  */
-import type { Html } from 'foldkit/html'
-
-import type { NativeStyle } from '../../foldkit/attributes.js'
-import type { GestureTag } from '../../foldkit/worklets/index.js'
+import type { NativeStyle } from '../style.js'
+import type { GestureTag } from '../worklets/index.js'
 
 /**
  * What kind of action it is. A style colours each kind differently.
@@ -46,20 +48,20 @@ export const swipeAction = <Message>(
  * - `swipeInfo(html, { width })` to show something passive there instead,
  *   such as the time a message was sent.
  */
-export type SwipeSideOption<Message> =
+export type SwipeSideOption<Message, Info = unknown> =
   | ReadonlyArray<SwipeAction<Message>>
   | Readonly<{ actions: ReadonlyArray<SwipeAction<Message>>; allowsFullSwipe?: boolean }>
-  | Readonly<{ info: Html; width?: number }>
+  | Readonly<{ info: Info; width?: number }>
 
-export const swipeActions = <Message>(
+export const swipeActions = <Message, Info = unknown>(
   actions: ReadonlyArray<SwipeAction<Message>>,
   options: Readonly<{ allowsFullSwipe?: boolean }> = {},
-): SwipeSideOption<Message> => ({ actions, allowsFullSwipe: options.allowsFullSwipe ?? false })
+): SwipeSideOption<Message, Info> => ({ actions, allowsFullSwipe: options.allowsFullSwipe ?? false })
 
-export const swipeInfo = <Message>(
-  info: Html,
+export const swipeInfo = <Message, Info = unknown>(
+  info: Info,
   options: Readonly<{ width?: number }> = {},
-): SwipeSideOption<Message> =>
+): SwipeSideOption<Message, Info> =>
   options.width === undefined ? { info } : { info, width: options.width }
 
 /** What a style is asked for one tile, at one moment of the swipe. */
@@ -126,18 +128,18 @@ export type SwipeStyle = Readonly<{
 }>
 
 /** How a side came out of the options: ready to draw. */
-export type SwipeSideSpec<Message> =
+export type SwipeSideSpec<Message, Info = unknown> =
   | Readonly<{
       kind: 'actions'
       actions: ReadonlyArray<SwipeAction<Message>>
       allowsFullSwipe: boolean
     }>
-  | Readonly<{ kind: 'info'; info: Html; width: number | undefined }>
+  | Readonly<{ kind: 'info'; info: Info; width: number | undefined }>
 
 /** Which code moves the row. Other folders may register more names. */
 export type SwipeDriverName = 'ui-thread' | 'javascript' | 'native' | (string & {})
 
-export type SwipeRowOptions<Message> = Readonly<{
+export type SwipeRowOptions<Message, Info = unknown> = Readonly<{
   /** Names this row. Unique within its group. Use the item's id. */
   id: string
   /**
@@ -145,8 +147,8 @@ export type SwipeRowOptions<Message> = Readonly<{
    * Default `'default'`.
    */
   group?: string
-  leading?: SwipeSideOption<Message>
-  trailing?: SwipeSideOption<Message>
+  leading?: SwipeSideOption<Message, Info>
+  trailing?: SwipeSideOption<Message, Info>
   /** Default `tiles`. */
   style?: SwipeStyle
   /**
@@ -193,11 +195,11 @@ export type SwipeRowOptions<Message> = Readonly<{
 }>
 
 /** A row's options with every default filled in. What a driver is handed. */
-export type SwipeRowSpec<Message> = Readonly<{
+export type SwipeRowSpec<Message, Info = unknown> = Readonly<{
   id: string
   group: string
-  leading: SwipeSideSpec<Message> | null
-  trailing: SwipeSideSpec<Message> | null
+  leading: SwipeSideSpec<Message, Info> | null
+  trailing: SwipeSideSpec<Message, Info> | null
   style: SwipeStyle
   rightToLeft: boolean
   reduceMotion: boolean

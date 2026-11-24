@@ -68,6 +68,7 @@ import {
   scrollToEnd,
   scrollToRow,
 } from '../../host/list/controller.js'
+import { foldkitPainter } from './module.js'
 import { type Refresh, scrollWithRefresh } from './refresh.js'
 
 export type { ListKeyboardEvent, ListNumbers, ListStats, RowKey } from '../../host/list/controller.js'
@@ -214,6 +215,7 @@ const listView = (config: ListConfig<any, any>, inputs: Inputs): Html => {
     alignItemsAtEnd: config.alignItemsAtEnd ?? false,
     insetLift,
     inFrame: inputs.inFrame,
+    painter: foldkitPainter,
   }
   const onEndReached = config.onEndReached
   const onAtEndChanged = config.onAtEndChanged

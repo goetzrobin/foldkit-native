@@ -1,26 +1,9 @@
 /**
- * A bar that sits on top of the keyboard: a chat's composer, a comment box.
- *
- *   keyboardDock(h, {
- *     keyboardHeight: model.keyboardHeight,   // from Phone.Keyboard
- *     above: [list(h, {...})],                // what the bar pushes up
- *     children: [composer],                   // the bar
- *     backgroundColor: '#ffffff',
- *   })
- *
- * With `above`, the result fills its parent: the content on top, the bar at
- * the bottom. Without `above`, the result is the bar alone: put it last in a
- * column, under the content.
- *
- * The bar keeps clear of the home indicator by itself. Put it in a screen
- * whose own safe area leaves the bottom edge alone, or the gap is doubled.
- *
- * Put it directly in a container that is as tall as the area the bar may
- * move over, such as the screen's content. The bar is drawn outside its own
- * place in the layout while the keyboard is up, and on iOS a view only takes
- * touches inside its parent's frame.
- *
- * There are two modes, chosen once per app (see `detect.ts`).
+ * What a keyboard dock does between draws: the bar that sits on top of the
+ * keyboard, in its three ways (native, fallback, inset). The element the
+ * program draws, and why the dock is laid out as it is, are explained in the
+ * binding's `src/foldkit/keyboard/dock.ts`, which finds the dock's views and
+ * calls the controller here.
  *
  * NATIVE. react-native-keyboard-controller has a native view that reports
  * the keyboard's height on every frame, including while a finger drags the
@@ -30,25 +13,10 @@
  * runs per frame. The approach is ng-native's `keyboard-dock.ts`.
  *
  * FALLBACK. The program passes the keyboard's height from its Model. The bar
- * is padded up by that much, eased over a quarter of a second. The content
- * above gets shorter by the same amount, because the bar takes the room.
+ * is padded up by that much, eased over a quarter of a second.
  *
- * In both modes the bar rises by the keyboard's height less `offset`: the
- * room under the bar that the keyboard may cover, which is the home
- * indicator's strip. Left out, the dock measures it: how far the bottom of
- * the bar's content is from the bottom of the window while the keyboard is
- * down.
- *
- * INSET. A third way, for a chat, on top of native mode: give `inset` and
- * `above`. The content above is then not moved and not padded at all. It
- * keeps its full height and the bar lies over its bottom edge. The list
- * named by `inset.listId` is told when the keyboard starts and stops, and
- * makes room with its scroll view's bottom inset (`../chat/chatScroll.ts`).
- * Outside native mode `inset` is ignored.
- *
- * Android always uses the fallback. ng-native does not use
- * react-native-keyboard-controller there either: it has a native view of its
- * own for Android, in a package this project does not install.
+ * INSET. The bar lies over the content, and the list named by the marker is
+ * told when the keyboard starts and stops (`tellListKeyboard`).
  */
 import {
   type Engine,
@@ -57,66 +25,30 @@ import {
   type ScrollRange,
   registerViewName,
 } from '@ng-native/fabric'
-import type { Html, HtmlBuilder } from 'foldkit/html'
-import { type VNode, element } from 'foldkit/renderTarget'
 
-import { prop, style } from '../../foldkit/attributes.js'
-import { type ModuleFactory, registerModule } from '../../foldkit/extend.js'
+import type { AfterCommit } from '../fabric/registry.js'
 import { tellListKeyboard } from '../list/controller.js'
-import { bagOf, nodeOf } from '../fabric/nodes.js'
 import { keepMoving } from '../motion/clock.js'
-import { dockAnimated, keyboardDockMode, noteEngine } from './detect.js'
+import { dockAnimated, noteEngine } from './detect.js'
 import { type EventDrive, driveByEvent } from './drive.js'
-
-const el = element<any>()
-
-const box = el('view')
-const safeAreaView = el('screen-safe-area')
-const controllerView = el('keyboard-controller-view')
-const gestureArea = el('keyboard-gesture-area')
 
 // react-native-keyboard-controller's two native views. Giving a tag a name
 // does not need the view to exist. Only drawing one does, and the dock draws
 // them in native mode alone.
-registerViewName('keyboard-controller-view', 'KeyboardControllerView')
-registerViewName('keyboard-gesture-area', 'KeyboardGestureArea')
+export const KEYBOARD_CONTROLLER_TAG = 'keyboard-controller-view'
+export const KEYBOARD_GESTURE_TAG = 'keyboard-gesture-area'
+registerViewName(KEYBOARD_CONTROLLER_TAG, 'KeyboardControllerView')
+registerViewName(KEYBOARD_GESTURE_TAG, 'KeyboardGestureArea')
 
-export type KeyboardDock = Readonly<{
-  /**
-   * The keyboard's height in points, 0 while it is hidden. Keep it in the
-   * Model from `Phone.Keyboard.changesEntry`. Read in fallback mode only.
-   * On an Android app whose window shrinks for the keyboard by itself, pass 0.
-   */
-  keyboardHeight: number
-  /** The bar: a text field, a Send button. */
-  children: ReadonlyArray<Html>
-  /**
-   * What sits above the bar and should keep clear of the keyboard with it:
-   * a list, a scroll view. Give it `style({ flex: 1 })`.
-   */
-  above?: ReadonlyArray<Html>
-  /**
-   * How much less than the keyboard's height the bar rises, in points. Leave
-   * it out and the dock measures it. See the top of this file.
-   */
-  offset?: number
-  /** The bar's color, which also fills the strip beside the home indicator. */
-  backgroundColor?: string
-  /**
-   * Lay the bar over the bottom of `above` and leave `above` alone. The list
-   * with this id (one with `keyboardInset`) is told about the keyboard and
-   * the bar's height. See INSET at the top of this file.
-   */
-  inset?: Readonly<{ listId: string }>
-}>
-
-const DOCK_DATA = 'foldkitKeyboardDock'
+/** Where a dock's element carries its `Marker`. */
+export const DOCK_DATA = 'foldkitKeyboardDock'
 
 /**
- * What the module below needs to know about one dock. It finds the dock's
- * views by their places under the marked element, which `keyboardDock` fixes.
+ * What the controller below needs to know about one dock. The binding finds
+ * the dock's views by their places under the marked element, which its
+ * `keyboardDock` fixes.
  */
-type Marker = Readonly<{
+export type Marker = Readonly<{
   keyboardHeight: number
   offset: number | undefined
   isNative: boolean
@@ -126,118 +58,28 @@ type Marker = Readonly<{
 }>
 
 /** A native view the dock draws for itself, out of the way of the layout. */
-const OUT_OF_FLOW = { position: 'absolute', width: 0, height: 0 } as const
+export const OUT_OF_FLOW = { position: 'absolute', width: 0, height: 0 } as const
 
-const BOTTOM_EDGE = { top: false, right: false, bottom: true, left: false } as const
+export const BOTTOM_EDGE = { top: false, right: false, bottom: true, left: false } as const
 
 /** Found by the simulated phone's measuring. It has no effect on a real one. */
 export const DOCK_CONTENT_ID = 'foldkit-keyboard-dock-content'
 
-/** See the top of this file. */
-export const keyboardDock = <Message>(
-  _h: HtmlBuilder<Message>,
-  config: KeyboardDock,
-): Html => {
-  const isNative = keyboardDockMode() === 'native'
-  const background =
-    config.backgroundColor === undefined
-      ? []
-      : [style({ backgroundColor: config.backgroundColor })]
+/** A dock's own views, found by the binding. */
+export type DockParts = Readonly<{
+  seat: EngineNode | undefined
+  bar: EngineNode | undefined
+  /** The view around the bar's children, measured. */
+  content: EngineNode | undefined
+  /** Native mode: react-native-keyboard-controller's two views. */
+  controller: EngineNode | undefined
+  gesture: EngineNode | undefined
+  /** The view around `above` that the phone moves, when there is one. */
+  lift: EngineNode | undefined
+}>
 
-  // Measured to learn how high the bar's content already stands.
-  const content = box(
-    [prop('collapsable', false), prop('nativeID', DOCK_CONTENT_ID)] as never,
-    config.children as never,
-  )
-  // The view the phone moves. Its safe area view pads the home indicator's
-  // strip, which the keyboard covers once it is up.
-  const bar = box([prop('collapsable', false), ...background] as never, [
-    safeAreaView([prop('edges', BOTTOM_EDGE), style({ flex: 0 })] as never, [content]),
-  ])
-  const controller = isNative
-    ? controllerView([prop('enabled', true), style(OUT_OF_FLOW as never)] as never, [])
-    : null
-  const gesture = isNative ? gestureArea([style(OUT_OF_FLOW as never)] as never, []) : null
-  // The module below writes this view's style. Nothing else may.
-  //
-  // This view and the one around it carry layout only: no color, no
-  // listeners. The phone therefore makes no native view for them, and that
-  // matters. On iOS a native view ignores touches outside its own frame, and
-  // the bar is drawn far above where the layout has it once the keyboard is
-  // up. With these two left out, the bar's nearest native parent is the
-  // caller's own container, which is as tall as the screen area.
-  const seat = box([], [controller, gesture, bar].filter(part => part !== null) as never)
-  const insetListId =
-    isNative && config.above !== undefined ? config.inset?.listId : undefined
-  if (insetListId !== undefined) {
-    // The content fills the whole area and the bar is laid over its bottom
-    // edge. Neither view around the bar becomes a native view (see below),
-    // so the bar still takes touches where it is drawn.
-    const over = box(
-      [style({ position: 'absolute', left: 0, right: 0, bottom: 0 })] as never,
-      [seat],
-    )
-    const whole = box([style({ flex: 1 })] as never, [
-      box([style({ flex: 1 })] as never, config.above as never),
-      over,
-    ])
-    if (whole !== null) {
-      const marker: Marker = {
-        keyboardHeight: Math.max(0, config.keyboardHeight),
-        offset: config.offset,
-        isNative,
-        hasAbove: true,
-        insetListId,
-      }
-      ;(whole.data ??= {})[DOCK_DATA] = marker
-      whole.key = 'keyboard-dock-inset'
-    }
-    return whole
-  }
-  const host = box([], [seat])
-
-  // Also styled by the module alone. Kept as a real view, for the phone to move.
-  const lift =
-    config.above === undefined
-      ? null
-      : box([prop('collapsable', false)] as never, config.above as never)
-  const outer =
-    lift === null
-      ? host
-      : box(
-          [style({ flex: 1 })] as never,
-          [
-            // Content that rises past the top is cut off here instead of
-            // being drawn over what is above the dock.
-            box([style({ flex: 1, overflow: 'hidden' })] as never, [lift]),
-            host,
-          ],
-        )
-
-  if (outer !== null) {
-    const marker: Marker = {
-      keyboardHeight: Math.max(0, config.keyboardHeight),
-      offset: config.offset,
-      isNative,
-      hasAbove: lift !== null,
-      insetListId: undefined,
-    }
-    ;(outer.data ??= {})[DOCK_DATA] = marker
-    // The two modes are built from different views. If the mode is switched
-    // while a dock is on screen, the dock is made again, not patched.
-    outer.key = isNative ? 'keyboard-dock-native' : 'keyboard-dock-fallback'
-  }
-  return outer
-}
-
-/**
- * For the scroll view or list above a dock: dragging it puts the keyboard
- * away. In native mode the keyboard follows the finger down and the bar goes
- * with it. In fallback mode the keyboard leaves as the drag starts, because
- * there the bar could not follow a keyboard that is dragged.
- */
-export const dismissKeyboardOnDrag = () =>
-  prop('keyboardDismissMode', keyboardDockMode() === 'native' ? 'interactive' : 'on-drag')
+/** The text field in the bar, and the `nativeID` the program gave it, if any. */
+export type DockField = Readonly<{ node: EngineNode; own: unknown }>
 
 /** What carries the keyboard's height, frame by frame, in react-native-keyboard-controller. */
 const KEYBOARD_FEED = {
@@ -305,36 +147,14 @@ const canDrive = (engine: Engine): boolean =>
 
 let fieldCount = 0
 
-const dockModule: ModuleFactory = (engine, afterCommit) => {
+/**
+ * The dock's behaviour between draws, for every dock on one surface. The
+ * binding finds each dock's views and calls `start` once the draw that made
+ * it is done, `update` when it is drawn again, and `destroy` when it goes.
+ */
+export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => {
   noteEngine(canDrive(engine))
   const docks = new Map<EngineNode, Dock>()
-
-  /** A child element by its place. Text and gaps are not elements. */
-  const childAt = (vnode: VNode | undefined, index: number): VNode | undefined => {
-    const child = vnode?.children?.[index]
-    return child === undefined || typeof child === 'string' ? undefined : child
-  }
-
-  /** The dock's elements, by the places `keyboardDock` puts them in. */
-  const partsOf = (outer: VNode, marker: Marker) => {
-    const host = marker.hasAbove ? childAt(outer, 1) : outer
-    const seat = childAt(host, 0)
-    const bar = childAt(seat, marker.isNative ? 2 : 0)
-    return {
-      seat,
-      bar,
-      content: childAt(childAt(bar, 0), 0),
-      controller: marker.isNative ? childAt(seat, 0) : undefined,
-      gesture: marker.isNative ? childAt(seat, 1) : undefined,
-      lift:
-        marker.hasAbove && marker.insetListId === undefined
-          ? childAt(childAt(outer, 0), 0)
-          : undefined,
-    }
-  }
-
-  const nodeFor = (part: VNode | undefined): EngineNode | undefined =>
-    part === undefined ? undefined : nodeOf(part)
 
   const restOf = (dock: Dock): number => dock.marker.offset ?? dock.measuredRest ?? 0
 
@@ -470,21 +290,10 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
    * The field in the bar, by name. react-native-keyboard-controller's drag
    * area finds it by `nativeID`, so a field without one is given one.
    */
-  const nameField = (dock: Dock, contentVNode: VNode | undefined): void => {
+  const nameField = (dock: Dock, field: DockField | undefined): void => {
     if (dock.gesture === undefined) return
-    const find = (vnode: VNode | string | null | undefined): VNode | undefined => {
-      if (vnode === null || vnode === undefined || typeof vnode === 'string') return undefined
-      if (vnode.sel === 'text-input') return vnode
-      for (const child of vnode.children ?? []) {
-        const found = find(child as VNode | string)
-        if (found !== undefined) return found
-      }
-      return undefined
-    }
-    const field = find(contentVNode)
-    const node = field === undefined ? undefined : nodeOf(field)
-    if (field === undefined || node === undefined) return
-    const own = bagOf(field, 'props')['nativeID'] ?? bagOf(field, 'attrs')['nativeID']
+    if (field === undefined) return
+    const { node, own } = field
     let id = typeof own === 'string' && own !== '' ? own : undefined
     if (id === undefined) {
       id = dock.givenFieldId ?? `foldkit-keyboard-field-${++fieldCount}`
@@ -549,25 +358,14 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     })
   }
 
-  /**
-   * Docks drawn for the first time in the draw now under way. An element is
-   * announced before its children are made, and a dock is mostly children,
-   * so each waits here until the whole draw is done.
-   */
-  const fresh: Array<VNode> = []
-
-  const create = (_empty: VNode, vnode: VNode): void => {
-    if (vnode.data?.[DOCK_DATA] !== undefined) fresh.push(vnode)
-  }
-
-  const start = (vnode: VNode): void => {
-    const marker = vnode.data?.[DOCK_DATA] as Marker | undefined
-    const outer = nodeOf(vnode)
-    if (marker === undefined || outer === undefined) return
-    const parts = partsOf(vnode, marker)
-    const seat = nodeFor(parts.seat)
-    const bar = nodeFor(parts.bar)
-    const content = nodeFor(parts.content)
+  /** A dock whose whole draw is done: its views exist. */
+  const start = (
+    outer: EngineNode,
+    marker: Marker,
+    parts: DockParts,
+    field: DockField | undefined,
+  ): void => {
+    const { seat, bar, content } = parts
     if (seat === undefined || bar === undefined || content === undefined) return
     const dock: Dock = {
       outer,
@@ -575,9 +373,9 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       seat,
       bar,
       content,
-      controller: nodeFor(parts.controller),
-      gesture: nodeFor(parts.gesture),
-      lift: nodeFor(parts.lift),
+      controller: parts.controller,
+      gesture: parts.gesture,
+      lift: parts.lift,
       measuredRest: undefined,
       reported: 0,
       contentHeight: undefined,
@@ -597,7 +395,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     if (dock.controller !== undefined) startNative(dock)
     // A keyboard that is already up puts the bar in place with no easing.
     else padFallback(dock, false)
-    nameField(dock, parts.content)
+    nameField(dock, field)
     dock.stops.push(
       engine.setEventListener(dock.content, 'topLayout', event => {
         const height = (event as NativeEvent | undefined)?.nativeEvent?.layout?.height
@@ -619,11 +417,14 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     })
   }
 
-  const update = (_old: VNode, vnode: VNode): void => {
-    const marker = vnode.data?.[DOCK_DATA] as Marker | undefined
-    const outer = nodeOf(vnode)
-    const dock = outer === undefined ? undefined : docks.get(outer)
-    if (marker === undefined || dock === undefined) return
+  /** A dock drawn again. `field` finds its text field once the draw is done. */
+  const update = (
+    outer: EngineNode,
+    marker: Marker,
+    field: () => DockField | undefined,
+  ): void => {
+    const dock = docks.get(outer)
+    if (dock === undefined) return
     const before = dock.marker
     dock.marker = marker
     if (dock.controller === undefined) {
@@ -639,16 +440,14 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
       if (!dock.isAlive) return
       // A list made again since the last time hears the bar's height anew.
       tellBar(dock)
-      nameField(dock, partsOf(vnode, marker).content)
+      nameField(dock, field())
       if (before.offset !== marker.offset) measureRest(dock)
     })
   }
 
-  const destroy = (vnode: VNode): void => {
-    if (vnode.data?.[DOCK_DATA] === undefined) return
-    const outer = nodeOf(vnode)
-    const dock = outer === undefined ? undefined : docks.get(outer)
-    if (outer === undefined || dock === undefined) return
+  const destroy = (outer: EngineNode): void => {
+    const dock = docks.get(outer)
+    if (dock === undefined) return
     dock.isAlive = false
     docks.delete(outer)
     dock.barDrive?.stop()
@@ -656,12 +455,7 @@ const dockModule: ModuleFactory = (engine, afterCommit) => {
     for (const stop of dock.stops.splice(0)) stop()
   }
 
-  // After the draw and before it is sent to the phone.
-  const post = (): void => {
-    for (const vnode of fresh.splice(0)) start(vnode)
-  }
-
-  return { create, update, destroy, post }
+  return { start, update, destroy }
 }
 
-registerModule(dockModule)
+export type DockController = ReturnType<typeof makeDockController>

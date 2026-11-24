@@ -29,7 +29,7 @@ import {
   textInput,
   view as box,
 } from '../src/index.js'
-import { DOCK_CONTENT_ID } from '../src/host/keyboard/dock.js'
+import { DOCK_CONTENT_ID } from '../src/foldkit/keyboard/dock.js'
 import {
   configureKeyboardDock,
   forceKeyboardDockFallback,

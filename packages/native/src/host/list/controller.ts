@@ -1,14 +1,14 @@
 /**
- * The part of the list that runs on the phone's side of Foldkit.
+ * The part of the list that runs on the phone's side of the view library.
  *
- * Foldkit draws the scroll view and one empty content view, and never looks
- * inside. This module owns what is inside: a "canvas" view as tall as the
- * whole list, a spacer standing in for the rows above the ones drawn, and the
- * rows near the screen.
+ * The program's view draws the scroll view and one empty content view, and
+ * never looks inside. This file owns what is inside: a "canvas" view as tall
+ * as the whole list, a spacer standing in for the rows above the ones drawn,
+ * and the rows near the screen.
  *
- *   scroll-view                 drawn by Foldkit
- *     view (content)            drawn by Foldkit, left empty
- *       view (canvas)           drawn here, as tall as every row together
+ *   scroll-view                 drawn by the program's view
+ *     view (content)            drawn by the program's view, left empty
+ *       view (canvas)           planned here, as tall as every row together
  *         view (spacer)         as tall as the rows above the first one drawn
  *         view (row) ...        the rows near the screen, one after another
  *
@@ -17,20 +17,25 @@
  * anyone knows its real height. Each row then reports its height, which is
  * remembered by the row's key and used for the spacer and the canvas.
  *
- * Scrolling does not go through Foldkit. The scroll view's scroll events are
- * heard here, straight from the engine. When the rows drawn no longer cover
- * the screen plus a margin, the caller's `row` function is run for the new
- * rows, the result is patched into the canvas with a second updater that has
- * the same modules as Foldkit's own, and the engine commits. No Message is
- * sent and the program's view function does not run.
+ * Scrolling does not go through the view library. The scroll view's scroll
+ * events are heard here, straight from the engine. When the rows drawn no
+ * longer cover the screen plus a margin, this file plans the canvas anew (its
+ * height, the spacer, which rows by key) and hands the plan to the list's
+ * painter. The painter is the view library's: it builds the rows with the
+ * caller's `row` function and patches them in (Foldkit's is in
+ * `src/foldkit/list/module.ts`). Then the engine commits. No Message is sent
+ * and the program's view function does not run.
+ *
+ * Everything here is a state machine over engine events: scroll, layout,
+ * drag, fling, a row's height, the keyboard (`tellListKeyboard`), a new spec
+ * from the program. Its outputs are engine calls (scroll to, content inset),
+ * plans for the painter, and two events on the scroll view for the program
+ * (`listEndReached`, `listAtEndChanged`).
  */
 import type { Engine, EngineNode } from '@ng-native/fabric'
-import type { Html } from 'foldkit/html'
-import { type VNode, h, init, onUnmountModule } from 'foldkit/renderTarget'
 
-import { type ModuleFactory, registerModule } from '../../foldkit/extend.js'
-import { type Handler, customEvent, handlersByNode, makeModules, nodeOf } from '../fabric/nodes.js'
-import { makeNodeApi } from '../fabric/nodeApi.js'
+import { type Handler, type NodeData, customEvent, handlersByNode } from '../fabric/nodes.js'
+import { type NodeHooksFactory, registerNodeHooks } from '../fabric/registry.js'
 import { type Box, type ChatKeyboard, createChatKeyboard } from '../chat/vendor/kbc/chatKeyboard.js'
 import type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
 import { type AnchoredEndSpace, endOffset, endSpaceFor, isAtEnd } from './end.js'
@@ -38,12 +43,57 @@ import { EMPTY_RANGE, Heights, type Range, chooseWindow, rowsBetween } from './w
 
 export type RowKey = string | number
 
-/** What `list(...)` leaves on its scroll view for this module to read. */
-export type ListSpec = Readonly<{
+/**
+ * What draws one list's rows: made once per list, by the view library's
+ * binding, inside the list's content view.
+ */
+export type RowPainter = Readonly<{
+  /** Draws `plan` into the canvas. A row drawn last time is not built again. */
+  paint: (plan: CanvasPlan, spec: ListSpec) => void
+  /** The next paint builds every row again: the `row` function may read newer data. */
+  forget: () => void
+  /** Takes every row away, so each row's own clean-up runs. */
+  clear: () => void
+  /** The engine node of a row drawn now, by its key. */
+  nodeOf: (key: RowKey) => EngineNode | undefined
+  /** The canvas view, once drawn. */
+  canvas: () => EngineNode | undefined
+  /** Runs work the rows' own behaviours left for after the commit. */
+  afterCommit: () => void
+}>
+
+/**
+ * Makes a list's painter inside its content view. Lists drawn by one updater
+ * share `owner`: their rows may share one row updater, as they did when the
+ * list was a Foldkit module.
+ */
+export type PainterFactory = (engine: Engine, content: EngineNode, owner: object) => RowPainter
+
+/** What the painter is asked to draw: the canvas, the spacer and the rows near the screen. */
+export type CanvasPlan = Readonly<{
+  /** The canvas view's style: its height, and more. */
+  style: Readonly<Record<string, unknown>>
+  /** The key the spacer is drawn with, apart from every row's. */
+  spacerKey: string
+  /** As tall as the rows above the first one drawn. */
+  spacerHeight: number
+  /** The rows drawn, in order: the item's place and its key. */
+  rows: ReadonlyArray<Readonly<{ key: RowKey; index: number }>>
+  /** Every row this tall, or undefined when each row reports its height. */
+  rowHeight: number | undefined
+  /** For a row's view: its `layout` event, while rows report their heights. */
+  onRowLayout: (key: RowKey, event: unknown) => void
+}>
+
+/**
+ * What `list(...)` leaves on its scroll view for this file to read. `Row` is
+ * whatever the view library draws a row with; this file never looks at one.
+ */
+export type ListSpec<Row = any> = Readonly<{
   id: string
   items: ReadonlyArray<unknown>
   key: (item: any, index: number) => RowKey
-  row: (item: any, index: number) => Html
+  row: (item: any, index: number) => Row
   estimatedRowHeight: number
   rowHeight: number | undefined
   /** How far past the screen rows are drawn, in screen heights. */
@@ -74,11 +124,13 @@ export type ListSpec = Readonly<{
    */
   insetLift: KeyboardLiftBehavior | undefined
   /**
-   * Runs a function that builds Foldkit elements as if it were called inside
-   * the program's view, so the handlers in those elements send their Messages
-   * to the program. Captured during each view call. See `list` in `index.ts`.
+   * Runs a function that builds elements as if it were called inside the
+   * program's view, so the handlers in those elements send their Messages
+   * to the program. Captured during each view call (see the binding's `list`).
    */
-  inFrame: (build: () => Html) => Html
+  inFrame: (build: () => Row) => Row
+  /** Makes the painter for this list. */
+  painter: PainterFactory
 }>
 
 /** What a row-count label is told. */
@@ -298,14 +350,13 @@ type ListState = {
   revealTimer: ReturnType<typeof setTimeout> | undefined
   /** The row the list last scrolled to for `anchoredEndSpace`. */
   anchoredKey: RowKey | undefined
-  /** The row vnodes drawn now, kept so an unchanged row is not built again. */
-  rows: Map<RowKey, VNode>
-  canvas: VNode
+  /** Draws the rows. It keeps them, so an unchanged row is not built again. */
+  readonly painter: RowPainter
   /** The item count `onEndReached` last fired for. */
   endReachedFor: number
   isMeasureQueued: boolean
   isAlive: boolean
-  draw: (during: 'foldkit' | 'own') => void
+  draw: (during: 'view' | 'own') => void
   stops: Array<() => void>
 }
 
@@ -785,24 +836,11 @@ const heightIn = (event: unknown): number | undefined => {
   return typeof height === 'number' ? height : undefined
 }
 
-const listModule: ModuleFactory = (engine, afterCommit) => {
+const listHooks: NodeHooksFactory = (engine, afterCommit) => {
   const lists = new Map<EngineNode, ListState>()
   const labels = new Map<EngineNode, Label>()
-
-  // The second updater, for the rows. Made on first use: it holds a copy of
-  // every registered module, this one included, so a row may hold a list.
-  const rowJobs: Array<() => void> = []
-  let rowPatch: ((before: VNode, after: VNode) => VNode) | undefined
-  const patchRows = (before: VNode, after: VNode): VNode => {
-    rowPatch ??= init(
-      [...makeModules(engine, job => rowJobs.push(job)), onUnmountModule],
-      makeNodeApi(engine),
-    )
-    return rowPatch(before, after)
-  }
-  const runRowJobs = (): void => {
-    for (const job of rowJobs.splice(0)) job()
-  }
+  /** Names this updater's lists to their painters. See `PainterFactory`. */
+  const owner = {}
 
   const rowMeasured = (state: ListState, key: RowKey, event: unknown): void => {
     const height = heightIn(event)
@@ -824,51 +862,26 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     })
   }
 
-  const rowVNode = (state: ListState, at: number): VNode => {
-    const key = state.keys[at] as RowKey
-    const kept = state.rows.get(key)
-    if (kept !== undefined) return kept
-    const { spec } = state
-    const built = spec.inFrame(() => spec.row(spec.items[at], at))
-    return h(
-      'view',
-      spec.rowHeight === undefined
-        ? { key, on: { layout: (event: unknown) => rowMeasured(state, key, event) } }
-        : { key, props: { style: { height: spec.rowHeight, overflow: 'hidden' } } },
-      built === null ? [] : [built],
-    )
-  }
-
-  const canvasVNode = (state: ListState): VNode => {
+  /** The canvas as it should be now, for the painter. */
+  const planOf = (state: ListState): CanvasPlan => {
     const { first, end } = state.range
-    const rows = new Map<RowKey, VNode>()
-    for (let at = first; at < end; at++) rows.set(state.keys[at] as RowKey, rowVNode(state, at))
-    state.rows = rows
-    return h(
-      'view',
-      // Never collapsed: with only a height it would be optimised away, and
-      // a drag that starts between rows would not scroll.
-      {
-        props: {
-          collapsable: false,
-          style: {
-            height: canvasHeight(state),
-            ...(state.spec.initialScrollAtEnd ? { opacity: state.isHidden ? 0 : 1 } : {}),
-            // See `rowsHeight`: a few rows sit at the bottom of a taller view.
-            ...(state.inset !== undefined && state.spec.alignItemsAtEnd
-              ? { justifyContent: 'flex-end' }
-              : {}),
-          },
-        },
+    const rows: Array<{ key: RowKey; index: number }> = []
+    for (let at = first; at < end; at++) rows.push({ key: state.keys[at] as RowKey, index: at })
+    return {
+      style: {
+        height: canvasHeight(state),
+        ...(state.spec.initialScrollAtEnd ? { opacity: state.isHidden ? 0 : 1 } : {}),
+        // See `rowsHeight`: a few rows sit at the bottom of a taller view.
+        ...(state.inset !== undefined && state.spec.alignItemsAtEnd
+          ? { justifyContent: 'flex-end' }
+          : {}),
       },
-      [
-        h('view', {
-          key: SPACER_KEY,
-          props: { style: { height: state.heights.offsetOf(first) } },
-        }),
-        ...rows.values(),
-      ],
-    )
+      spacerKey: SPACER_KEY,
+      spacerHeight: state.heights.offsetOf(first),
+      rows,
+      rowHeight: state.spec.rowHeight,
+      onRowLayout: (key, event) => rowMeasured(state, key, event),
+    }
   }
 
   /**
@@ -942,22 +955,22 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
 
   const makeDraw =
     (state: ListState) =>
-    (during: 'foldkit' | 'own'): void => {
+    (during: 'view' | 'own'): void => {
       if (!state.isAlive) return
-      state.canvas = patchRows(state.canvas, canvasVNode(state))
+      state.painter.paint(planOf(state), state.spec)
       writeInset(state)
       announce(state)
-      if (during === 'foldkit') {
-        // Foldkit is in the middle of its own draw and commits when done.
+      if (during === 'view') {
+        // The program's view is being drawn, and its updater commits when done.
         afterCommit(() => {
-          runRowJobs()
+          state.painter.afterCommit()
           sendPendingScroll(state)
           measureAnchor(state)
         })
         return
       }
       engine.commit()
-      runRowJobs()
+      state.painter.afterCommit()
       sendPendingScroll(state)
       measureAnchor(state)
     }
@@ -969,8 +982,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   const measureAnchor = (state: ListState): void => {
     const seen = state.anchorSeen
     if (seen === undefined || (labelsById.get(state.spec.id)?.size ?? 0) === 0) return
-    const vnode = state.rows.get(seen.key)
-    const node = vnode === undefined ? undefined : nodeOf(vnode)
+    const node = state.painter.nodeOf(seen.key)
     if (node === undefined) return
     engine.measure(node, frame => {
       if (!state.isAlive || state.anchorSeen !== seen) return
@@ -1153,10 +1165,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   }
 
   const createList = (scroll: EngineNode, content: EngineNode, spec: ListSpec): void => {
-    // The row updater replaces the node it is given, so it gets a placeholder
-    // inside the content view to replace with the canvas.
-    const placeholder = engine.createAnchor()
-    engine.appendChild(content, placeholder)
+    const painter = spec.painter(engine, content, owner)
     const state: ListState = {
       spec,
       engine,
@@ -1189,15 +1198,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       isHidden: spec.initialScrollAtEnd,
       revealTimer: undefined,
       anchoredKey: undefined,
-      rows: new Map(),
-      canvas: {
-        sel: '!',
-        data: {},
-        children: undefined,
-        text: '',
-        elm: placeholder as unknown as Element,
-        key: undefined,
-      },
+      painter,
       endReachedFor: -1,
       isMeasureQueued: false,
       isAlive: true,
@@ -1233,7 +1234,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       }, REVEAL_AFTER_MS)
     }
     chooseRows(state)
-    state.draw('foldkit')
+    state.draw('view')
   }
 
   const updateList = (state: ListState, spec: ListSpec): void => {
@@ -1244,7 +1245,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     }
     // The new `row` function may read newer parts of the Model, so every
     // row drawn is built again. Rows are few.
-    state.rows = new Map()
+    state.painter.forget()
     const isReindexed =
       spec.items !== before.items ||
       spec.estimatedRowHeight !== before.estimatedRowHeight ||
@@ -1270,7 +1271,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       )
     }
     chooseRows(state)
-    state.draw('foldkit')
+    state.draw('view')
     afterCommit(() => {
       checkEnd(state)
       tellAtEnd(state)
@@ -1286,16 +1287,13 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
     for (const stop of state.stops) stop()
     // An empty canvas, so every row's own clean-up runs.
     state.range = EMPTY_RANGE
-    state.rows = new Map()
-    state.canvas = patchRows(state.canvas, h('view', { props: { collapsable: false } }, []))
+    state.painter.clear()
     lists.delete(state.scroll)
     listsById.get(state.spec.id)?.delete(state)
     for (const label of labelsById.get(state.spec.id) ?? []) writeLabel(label, NO_LIST)
   }
 
-  const createLabel = (vnode: VNode, spec: Pick<Label, 'id' | 'format'>): void => {
-    const node = nodeOf(vnode)
-    if (node === undefined) return
+  const createLabel = (node: EngineNode, spec: Pick<Label, 'id' | 'format'>): void => {
     const textNode = engine.createText('')
     engine.appendChild(node, textNode)
     const label: Label = { ...spec, engine, textNode, shown: { text: '' } }
@@ -1309,23 +1307,21 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   }
 
   return {
-    create: (_empty, vnode) => {
-      const node = nodeOf(vnode)
-      const listSpec = vnode.data?.[LIST_DATA] as ListSpec | undefined
-      if (listSpec !== undefined && node !== undefined) scrollBySpec.set(listSpec, node)
-      const contentSpec = vnode.data?.[CONTENT_DATA] as ListSpec | undefined
+    create: (node: EngineNode, data: NodeData) => {
+      const listSpec = data[LIST_DATA] as ListSpec | undefined
+      if (listSpec !== undefined) scrollBySpec.set(listSpec, node)
+      const contentSpec = data[CONTENT_DATA] as ListSpec | undefined
       const scroll = contentSpec === undefined ? undefined : scrollBySpec.get(contentSpec)
-      if (contentSpec !== undefined && scroll !== undefined && node !== undefined) {
+      if (contentSpec !== undefined && scroll !== undefined) {
         scrollBySpec.delete(contentSpec)
         createList(scroll, node, contentSpec)
       }
-      const labelSpec = vnode.data?.[LABEL_DATA] as Pick<Label, 'id' | 'format'> | undefined
-      if (labelSpec !== undefined) createLabel(vnode, labelSpec)
+      const labelSpec = data[LABEL_DATA] as Pick<Label, 'id' | 'format'> | undefined
+      if (labelSpec !== undefined) createLabel(node, labelSpec)
     },
-    update: (_old, vnode) => {
-      const spec = vnode.data?.[LIST_DATA] as ListSpec | undefined
-      const node = nodeOf(vnode)
-      const state = node === undefined ? undefined : lists.get(node)
+    update: (node: EngineNode, _before: NodeData, data: NodeData) => {
+      const spec = data[LIST_DATA] as ListSpec | undefined
+      const state = lists.get(node)
       if (state === undefined) return
       if (spec !== undefined) {
         updateList(state, spec)
@@ -1333,16 +1329,14 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
       }
       // The updater reused this scroll view for one that is not a list.
       destroyList(state)
-      const canvas = state.canvas.elm as unknown as EngineNode | undefined
+      const canvas = state.painter.canvas()
       const content = canvas === undefined ? null : engine.parentNode(canvas)
       if (canvas !== undefined && content !== null) {
         engine.removeChild(content, canvas)
         engine.destroyNode(canvas)
       }
     },
-    destroy: vnode => {
-      const node = nodeOf(vnode)
-      if (node === undefined) return
+    destroy: (node: EngineNode) => {
       const state = lists.get(node)
       if (state !== undefined) destroyList(state)
       const label = labels.get(node)
@@ -1354,7 +1348,7 @@ const listModule: ModuleFactory = (engine, afterCommit) => {
   }
 }
 
-registerModule(listModule)
+registerNodeHooks(listHooks)
 
 /**
  * Scrolls every list with this id so that row `index` is at the top of the

@@ -33,7 +33,7 @@ import { Effect, Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, Prop, type VNode, element } from 'foldkit/renderTarget'
 
-import { customEvent, handlersByNode, type Handler } from '../../host/fabric/nodes.js'
+import { customEvent, handlersByNode, type Handler } from '../modules.js'
 import {
   LEGEND_CONTENT_DATA,
   LEGEND_DATA,

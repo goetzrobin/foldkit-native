@@ -29,7 +29,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { OnCustomEvent, type VNode, element } from 'foldkit/renderTarget'
 
 import { type ModuleFactory, registerModule } from '../extend.js'
-import { type Handler, customEvent, handlersByNode, nodeOf } from '../../host/fabric/nodes.js'
+import { type Handler, customEvent, handlersByNode, nodeOf } from '../modules.js'
 import { onNextFrame } from '../../host/motion/clock.js'
 import { type Painter, type Pen, type Size, makeSkiaPainter, makeViewPainter } from '../../host/skia/draw.js'
 import { nowMs, skiaHost } from '../../host/skia/host.js'
