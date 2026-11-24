@@ -5,7 +5,8 @@
 import ExpoModulesCore
 import UIKit
 
-/// One action as JavaScript sends it. The names match the JavaScript side
+/// One action as JavaScript sends it. `symbol` and `tint` are left out when
+/// there is none. The names match the JavaScript side
 /// (`NativeSwipeActionProp` in packages/native/src/swipeNative/swipeNative.ts).
 struct SwipeActionRecord: Record {
   @Field var key: String = ""

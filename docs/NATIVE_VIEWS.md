@@ -120,7 +120,7 @@ numbers, yes or no, and lists of those. Functions cannot cross.
 
 | JavaScript (`nativeSwipeOptions`) | Native prop | What it is |
 |---|---|---|
-| `leading`, `trailing` | `actionsLeading`, `actionsTrailing` | Lists of `{ key, label, symbol, role, tint }` |
+| `leading`, `trailing` | `actionsLeading`, `actionsTrailing` | Lists of `{ key, label, role }`, with `symbol` and `tint` where given |
 | `allowsFullSwipe` | `allowsFullSwipe` | yes or no |
 | `mode` | `mode` | `tiles`, `strip` or `info` |
 | `group` | `group` | text |

@@ -232,13 +232,17 @@ const drawsNative = (settings: { isFallbackForced?: boolean }): boolean => {
   }
 }
 
-/** What crosses to the native side for one action: plain data, no functions. */
+/**
+ * What crosses to the native side for one action: plain data, no functions.
+ * `symbol` and `tint` are left out when there is none. The native code then
+ * uses its own "nothing" for them, which is safer than sending a null.
+ */
 export type NativeSwipeActionProp = Readonly<{
   key: string
   label: string
-  symbol: string | null
+  symbol?: string
   role: SwipeActionRole
-  tint: string | null
+  tint?: string
 }>
 
 const actionProps = (
@@ -247,9 +251,9 @@ const actionProps = (
   (actions ?? []).map(action => ({
     key: action.key,
     label: action.label,
-    symbol: action.symbol ?? null,
     role: action.role,
-    tint: action.tint ?? null,
+    ...(action.symbol === undefined ? {} : { symbol: action.symbol }),
+    ...(action.tint === undefined ? {} : { tint: action.tint }),
   }))
 
 type Detail = Readonly<Record<string, unknown>> | null | undefined

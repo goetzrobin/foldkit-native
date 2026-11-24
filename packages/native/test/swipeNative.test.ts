@@ -339,13 +339,15 @@ describe('the swipe row', () => {
       const fabric = await start(expoWith())
       const { props } = byTestId(fabric, 'row')
       expect(props['actionsTrailing']).toEqual([
-        { key: 'delete', label: 'Delete', symbol: 'trash', role: 'destructive', tint: null },
-        { key: 'flag', label: 'Flag', symbol: null, role: 'normal', tint: '#d97706' },
-        { key: 'more', label: 'More', symbol: null, role: 'cancel', tint: null },
+        { key: 'delete', label: 'Delete', symbol: 'trash', role: 'destructive' },
+        { key: 'flag', label: 'Flag', role: 'normal', tint: '#d97706' },
+        { key: 'more', label: 'More', role: 'cancel' },
       ])
       expect(props['actionsLeading']).toEqual([
-        { key: 'read', label: 'Read', symbol: 'envelope.open', role: 'normal', tint: null },
+        { key: 'read', label: 'Read', symbol: 'envelope.open', role: 'normal' },
       ])
+      // No nulls: a missing symbol or tint is left out.
+      expect(JSON.stringify(props['actionsTrailing'])).not.toContain('null')
       expect(props).toMatchObject({
         allowsFullSwipe: true,
         mode: 'tiles',
