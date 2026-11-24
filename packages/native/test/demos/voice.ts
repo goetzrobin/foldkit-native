@@ -634,10 +634,17 @@ export const makeUpdate = (exit: () => void) => {
       GotNotesMessage: ({ message: inner }) => updateNotes(model, inner),
       GotHapticsMessage: () => ({ model }),
       GotAppStateMessage: ({ message: inner }) =>
-        // JavaScript may have been asleep while the app was out of sight.
-        // The recorder is asked what is true now.
+        // JavaScript may have been asleep while the app was out of sight,
+        // and the person may have been in Settings. The recorder is asked
+        // what is true now, and the permission is read again.
         inner.status === 'active'
-          ? { model, commands: [recorder(Recorder.TakeSnapshot())] }
+          ? {
+              model,
+              commands: [
+                recorder(Recorder.TakeSnapshot()),
+                recorder(Recorder.CheckPermission()),
+              ],
+            }
           : { model },
       GotColorSchemeMessage: ({ message: inner }) => ({
         model: modifyFields(model, { maybeScheme: () => Option.some(inner.scheme) }),
