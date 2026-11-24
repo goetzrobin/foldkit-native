@@ -19,6 +19,7 @@ import { makeDemo as makeLegendChat } from './legendChat.js'
 import { makeDemo as makeLists } from './lists.js'
 import { makeDemo as makeMot } from './mot.js'
 import { makeDemo as makeNavigation } from './navigation.js'
+import { makeDemo as makeServerState } from './serverState.js'
 import type { Demo } from './shell.js'
 import { makeDemo as makeStyling } from './styling.js'
 import { makeDemo as makeWorklets } from './worklets.js'
@@ -113,5 +114,12 @@ export const makeDemos = (resources: DemoResources): ReadonlyArray<Demo> => [
     title: 'Worklets',
     blurb: 'Code on the UI thread. Status lines say what this build has. Block JavaScript and watch.',
     start: (container, env) => Runtime.embed(makeWorklets(container, env)),
+  },
+  {
+    id: 'server-state',
+    title: 'Server state',
+    blurb: 'A crew list from a pretend server. A panel says what was loaded, when, and why.',
+    start: (container, env) =>
+      Runtime.embed(makeServerState(container, env, resources.device)),
   },
 ]

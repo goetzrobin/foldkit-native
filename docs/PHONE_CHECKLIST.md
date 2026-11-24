@@ -18,9 +18,9 @@ first load.
 
 Do this before anything else. It tells us which demos work at all.
 
-1. Does the menu show twelve rows: Notes, Navigation, Lists and motion, Chat,
+1. Does the menu show thirteen rows: Notes, Navigation, Lists and motion, Chat,
    AI chat, AI chat on Legend List, Styling, Phone features, Keyboard dock,
-   Object tracking, Glass, Worklets?
+   Object tracking, Glass, Worklets, Server state?
 2. Open each one. Does it show a screen, or go straight back to the menu with
    a red "The last demo crashed" box? Write down the message for any that crash.
 3. Can you get back to the menu from each one?
@@ -340,3 +340,37 @@ W7. Let go of the card far from the middle. Does it spring back, and does
     middle. Does the count stay the same?
 W8. Leave the demo with Exit, open it again, and repeat W4. Is it the same,
     with no crash and no red box on the menu?
+
+## Server state
+
+A crew list that comes from a pretend server inside the app. There is no
+network. A panel at the top, "What just happened", says how the list and the
+open member are doing. It has not been seen on a phone. See
+`docs/SERVER_STATE.md` for what the words mean.
+
+S1. Open "Server state". Does the List line say "loading", and about half a
+    second later "fresh" with "200 members", with names in the list below?
+S2. What number is on the Server line? (1 is right.) Does the age on the List
+    line go up by one each second?
+S3. Tap the third row, "Cleo Marlow". Tap "Back to the crew". Tap the third
+    row again. Did the name show at once the second time, and is the number
+    on the Server line 2?
+S4. On the member screen, change the name and press Save. Does the big name
+    change at once? Wait two seconds and go back. Does the third row of the
+    list show the new name?
+S5. Scroll the list to its end and back. Is it smooth, and is every row
+    filled in?
+S6. Press "Stale after" so it says 5 s. Wait until the List line says
+    "stale". Go to the home screen and come back. Does the List line say
+    "refreshing" and then "fresh", and does the Server number go up by one?
+S7. Press "Edit from another device" on the list screen. Does the first row
+    stay the same? Wait for "stale", leave the app and come back. Does the
+    first row now say "Renamed elsewhere 1"?
+S8. Open a member, change the name, press "Fail next request", then Save.
+    Does the new name show for a moment, then the old name come back with a
+    line that starts "Could not save"?
+S9. Press "Announce topic" so it says off. Change the name, press Save, wait
+    two seconds and go back. Does the list still show the old name? (Yes is
+    right: this is what breaks without the topic.)
+S10. On the member screen with the keyboard open, can you see the name field
+     and the Save button, and is the panel clear of the title bar?
