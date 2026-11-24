@@ -142,6 +142,74 @@ describe('sending a message and reading the reply', () => {
   })
 })
 
+describe('a new chat and its keyboard', () => {
+  /** Every focus and blur the program sends to a text field, by the field's tag. */
+  const fieldCommands = (): ReadonlyArray<string> =>
+    at.phone.fabric.commands
+      .filter(each => each.name === 'focus' || each.name === 'blur')
+      .map(each => `${each.name} ${each.node?.reactTag}`)
+
+  it('raises the keyboard once, after the push, and keeps one text field for the life of the screen', async () => {
+    at = await startChatPhone()
+    const fabric = at.phone.fabric
+    const created: Array<number> = []
+    const createNode = fabric.createNode.bind(fabric)
+    fabric.createNode = ((tag: number, viewName: string, ...rest: [never, never, never]) => {
+      if (viewName === 'TextInput') created.push(tag)
+      return createNode(tag, viewName, ...rest)
+    }) as typeof fabric.createNode
+    await at.tap('start-chat')
+    await at.advance(100)
+    const field = byTestId(fabric, 'draft').reactTag
+    // Not focused by the field itself as it is made, in the middle of the push.
+    expect(byTestId(fabric, 'draft').props['autoFocus']).not.toBe(true)
+    expect(fieldCommands()).toEqual([])
+    // The push has finished: the phone says the screen appeared.
+    fabric.emit(byTestId(fabric, 'screen-chat'), 'topAppear', {})
+    await at.advance(50)
+    expect(fieldCommands()).toEqual([`focus ${field}`])
+    // The fallback timer that follows (on the program's own clock) does not focus it a second time.
+    await breathe(800)
+    await at.advance(50)
+    expect(fieldCommands()).toEqual([`focus ${field}`])
+
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.ask(RUNNING)
+    await at.untilDone()
+    // Typing, the new chat getting its id and the whole reply: still the one field.
+    expect(byTestId(fabric, 'draft').reactTag).toBe(field)
+    expect(created.filter(tag => tag === field)).toHaveLength(created.length)
+  })
+
+  it('focuses after a while when the phone never says the screen appeared', async () => {
+    at = await startChatPhone()
+    await at.tap('start-chat')
+    await at.advance(100)
+    expect(fieldCommands()).toEqual([])
+    // The program's own clock, not the server's.
+    await breathe(800)
+    await at.advance(50)
+    expect(fieldCommands()).toEqual([`focus ${byTestId(at.phone.fabric, 'draft').reactTag}`])
+  })
+
+  it('does not focus the field of a chat that was opened from the list', async () => {
+    at = await startChatPhone()
+    await newChat()
+    await at.ask(RUNNING)
+    await at.untilDone()
+    at.phone.fabric.emit(byTestId(at.phone.fabric, 'screen-chat'), 'topDismissed', { dismissCount: 1 })
+    await at.advance(100)
+    const before = fieldCommands().filter(each => each.startsWith('focus')).length
+    await at.tap('chat-c1')
+    await at.advance(100)
+    at.phone.fabric.emit(byTestId(at.phone.fabric, 'screen-chat'), 'topAppear', {})
+    await breathe(800)
+    await at.advance(50)
+    expect(fieldCommands().filter(each => each.startsWith('focus'))).toHaveLength(before)
+  })
+})
+
 describe('stopping and regenerating', () => {
   it('Stop keeps what was written and says Stopped; Regenerate writes it again', async () => {
     at = await startChatPhone()

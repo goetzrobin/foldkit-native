@@ -29,6 +29,7 @@ import { markdown } from '../src/markdown/index.js'
 import { animated } from '../src/motion/index.js'
 import { type Device, onDismissed, screen } from '../src/navigation/stack.js'
 import { LiveTurnOps, MAX_RECONNECTS, type Part, type ReasoningPart, type ToolCallPart } from '../src/aiChat/index.js'
+import { fieldName } from './focus.js'
 import { onLongPress } from './longPress.js'
 import { onTapAway } from './tapAway.js'
 import { type ChatRow, Message, type Model, chatRows, clockOf, textOf, thoughtFor } from './model.js'
@@ -52,6 +53,8 @@ import {
 } from './ui.js'
 
 export const TRANSCRIPT_ID = 'transcript'
+/** The composer's text field, by the name `focus.ts` knows it by. */
+export const DRAFT_FIELD = 'draft'
 
 /** A question taller than this shows only its last lines at the top, so the reply has room. */
 const ANCHOR_MAX_SIZE = 3 * TYPE.message.lineHeight + 20
@@ -423,6 +426,7 @@ const composer = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
     [
       h.Key('draft'),
       prop('testID', 'draft'),
+      fieldName(DRAFT_FIELD),
       h.Attribute('value', model.draft),
       h.Placeholder(model.isOnline ? 'Ask anything' : 'Offline'),
       prop('placeholderTextColor', palette.ink3),
@@ -430,8 +434,8 @@ const composer = (h: HtmlBuilder<Message>, device: Device, model: Model, palette
       prop('cursorColor', palette.accent),
       prop('multiline', true),
       prop('editable', true),
-      // A new chat opens ready to type, as in other chat apps.
-      prop('autoFocus', Option.isNone(model.openId) && model.pending.length === 0),
+      // No `autoFocus`: a new chat focuses this field by a Command once its
+      // push has finished, so the keyboard comes up once. See `focus.ts`.
       prop('keyboardAppearance', model.scheme),
       h.OnInput(words => Message.ChangedDraft({ text: words })),
       style({
@@ -606,7 +610,14 @@ export const chatScreen = (h: HtmlBuilder<Message>, device: Device, model: Model
       ]
 
   return screen(
-    [h.Key('chat'), prop('testID', 'screen-chat'), onDismissed(() => Message.PoppedChat()), style({ backgroundColor: palette.bg })],
+    [
+      h.Key('chat'),
+      prop('testID', 'screen-chat'),
+      onDismissed(() => Message.PoppedChat()),
+      // The push has finished. A new chat raises its keyboard then.
+      OnCustomEvent<Message>({ name: 'appear', f: () => Option.some(Message.AppearedChat()) }),
+      style({ backgroundColor: palette.bg }),
+    ],
     [
       navBar(h, device, palette, {
         title: chatTitle(model),

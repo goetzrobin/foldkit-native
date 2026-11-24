@@ -55,7 +55,8 @@ import { type ServerState, focusEntry, watchAtom } from '../src/serverState/inde
 import { closeAllSwipes } from '../src/swipe/index.js'
 import { closeNativeSwipes } from '../src/swipeNative/index.js'
 import { Appearance } from './appearance.js'
-import { TRANSCRIPT_ID, chatScreen, chatTitle, voiceNoteText } from './chatScreen.js'
+import { DRAFT_FIELD, TRANSCRIPT_ID, chatScreen, chatTitle, voiceNoteText } from './chatScreen.js'
+import { focusField } from './focus.js'
 import { listScreen } from './listScreen.js'
 import {
   DEFAULT_SETTINGS,
@@ -210,6 +211,25 @@ export const makeChatApp = (
       }),
   })
 
+  /** Longer than a push takes, on any phone. Only used if the phone never says it appeared. */
+  const PUSH_WAIT_MS = 700
+
+  const WaitForPush = Command.define('ChatWaitForPush', {
+    messages: [Message.WaitedForPush],
+    execute: Effect.sleep(Duration.millis(PUSH_WAIT_MS)).pipe(Effect.as(Message.WaitedForPush())),
+  })
+
+  const FocusDraft = Command.define('ChatFocusDraft', {
+    messages: [Message.CompletedSideEffect],
+    execute: focusField(DRAFT_FIELD).pipe(Effect.as(Message.CompletedSideEffect())),
+  })
+
+  /** Raises the keyboard in a new chat, once: on the first of the two Messages that may say the push is done. */
+  const focusIfPending = (model: Model): Return =>
+    model.isDraftFocusPending && model.isChatOpen
+      ? { model: modifyFields(model, { isDraftFocusPending: () => false }), commands: [FocusDraft()] }
+      : { model }
+
   const ScrollToEnd = Command.define('ChatScrollToEnd', {
     messages: [Message.CompletedSideEffect],
     execute: scrollListToEnd(TRANSCRIPT_ID, { animated: true }).pipe(Effect.as(Message.CompletedSideEffect())),
@@ -293,6 +313,7 @@ export const makeChatApp = (
       joiningTurnId: Option.none(),
       nextClientId: 1,
       draft: '',
+      isDraftFocusPending: false,
       attachment: Option.none(),
       recording: Option.none(),
       anchorKey: Option.none(),
@@ -326,6 +347,7 @@ export const makeChatApp = (
       live: () => Option.none(),
       joiningTurnId: () => Option.none(),
       draft: () => '',
+      isDraftFocusPending: () => false,
       attachment: () => Option.none(),
       recording: () => Option.none(),
       anchorKey: () => Option.none(),
@@ -349,6 +371,7 @@ export const makeChatApp = (
       pending: pending =>
         PendingOps.add(pending, { clientMessageId, conversationId, text, attachments, createdAt: model.nowMs }),
       draft: () => '',
+      isDraftFocusPending: () => false,
       attachment: () => Option.none(),
       // The list brings this question near the top by itself.
       anchorKey: () => Option.some(clientMessageId),
@@ -566,9 +589,13 @@ export const makeChatApp = (
       ChangedList: ({ result }) => ({ model: modifyFields(model, { list: () => result }), commands: [ReadClock()] }),
       ChangedQuery: ({ text }) => ({ model: modifyFields(model, { query: () => text }) }),
       PressedConversation: ({ id }) => ({ model: openChat(model, Option.some(id)), commands: [CloseSwipes()] }),
+      // The keyboard comes up once the push has finished: see `focus.ts`.
       PressedNewChat: () => ({
-        model: modifyFields(openChat(model, Option.none()), { sheet: () => Option.none() }),
-        commands: [CloseSwipes()],
+        model: modifyFields(openChat(model, Option.none()), {
+          sheet: () => Option.none(),
+          isDraftFocusPending: () => true,
+        }),
+        commands: [CloseSwipes(), WaitForPush()],
       }),
       PressedSettings: () => ({ model: modifyFields(model, { sheet: () => Option.some({ _tag: 'Settings' as const }) }) }),
       SelectedRowAction: ({ id, key }) => {
@@ -598,6 +625,8 @@ export const makeChatApp = (
       ArmedFullSwipe: ({ isArmed }) => ({ model, commands: isArmed ? [haptic.light()] : [] }),
 
       // ONE CHAT
+      AppearedChat: () => focusIfPending(model),
+      WaitedForPush: () => focusIfPending(model),
       PoppedChat: () => ({ model: closeChat(model), commands: [dismissKeyboard()] }),
       ChangedConversation: ({ id, result }) => {
         if (!Option.contains(model.openId, id)) return { model }
