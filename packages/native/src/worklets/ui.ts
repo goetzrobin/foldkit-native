@@ -177,6 +177,8 @@ export type Spring = Readonly<{
   damping?: number
   /** Default 1. */
   mass?: number
+  /** How fast the value is already moving, per second. Default 0. */
+  velocity?: number
 }>
 
 /**
@@ -202,7 +204,7 @@ export const springTo = (
   const mass = spring?.mass ?? 1
   const token = {}
   value.animation = token
-  let velocity = 0
+  let velocity = spring?.velocity ?? 0
   let last = -1
   const step = (nowMs: number): void => {
     if (value.animation !== token) return
@@ -294,6 +296,9 @@ export type PanEvent = Readonly<{
   velocityY: number
 }>
 
+export const PAN_FAILED = 1
+export const PAN_BEGAN = 2
+export const PAN_CANCELLED = 3
 export const PAN_ACTIVE = 4
 export const PAN_END = 5
 

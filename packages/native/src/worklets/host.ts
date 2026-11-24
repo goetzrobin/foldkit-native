@@ -73,6 +73,8 @@ export type GestureModule = Readonly<{
   attachGestureHandler: (handlerTag: number, viewTag: number, actionType: number) => void
   dropGestureHandler: (handlerTag: number) => void
   flushOperations: () => void
+  /** Says which other gestures this one waits for, blocks, or runs beside. */
+  configureRelations?: (handlerTag: number, relations: object) => void
 }>
 
 export type WorkletsOptions = Readonly<{

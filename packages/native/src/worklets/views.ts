@@ -67,9 +67,90 @@ export type UiConfig = Readonly<{
   ref?: UiRef
   /** A worklet called on the UI thread as a finger drags this element. */
   pan?: (event: PanEvent) => void
+  /** When the pan starts and when it gives up. Without it, gesture-handler's defaults. */
+  panConfig?: PanConfig
+  /** The number this element's pan is known by, so other gestures can name it. */
+  panTag?: GestureTag
+  /** How the pan gets on with other gestures. */
+  panRelations?: PanRelations
+  /**
+   * Names the element's own native gesture (a scroll view's scrolling) with
+   * this number, so a pan elsewhere can name it in its `panRelations`.
+   */
+  nativeGesture?: GestureTag
   /** What a worklet sends on this channel reaches this element's `onUiMessage`. */
   channel?: UiChannel
 }>
+
+/** One number, or `[from, to]` in points. */
+type Range = number | readonly [number, number]
+
+/**
+ * When a pan starts and when it gives up. Distances are in points from where
+ * the finger went down.
+ *
+ *   { activeOffsetX: 12, failOffsetY: 10 }
+ *
+ * starts once the finger has gone 12 points to either side, and gives up if
+ * it first goes 10 points up or down, which leaves a scroll view around the
+ * element free to scroll.
+ */
+export type PanConfig = Readonly<{
+  /** Start once the finger has moved this far sideways. */
+  activeOffsetX?: Range
+  /** Start once the finger has moved this far up or down. */
+  activeOffsetY?: Range
+  /** Give up once the finger has moved this far sideways first. */
+  failOffsetX?: Range
+  /** Give up once the finger has moved this far up or down first. */
+  failOffsetY?: Range
+  /** Start once the finger has moved this far in any direction. */
+  minDist?: number
+  /** Extra room around the element that still counts as on it. */
+  hitSlop?: number
+  /** `false` switches the gesture off without removing it. */
+  enabled?: boolean
+}>
+
+/** A gesture's number. See `gestureTag`. */
+export type GestureTag = Readonly<{ handlerTag: number }>
+
+export type PanRelations = Readonly<{
+  /** Both may run at once. */
+  simultaneousWith?: ReadonlyArray<GestureTag>
+  /** This pan starts only after these have given up. */
+  waitFor?: ReadonlyArray<GestureTag>
+  /** These start only after this pan has given up. */
+  blocks?: ReadonlyArray<GestureTag>
+}>
+
+const range = (out: Record<string, unknown>, name: string, value: Range | undefined): void => {
+  if (value === undefined) return
+  const [start, end] = typeof value === 'number' ? [-Math.abs(value), Math.abs(value)] : value
+  // gesture-handler's native code reads the two ends under these names.
+  out[`${name}Start`] = start
+  out[`${name}End`] = end
+}
+
+/** A `PanConfig` in the names gesture-handler's native code reads. */
+const nativePanConfig = (config: PanConfig | undefined): Record<string, unknown> => {
+  const out: Record<string, unknown> = {}
+  if (config === undefined) return out
+  range(out, 'activeOffsetX', config.activeOffsetX)
+  range(out, 'activeOffsetY', config.activeOffsetY)
+  range(out, 'failOffsetX', config.failOffsetX)
+  range(out, 'failOffsetY', config.failOffsetY)
+  if (config.minDist !== undefined) out['minDist'] = config.minDist
+  if (config.hitSlop !== undefined) out['hitSlop'] = config.hitSlop
+  if (config.enabled !== undefined) out['enabled'] = config.enabled
+  return out
+}
+
+const nativeRelations = (relations: PanRelations): Record<string, ReadonlyArray<number>> => ({
+  simultaneousHandlers: (relations.simultaneousWith ?? []).map(each => each.handlerTag),
+  waitFor: (relations.waitFor ?? []).map(each => each.handlerTag),
+  blocksHandlers: (relations.blocks ?? []).map(each => each.handlerTag),
+})
 
 const UI_DATA = 'foldkitUi'
 const ROOT_TAG = 'gesture-root'
@@ -146,7 +227,17 @@ let nextBindingId = 1
 /** gesture-handler's own JavaScript numbers its gestures from 1. It is not loaded here. */
 let nextHandlerTag = 880_000
 
+/**
+ * A number for a gesture, taken before the gesture exists, so that two
+ * elements can name each other's gestures. Make it once, outside the view.
+ */
+export const gestureTag = (): GestureTag => ({ handlerTag: nextHandlerTag++ })
+
 type Pan = Readonly<{ handlerTag: number; eventIds: ReadonlyArray<number> }>
+
+/** What the pan was made with, as text, to see when it must be made again. */
+const panSetup = (config: UiConfig): string =>
+  JSON.stringify([config.panConfig ?? null, config.panTag ?? null, config.panRelations ?? null])
 
 type Bound = {
   readonly id: number
@@ -157,6 +248,9 @@ type Bound = {
   tiedStyle: UiConfig | null
   pan: Pan | null
   tiedPan: UiConfig['pan']
+  tiedPanSetup: string
+  /** The number of the native gesture made for `nativeGesture`, if one was. */
+  native: number | null
   stopChannel: () => void
   channel: UiChannel | undefined
   isAlive: boolean
@@ -228,14 +322,50 @@ const uiModule: ModuleFactory = (engine, afterCommit) => {
     try {
       const worklet = pkg.createSerializable(eventWorklet(handler))
       const eventIds = PAN_EVENTS.map(name => proxy.registerEventHandler(worklet, name, tag))
-      const handlerTag = nextHandlerTag++
-      module.createGestureHandler('PanGestureHandler', handlerTag, {})
+      const handlerTag = state.config.panTag?.handlerTag ?? nextHandlerTag++
+      module.createGestureHandler(
+        'PanGestureHandler',
+        handlerTag,
+        nativePanConfig(state.config.panConfig),
+      )
+      const relations = state.config.panRelations
+      if (relations !== undefined) module.configureRelations?.(handlerTag, nativeRelations(relations))
       module.attachGestureHandler(handlerTag, tag, ACTION_REANIMATED_WORKLET)
       module.flushOperations()
       state.pan = { handlerTag, eventIds }
       state.tiedPan = handler
+      state.tiedPanSetup = panSetup(state.config)
     } catch {
       // Left without a gesture. The demo's status line says gestures are off.
+    }
+  }
+
+  const untieNative = (state: Bound): void => {
+    const handlerTag = state.native
+    state.native = null
+    if (handlerTag === null) return
+    try {
+      const module = gestureModule()
+      module?.dropGestureHandler(handlerTag)
+      module?.flushOperations()
+    } catch {
+      // The view is going away either way.
+    }
+  }
+
+  /** Gives the element's own native gesture a number other gestures can name. */
+  const tieNative = (state: Bound, tag: number): void => {
+    const wanted = state.config.nativeGesture
+    if (wanted === undefined || !gesturesCheck().ok) return
+    const module = gestureModule()
+    if (module === null) return
+    try {
+      module.createGestureHandler('NativeViewGestureHandler', wanted.handlerTag, {})
+      module.attachGestureHandler(wanted.handlerTag, tag, ACTION_REANIMATED_WORKLET)
+      module.flushOperations()
+      state.native = wanted.handlerTag
+    } catch {
+      // Left as it was: the element still scrolls, only nothing can name it.
     }
   }
 
@@ -250,9 +380,16 @@ const uiModule: ModuleFactory = (engine, afterCommit) => {
       untieStyle(state)
       tieStyle(state, { tag, node: shadowNode })
     }
-    if (isNewView || state.tiedPan !== state.config.pan) {
+    const isPanChanged =
+      state.tiedPan !== state.config.pan ||
+      (state.pan !== null && state.tiedPanSetup !== panSetup(state.config))
+    if (isNewView || isPanChanged) {
       untiePan(state)
       tiePan(state, tag)
+    }
+    if (isNewView || (state.config.nativeGesture?.handlerTag ?? null) !== state.native) {
+      untieNative(state)
+      tieNative(state, tag)
     }
     state.tiedTag = tag
   }
@@ -278,6 +415,7 @@ const uiModule: ModuleFactory = (engine, afterCommit) => {
     state.stopChannel()
     untieStyle(state)
     untiePan(state)
+    untieNative(state)
     try {
       // Lets Reanimated's native code forget what it last put on this view.
       const shadowNode = shadowNodeOf(engine, state.node)
@@ -299,6 +437,8 @@ const uiModule: ModuleFactory = (engine, afterCommit) => {
       tiedStyle: null,
       pan: null,
       tiedPan: undefined,
+      tiedPanSetup: '',
+      native: null,
       stopChannel: () => {},
       channel: undefined,
       isAlive: true,

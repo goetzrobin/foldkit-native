@@ -5,7 +5,7 @@
  *   workletsStatus()                            what this build can do, and why not
  *   runOnUi(worklet, ...args)                   start a worklet on the UI thread
  *   const x = shared(0)                         a value both threads can use
- *   uiThread({ style, inputs, pan, channel }, element)
+ *   uiThread({ style, inputs, pan, panConfig, channel }, element)
  *                                               tie an element to worklets
  *   sendMessage(channel, name, detail)          from a worklet, back to Foldkit
  *   onUiMessage(name, detail => Message)        the Message for it
@@ -41,7 +41,10 @@ export {
 export type { Shared, UiResult } from './run.js'
 export {
   PAN_ACTIVE,
+  PAN_BEGAN,
+  PAN_CANCELLED,
   PAN_END,
+  PAN_FAILED,
   bounceBetween,
   measureView,
   probeView,
@@ -52,7 +55,7 @@ export {
 export type { Measured, PanEvent, Spring, UiTarget } from './ui.js'
 export { listenToChannel, uiChannel } from './channel.js'
 export type { UiChannel } from './channel.js'
-export { gestureRoot, onUiMessage, uiRef, uiThread } from './views.js'
-export type { UiConfig, UiRef, UiStyle } from './views.js'
+export { gestureRoot, gestureTag, onUiMessage, uiRef, uiThread } from './views.js'
+export type { GestureTag, PanConfig, PanRelations, UiConfig, UiRef, UiStyle } from './views.js'
 export { ranOnUiCheck, sharedRoundTripCheck, workletsStatus } from './status.js'
 export type { WorkletsStatus } from './status.js'

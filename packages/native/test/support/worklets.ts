@@ -203,6 +203,7 @@ export const makeWorklets = (options: FakeWorkletsOptions = {}) => {
             createGestureHandler: (...args: Array<unknown>) => gestureCalls.push(['create', ...args]),
             attachGestureHandler: (...args: Array<unknown>) => gestureCalls.push(['attach', ...args]),
             dropGestureHandler: (...args: Array<unknown>) => gestureCalls.push(['drop', ...args]),
+            configureRelations: (...args: Array<unknown>) => gestureCalls.push(['relations', ...args]),
             flushOperations: () => gestureCalls.push(['flush']),
           },
         }),
