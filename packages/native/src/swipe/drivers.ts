@@ -57,6 +57,11 @@ export const registerSwipeDriver = (name: SwipeDriverName, driver: SwipeDriver):
   drivers.set(name, driver)
 }
 
+/** Takes a driver away. For tests. */
+export const unregisterSwipeDriver = (name: SwipeDriverName): void => {
+  drivers.delete(name)
+}
+
 /** Which drivers `'auto'` tries, first to last. Default `['ui-thread', 'javascript']`. */
 export const setSwipeDriverOrder = (names: ReadonlyArray<SwipeDriverName>): void => {
   order = [...names]

@@ -10,6 +10,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 
 import { scrollView, style, text, view as box } from '../src/index.js'
+import { list } from '../src/list/index.js'
 import {
   type SwipeDriverName,
   type SwipeStyle,
@@ -32,6 +33,8 @@ export type SwipeFixtureOptions = Readonly<{
   trailingInfo?: boolean
   /** Give each row its own group, so several may be open at once. */
   separateGroups?: boolean
+  /** Draw 200 rows in the virtualised list in place of three in a scroll view. */
+  inList?: boolean
 }>
 
 export const Model = Schema.Struct({
@@ -100,13 +103,17 @@ export const makeSwipeFixture = (container: HTMLElement, options: SwipeFixtureOp
         style: options.style ?? tiles,
         rightToLeft: options.rightToLeft ?? false,
         reduceMotion: options.reduceMotion ?? false,
-        leading: [
-          swipeAction({
-            key: 'read',
-            label: 'Read',
-            onTriggered: Message.TriggeredAction({ id, key: 'read' }),
-          }),
-        ],
+        leading: swipeActions(
+          [
+            swipeAction({
+              key: 'read',
+              label: 'Read',
+              symbol: '>',
+              onTriggered: Message.TriggeredAction({ id, key: 'read' }),
+            }),
+          ],
+          { allowsFullSwipe: options.allowsFullSwipe ?? false },
+        ),
         trailing:
           options.trailingInfo === true
             ? swipeInfo(text([], ['09:41']), { width: 64 })
@@ -150,15 +157,33 @@ export const makeSwipeFixture = (container: HTMLElement, options: SwipeFixtureOp
         button(h, 'close-first', Message.PressedCloseFirst()),
         button(h, 'close-all', Message.PressedCloseAll()),
         box([h.Attribute('testID', 'outside'), style({ height: 40 })], []),
-        scrollView(
-          [h.Attribute('testID', 'scroll'), style({ flex: 1 })],
-          model.isHidden ? [] : model.rows.map(id => row(h, id)),
-        ),
+        options.inList === true
+          ? list(h, {
+              id: 'swipe-rows',
+              items: model.rows,
+              key: id => id,
+              estimatedRowHeight: 72,
+              rowHeight: 72,
+              row: id => row(h, id),
+              attributes: [h.Attribute('testID', 'scroll'), style({ flex: 1 })],
+            })
+          : scrollView(
+              [h.Attribute('testID', 'scroll'), style({ flex: 1 })],
+              model.isHidden ? [] : model.rows.map(id => row(h, id)),
+            ),
       ],
     )
 
   const init: Runtime.ElementInit<Model, Message> = () => ({
-    model: { rows: ['a', 'b', 'c'], log: [], presses: 0, isHidden: false },
+    model: {
+      rows:
+        options.inList === true
+          ? Array.from({ length: 200 }, (_unused, index) => `r${index}`)
+          : ['a', 'b', 'c'],
+      log: [],
+      presses: 0,
+      isHidden: false,
+    },
   })
 
   return Runtime.makeElement({ Model, init, update, view, container })

@@ -53,6 +53,7 @@ export {
   setSwipeDriverOrder,
   swipeDriverOrder,
   swipeDrivers,
+  unregisterSwipeDriver,
 } from './drivers.js'
 export type { ResolvedSwipeDriver, SwipeDriver, SwipeDriverStatus } from './drivers.js'
 export {

@@ -462,18 +462,20 @@ const swipeModule: ModuleFactory = engine => {
       drag(row, event)
     },
     // Once the row is being dragged, a scroll view may not take the touch.
-    onResponderTerminationRequest: () => !row.isDragging,
+    onResponderTerminationRequest: () => !(row.kind === 'javascript' && row.isDragging),
     onResponderRelease: () => {
-      if (row.isDragging) {
+      if (row.kind === 'javascript' && row.isDragging) {
         release(row)
         return
       }
       const wasTap = row.touch !== null && !row.touch.hasMoved
       row.touch = null
-      if (wasTap && row.rest !== 0 && !row.isAway) close(row, true)
+      if (wasTap && !row.isDragging && row.rest !== 0 && !row.isAway) close(row, true)
     },
     onResponderTerminate: () => {
-      if (row.isDragging) cancel(row)
+      // With the UI thread driver the touch is taken away whenever the
+      // native gesture starts, and the worklets carry on with the row.
+      if (row.kind === 'javascript' && row.isDragging) cancel(row)
       row.touch = null
     },
     blockNativeResponder: false,
@@ -489,7 +491,10 @@ const swipeModule: ModuleFactory = engine => {
       const touched = touchedRow
       touchedRow = null
       for (const row of [...rows.values()]) {
-        if (row !== touched && !row.isDragging && isOpen(row)) close(row, true)
+        if (row === touched || row.isDragging || !isOpen(row)) continue
+        // A touch on a row of another group is that group's business.
+        if (touched !== null && touched.member.group !== row.member.group) continue
+        close(row, true)
       }
     })
   }
