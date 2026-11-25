@@ -531,7 +531,7 @@ describe('putting the keyboard away', () => {
     expect(['interactive', 'on-drag']).toContain(byTestId(at.phone.fabric, 'transcript').props['keyboardDismissMode'])
   })
 
-  it('holding a message is not a tap', async () => {
+  it('holding a message with the keyboard up puts the keyboard away first, then opens the menu, as Messages does', async () => {
     at = await startChatPhone()
     await newChat()
     await at.ask(RUNNING)
@@ -540,9 +540,31 @@ describe('putting the keyboard away', () => {
     await at.advance(100)
     const before = at.device.keyboard.dismissCount()
     at.sheet.answerWith(null)
-    await hold(at.phone.fabric, `row-${replyKey()}`, LONG_PRESS_MS + 80)
-    expect(at.sheet.shown).toHaveLength(1)
-    expect(at.device.keyboard.dismissCount()).toBe(before)
+    touch(`row-${replyKey()}`, 'start')
+    await new Promise(resolve => setTimeout(resolve, LONG_PRESS_MS + 10))
+    // The hold has fired: the keyboard goes first. The phone's sheet would be
+    // drawn under the keyboard, so it waits for the keyboard to start going.
+    expect(at.device.keyboard.dismissCount()).toBe(before + 1)
+    expect(at.sheet.shown).toHaveLength(0)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await at.advance(100)
+    expect(at.sheet.shown.map(each => each.items.map(item => item.key))).toEqual([['copy', 'select', 'share', 'regenerate']])
+    // The finger lifts: a hold is not also a tap.
+    touch(`row-${replyKey()}`, 'end')
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 1)
+    // With the keyboard down a hold opens the menu at once, and a tap still puts a raised keyboard away.
+    at.device.keyboard.hide()
+    await at.advance(100)
+    await hold(at.phone.fabric, 'row-c1', LONG_PRESS_MS + 80)
+    expect(at.sheet.shown).toHaveLength(2)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 1)
+    at.device.keyboard.show(336)
+    await at.advance(100)
+    await at.tap(`row-${replyKey()}`)
+    await at.advance(50)
+    expect(at.device.keyboard.dismissCount()).toBe(before + 2)
+    expect(at.sheet.shown).toHaveLength(2)
   })
 })
 

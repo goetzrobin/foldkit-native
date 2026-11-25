@@ -29,6 +29,9 @@ import { StyleHairline, arrowUp, attachmentChip, cross, microphone, roundButton,
 /** The composer's text field, by the name `focus.ts` knows it by. */
 export const DRAFT_FIELD = 'draft'
 
+/** Under the pill, inside the composer: with the keyboard up, the gap between the pill and the keyboard. */
+export const PILL_BOTTOM = SPACE.s
+
 const RECORDING_LIMIT_S = 120
 const RECORDING_WARN_S = 10
 
@@ -160,12 +163,6 @@ export const restore = (model: Model, text: string): Model =>
 /** The recording's clock runs only while recording. */
 export const isRecording = (model: Model): boolean => Option.isSome(model.recording)
 
-/** Roughly how tall the composer is, for placing the round button above it. */
-export const heightOf = (model: Model): number => {
-  const lines = Math.min(5, model.draft.split('\n').length + Math.floor(model.draft.length / 34))
-  return 56 + (lines - 1) * TYPE.message.lineHeight + (Option.isSome(model.attachment) ? 40 : 0)
-}
-
 // VIEW
 
 export type ViewInputs = Context &
@@ -280,7 +277,7 @@ export const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>)
     [
       glassOptions({ isInteractive: false, fallbackStyle: { backgroundColor: palette.glassFallback, borderWidth: StyleHairline, borderColor: palette.line } }),
       prop('testID', 'composer'),
-      style({ marginHorizontal: SPACE.m, marginBottom: SPACE.s, borderRadius: 26, padding: 6, gap: 4 }),
+      style({ marginHorizontal: SPACE.m, marginBottom: PILL_BOTTOM, borderRadius: 26, padding: 6, gap: 4 }),
     ],
     [
       ...attachment,

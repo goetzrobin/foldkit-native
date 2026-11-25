@@ -13,7 +13,13 @@
  *   `updateState`. After each, UIKit puts an offset that is now past the
  *   end of the range back at the end, and says so with a scroll event.
  * - A `scrollTo` command moves it there at once and says so; a gliding one
- *   also says when it has come to rest.
+ *   also says when it has come to rest. With `glideSteps`, a gliding one
+ *   takes that many frames of 16 ms, saying where it is on each; a new
+ *   `scrollTo` during a glide stops it where it is, and the phone says the
+ *   stopped glide has come to rest (UIKit ends the interrupted animation and
+ *   React Native reports that as the end of a scroll), at once or, with
+ *   `lateEnds`, after the new glide's first frame. Which of the two a real
+ *   iPhone does is not known here; a list must be right with both.
  * - After a commit, each row reports its height when it has changed. How
  *   tall a row is comes from `rowHeight`, which a test writes from the
  *   row's text, as a phone would lay the text out.
@@ -35,6 +41,10 @@ export type ScrollPhoneOptions = Readonly<{
   rowHeight: (row: FakeFabricNode) => number | undefined
   /** Where the list's top edge is in the window. */
   listTop?: number
+  /** Frames a gliding scroll takes. Default 0: it arrives at once. */
+  glideSteps?: number
+  /** A glide stopped by a new one says it came to rest a frame late. */
+  lateEnds?: boolean
 }>
 
 export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions) => {
@@ -47,6 +57,9 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
   let commandsSeen = fabric.commands.length
   let isQueued = false
   let isOn = true
+  /** The glide under way, when glides take frames. */
+  let glide: ReturnType<typeof setTimeout> | undefined
+  const glideSteps = options.glideSteps ?? 0
 
   const list = (): FakeFabricNode | undefined => {
     try {
@@ -97,9 +110,34 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
     // Then the scroll commands sent with this commit, in order.
     for (const command of fabric.commands.slice(commandsSeen)) {
       if (command.name !== 'scrollTo' || command.node?.reactTag !== scroll.reactTag) continue
-      phone.offset = Math.min(Math.max(0, Number(command.args[1])), furthest())
+      const target = Math.min(Math.max(0, Number(command.args[1])), furthest())
+      const isGliding = command.args[2] === true
+      if (glide !== undefined) {
+        clearTimeout(glide)
+        glide = undefined
+        if (options.lateEnds === true) setTimeout(() => isOn && fabric.emit(scroll, 'topMomentumScrollEnd', {}), 24)
+        else fabric.emit(scroll, 'topMomentumScrollEnd', {})
+      }
+      if (isGliding && glideSteps > 0) {
+        const from = phone.offset
+        let step = 0
+        const next = (): void => {
+          step += 1
+          phone.offset = from + ((target - from) * step) / glideSteps
+          tell(scroll)
+          if (step < glideSteps) {
+            glide = setTimeout(next, 16)
+            return
+          }
+          glide = undefined
+          fabric.emit(scroll, 'topMomentumScrollEnd', {})
+        }
+        glide = setTimeout(next, 16)
+        continue
+      }
+      phone.offset = target
       tell(scroll)
-      if (command.args[2] === true) fabric.emit(scroll, 'topMomentumScrollEnd', {})
+      if (isGliding) fabric.emit(scroll, 'topMomentumScrollEnd', {})
     }
     commandsSeen = fabric.commands.length
     // Then the rows report their heights.
@@ -171,6 +209,7 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
         .map(each => [Number(each.args[1]), each.args[2] === true] as const),
     stop: (): void => {
       isOn = false
+      clearTimeout(glide)
       fabric.completeRoot = completeRoot
     },
   }

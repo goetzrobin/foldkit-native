@@ -74,7 +74,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { element } from 'foldkit/renderTarget'
 
 import { prop, style } from '../attributes.js'
-import { keyboardDock } from '../keyboard/dock.js'
+import { keyboardDock, overBarView } from '../keyboard/dock.js'
 import { chatInsetAvailable } from '../../host/chat/chatScroll.js'
 
 const el = element<any>()
@@ -117,6 +117,12 @@ export type ComposerDock = Readonly<{
   backgroundColor?: string
   /** For `'inset'`: the id of the list in `above`, which has `keyboardInset`. */
   listId?: string
+  /**
+   * Views on the composer's top edge that move with it: a round "scroll to
+   * the end" button. They take no room and are laid over the list. See
+   * `overBar` in `../keyboard/dock.ts`.
+   */
+  overBar?: ReadonlyArray<Html>
 }>
 
 /** Tells the two docks apart when one replaces the other on screen. */
@@ -127,6 +133,8 @@ const simpleDock = (config: ComposerDock): Html => {
   const isKeyboardUp = keyboardHeight > 0
   // Three views, so that no two of them write the same style: the caller's
   // attributes, the keyboard padding, and the phone's own safe area padding.
+  // What rides on the composer's top edge comes last, out of the layout.
+  const riders = config.overBar === undefined ? [] : [overBarView(config.overBar)]
   const bar = el('view')((config.attributes ?? []) as never, [
     el('view')(
       [style({ paddingBottom: keyboardHeight })] as never,
@@ -143,6 +151,7 @@ const simpleDock = (config: ComposerDock): Html => {
         ),
       ],
     ),
+    ...riders,
   ])
   // A color of its own goes on a view of its own, for the same reason.
   const colored =
@@ -173,6 +182,7 @@ export const composerDock = <Message>(
         : [el('view')(config.attributes as never, config.children as never)],
     ...(config.above === undefined ? {} : { above: config.above }),
     ...(config.backgroundColor === undefined ? {} : { backgroundColor: config.backgroundColor }),
+    ...(config.overBar === undefined ? {} : { overBar: config.overBar }),
     ...(config.mode === 'inset' && config.listId !== undefined && chatInsetAvailable()
       ? { inset: { listId: config.listId } }
       : {}),

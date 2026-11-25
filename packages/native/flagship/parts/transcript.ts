@@ -1,7 +1,7 @@
 /**
  * The transcript: the chat's rows in the adapter's own `list`, the empty
- * chat with its suggestions, the round button to the end, and the
- * developer's numbers.
+ * chat with its suggestions, the round button to the end (drawn on the
+ * composer, see `scrollButtonView`), and the developer's numbers.
  *
  * The list is the adapter's own (src/list), not the Legend List port: it is
  * the one that knows the keyboard's "inset" way (the list keeps its full
@@ -30,10 +30,11 @@ import { chatInsetAvailable } from '../../src/chat/index.js'
 import { type NativeStyle, prop, pressedStyle, style } from '../../src/foldkit/attributes.js'
 import { text, view as box } from '../../src/foldkit/elements.js'
 import { dismissKeyboardOnDrag, keyboardDockMode } from '../../src/keyboard/index.js'
-import { list, listNumbersLabel, scrollListToEnd } from '../../src/list/index.js'
+import { type ListNumbers, formatListNumbers, list, listRowCount, scrollListToEnd } from '../../src/list/index.js'
 import { animated } from '../../src/motion/index.js'
 import type { Context, Resources } from '../context.js'
 import type { ChatRow } from '../model.js'
+import { PILL_BOTTOM } from './composer.js'
 import { onTapAway } from '../tapAway.js'
 import { MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from '../theme.js'
 import { StyleHairline, arrowDown, roundButton, spinner } from '../ui.js'
@@ -46,6 +47,16 @@ export const TRANSCRIPT_ID = 'transcript'
 const ANCHOR_MAX_SIZE = 3 * TYPE.message.lineHeight + 20
 /** How far below the top of the list the question sits. */
 const ANCHOR_OFFSET = SPACE.l
+/**
+ * How close to the composer's top the end of the list must be to count as
+ * in view, in screen heights: about 8 points on a phone, less than a line.
+ * The list's end is the composer's top, since its bottom inset is what the
+ * composer and the keyboard cover.
+ */
+const AT_END_THRESHOLD = 0.01
+/** The round button's size, and the gap between it and the composer's top. */
+export const SCROLL_BUTTON_SIZE = 36
+export const SCROLL_BUTTON_GAP = SPACE.s
 
 /** Questions for an empty chat. Each picks a different kind of reply. */
 export const SUGGESTIONS = [
@@ -147,8 +158,6 @@ export type ViewInputs = Context &
     /** The chat's rows are still on their way from the server. */
     isLoading: boolean
     reply: ReplyStream.Model
-    /** How tall the composer floating over the list is, roughly. */
-    composerHeight: number
   }>
 
 const emptyChat = (h: HtmlBuilder<Message>, palette: Palette): Html =>
@@ -186,6 +195,25 @@ const emptyChat = (h: HtmlBuilder<Message>, palette: Palette): Html =>
     ],
   )
 
+/**
+ * Where the composer and the round button are, for the developer's numbers:
+ * from the numbers the list has (see `ListNumbers.composer`). The round
+ * button sits on the composer's top edge, with its gap under it.
+ */
+export const composerLine = (numbers: ListNumbers | undefined): string => {
+  const composer = numbers?.composer
+  if (numbers === undefined || composer === undefined) return ''
+  const top = composer.top === undefined ? '-' : String(Math.round(composer.top))
+  const keyboard =
+    composer.keyboard > 0 ? `pill ${Math.round(composer.gap + PILL_BOTTOM)} above the keyboard` : 'keyboard down'
+  const isButtonShown = numbers.isAtEnd === false && !numbers.isFollowing
+  const button =
+    !isButtonShown ? 'round button hidden'
+    : composer.top === undefined ? 'round button y -'
+    : `round button y ${Math.round(composer.top - SCROLL_BUTTON_GAP - SCROLL_BUTTON_SIZE)}`
+  return `\ncomposer covers ${Math.round(composer.covered)} from the bottom, top y ${top}, ${keyboard}; ${button}`
+}
+
 const numbersStrip = (palette: Palette): Html =>
   box(
     [
@@ -194,7 +222,11 @@ const numbersStrip = (palette: Palette): Html =>
       style({ position: 'absolute', top: 0, left: 0, right: 0, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: 'rgba(13,13,14,0.86)' }),
     ],
     [
-      listNumbersLabel(TRANSCRIPT_ID, [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })]),
+      listRowCount(
+        TRANSCRIPT_ID,
+        [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })],
+        stats => formatListNumbers(stats.numbers) + composerLine(stats.numbers),
+      ),
       text(
         [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })],
         [`keyboard mode ${chatInsetAvailable() ? 'inset' : `follow (${keyboardDockMode()})`}, theme ${palette === paletteOf('dark') ? 'dark' : 'light'}`],
@@ -202,23 +234,62 @@ const numbersStrip = (palette: Palette): Html =>
     ],
   )
 
-const scrollButton = (h: HtmlBuilder<Message>, inputs: ViewInputs, palette: Palette): Html => {
-  const covered = chatInsetAvailable()
-    ? inputs.composerHeight + (inputs.shared.keyboardCovers > 0 ? inputs.shared.keyboardCovers : 34)
-    : 0
-  const place: NativeStyle = { position: 'absolute', alignSelf: 'center', bottom: covered + SPACE.m, left: '50%', marginLeft: -18 }
-  return animated(
+/** Whether the round button to the end is wanted: the end is out of view, and the list is not on its way there. */
+export const wantsScrollButton = (model: Model, rowCount: number): boolean =>
+  rowCount > 0 && !model.isAtEnd && !model.isFollowing
+
+/** Small and see-through as it comes and goes. */
+const BUTTON_AWAY: NativeStyle = { opacity: 0, transform: [{ scale: 0.8 }] }
+const BUTTON_HERE: NativeStyle = { opacity: 1, transform: [{ scale: 1 }] }
+
+export type ScrollButtonInputs = Readonly<{ shared: Context['shared']; rowCount: number }>
+
+/**
+ * The round button to the end. It rides on the composer's top edge (the chat
+ * screen hands it to `composerDock` as `overBar`), so the phone moves it with
+ * the composer and the keyboard, frame by frame, and nothing here places it.
+ * It fades and grows in, and fades and shrinks out.
+ */
+const scrollButtonView_ = (model: Model, inputs: ScrollButtonInputs, h: HtmlBuilder<Message>): Html => {
+  const palette = paletteOf(inputs.shared.scheme)
+  const button = animated(
     {
-      enter: { from: { opacity: 0 }, duration: MOTION.scrollButton, easing: 'easeOut' },
-      exit: { to: { opacity: 0 }, duration: MOTION.scrollButton, easing: 'easeOut' },
+      enter: { from: BUTTON_AWAY, duration: MOTION.scrollButton, easing: 'easeOut' },
+      exit: { to: BUTTON_AWAY, duration: MOTION.scrollButton, easing: 'easeOut' },
     },
-    roundButton(
-    h,
-    { id: 'scroll-to-end', label: 'Scroll to the newest message', fill: palette.bg, size: 36, border: palette.line, onPress: Message.PressedScrollToEnd(), extra: { ...place, shadowColor: '#000000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } } },
-    arrowDown(palette.ink),
+    box(
+      [h.Key('scroll-to-end-motion'), prop('testID', 'scroll-to-end-motion'), style(BUTTON_HERE)],
+      [
+        roundButton(
+          h,
+          {
+            id: 'scroll-to-end',
+            label: 'Scroll to the newest message',
+            fill: palette.bg,
+            size: SCROLL_BUTTON_SIZE,
+            border: palette.line,
+            onPress: Message.PressedScrollToEnd(),
+            extra: { shadowColor: '#000000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+          },
+          arrowDown(palette.ink),
+        ),
+      ],
     ),
   )
+  return box(
+    [
+      prop('testID', 'scroll-to-end-seat'),
+      // Touches beside the button go to the messages under it.
+      prop('pointerEvents', 'box-none'),
+      // The gap is padding, inside this view, so the button's touch area beyond
+      // its circle stays inside the views around it.
+      style({ alignItems: 'center', paddingTop: SPACE.s, paddingBottom: SCROLL_BUTTON_GAP }),
+    ],
+    wantsScrollButton(model, inputs.rowCount) ? [button] : [],
+  )
 }
+
+export const scrollButtonView = Submodel.defineView<Model, Message, ScrollButtonInputs>(scrollButtonView_)
 
 export const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html => {
   const { device, shared, rows } = inputs
@@ -247,6 +318,7 @@ export const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>)
           }),
         estimatedRowHeight: 120,
         initialScrollAtEnd: true,
+        atEndThreshold: AT_END_THRESHOLD,
         // Stays at the end when the keyboard opens or closes. After Send the
         // reply is left to run off the screen under the question, as in other
         // AI apps. Once the user asks for the end (the round button, or
@@ -282,7 +354,6 @@ export const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>)
       }),
       ...(rows.length === 0 && !inputs.isLoading ? [emptyChat(h, palette)] : []),
       ...(inputs.isLoading ? [box([style({ position: 'absolute', top: '40%', alignSelf: 'center' })], [spinner(device, palette.ink3)])] : []),
-      ...(model.isAtEnd || rows.length === 0 ? [] : [scrollButton(h, inputs, palette)]),
       ...(shared.showsNumbers ? [numbersStrip(palette)] : []),
     ],
   )

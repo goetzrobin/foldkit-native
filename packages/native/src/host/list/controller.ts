@@ -38,6 +38,7 @@ import { type Handler, type NodeData, customEvent, handlersByNode } from '../fab
 import { type NodeHooksFactory, registerNodeHooks } from '../fabric/registry.js'
 import { type Box, type ChatKeyboard, createChatKeyboard } from '../chat/vendor/kbc/chatKeyboard.js'
 import type { KeyboardLiftBehavior } from '../chat/vendor/kbc/types.js'
+import { barPlace } from '../keyboard/geometry.js'
 import { type AnchoredEndSpace, endOffset, endSpaceFor, isAtEnd } from './end.js'
 import { EMPTY_RANGE, Heights, type Range, chooseWindow, rowsBetween } from './window.js'
 
@@ -177,6 +178,26 @@ export type ListNumbers = Readonly<{
       }>
     | undefined
   isAtEnd: boolean | undefined
+  /**
+   * For a list with a bottom inset: where the composer laid over it is, from
+   * what the dock told the list (see `barPlace` in `../keyboard/geometry.ts`).
+   * `content` is the composer's own height and `rest` the strip under it;
+   * `keyboard` the keyboard's height as last reported; `covered` how much of
+   * the list's bottom the composer and the strip and the keyboard cover;
+   * `top` the composer's top in the window, once the phone has said where
+   * the list is; `gap` from the bottom of the composer's content down to the
+   * keyboard's top (0 while the composer rests on it).
+   */
+  composer:
+    | Readonly<{
+        content: number
+        rest: number
+        keyboard: number
+        covered: number
+        top: number | undefined
+        gap: number
+      }>
+    | undefined
   /** On its way to the end and meant to arrive exactly. */
   isHolding: boolean
   /** Keeping up with the end as rows grow or arrive. See `Following`. */
@@ -187,13 +208,15 @@ export type ListNumbers = Readonly<{
    * where the phone last said it is (`top`), and in the window as the phone
    * measured it (`windowY`, once the phone has answered). `step` is how far
    * it moved in the last draw, `drift` how far since the list last moved on
-   * purpose (a scroll it asked for, or a finger). Both should stay at 0.
+   * purpose (a scroll it asked for, or a finger) and came to rest where it
+   * was sent. Both should stay at 0. `drift` is undefined until the list has
+   * come to rest there.
    */
   anchor:
     | Readonly<{
         top: number
         step: number
-        drift: number
+        drift: number | undefined
         windowY: number | undefined
         windowStep: number | undefined
         windowDrift: number | undefined
@@ -239,6 +262,8 @@ type Inset = {
   settleTimer: ReturnType<typeof setTimeout> | undefined
   /** Between the keyboard's start and its end. */
   isKeyboardMoving: boolean
+  /** The height the keyboard last started to move to or stopped at. */
+  keyboardTo: number
 }
 
 export const LIST_DATA = 'foldkitList'
@@ -335,6 +360,8 @@ type ListState = {
   isUserScrolling: boolean
   /** Waits, after a finger lets go, for the phone to say a fling started. */
   flingTimer: ReturnType<typeof setTimeout> | undefined
+  /** The bottom of the scroll view in the window, measured while numbers are shown. */
+  frameBottom: number | undefined
   /** Where the anchored row was at the last draw, for `ListNumbers.anchor`. */
   anchorSeen:
     | {
@@ -507,7 +534,24 @@ const numbersOf = (state: ListState): ListNumbers => ({
   isHolding: state.holdEnd,
   isFollowing: state.spec.maintainScrollAtEndFollowOnReturn && state.isFollowing,
   anchor: anchorNumbersOf(state),
+  composer: composerNumbersOf(state),
 })
+
+const composerNumbersOf = (state: ListState): ListNumbers['composer'] => {
+  const inset = state.inset
+  if (inset === undefined) return undefined
+  const rest = inset.options.offset
+  const content = Math.max(0, inset.bar.value - rest)
+  const place = barPlace({ content, rest, keyboard: inset.keyboardTo })
+  return {
+    content,
+    rest,
+    keyboard: inset.keyboardTo,
+    covered: place.covered,
+    top: state.frameBottom === undefined ? undefined : state.frameBottom - place.covered,
+    gap: place.gap,
+  }
+}
 
 const anchorNumbersOf = (state: ListState): ListNumbers['anchor'] => {
   const seen = state.anchorSeen
@@ -515,7 +559,7 @@ const anchorNumbersOf = (state: ListState): ListNumbers['anchor'] => {
   return {
     top: seen.top,
     step: seen.step,
-    drift: seen.baseline === undefined ? 0 : seen.top - seen.baseline,
+    drift: seen.baseline === undefined ? undefined : seen.top - seen.baseline,
     windowY: seen.windowY,
     windowStep: seen.windowStep,
     windowDrift:
@@ -528,6 +572,15 @@ const anchorNumbersOf = (state: ListState): ListNumbers['anchor'] => {
 /** Nothing is moving the list on purpose: no glide, no hold, no finger, no scroll waiting to go. */
 const isSettled = (state: ListState): boolean =>
   !state.holdEnd && state.glide === undefined && !state.isUserScrolling && state.pendingScroll === undefined
+
+/**
+ * Settled, and the phone has said it is where it was last sent. Drift is
+ * counted from here. Settled alone is not enough: the phone can say a glide
+ * came to rest while it is still on its way (see `cameToRest`), and a place
+ * read on the way made every later reading look like drift.
+ */
+const isAtRestWhereSent = (state: ListState): boolean =>
+  isSettled(state) && (state.lastScroll === undefined || state.lastScroll.arrived)
 
 /**
  * Notes where the anchored row is now, for the numbers on screen: from the
@@ -549,7 +602,7 @@ const noteAnchor = (state: ListState): void => {
     seen.step = top - seen.top
     seen.top = top
   }
-  if (seen.baseline === undefined && isSettled(state)) seen.baseline = top
+  if (seen.baseline === undefined && isAtRestWhereSent(state)) seen.baseline = top
 }
 
 /** The list moves on purpose: drift is counted again from where it comes to rest. */
@@ -995,19 +1048,28 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
     }
 
   /**
-   * Asks the phone where the anchored row is in the window, for the numbers
-   * on screen. Only while a label shows them.
+   * Asks the phone where the anchored row is in the window, and where the
+   * list's bottom is, for the numbers on screen. Only while a label shows them.
    */
   const measureAnchor = (state: ListState): void => {
+    if ((labelsById.get(state.spec.id)?.size ?? 0) === 0) return
+    if (state.inset !== undefined) {
+      engine.measure(state.scroll, frame => {
+        const bottom = frame.y + frame.height
+        if (!state.isAlive || bottom === state.frameBottom) return
+        state.frameBottom = bottom
+        showNumbers(state)
+      })
+    }
     const seen = state.anchorSeen
-    if (seen === undefined || (labelsById.get(state.spec.id)?.size ?? 0) === 0) return
+    if (seen === undefined) return
     const node = state.painter.nodeOf(seen.key)
     if (node === undefined) return
     engine.measure(node, frame => {
       if (!state.isAlive || state.anchorSeen !== seen) return
       seen.windowStep = seen.windowY === undefined ? 0 : frame.y - seen.windowY
       seen.windowY = frame.y
-      if (seen.windowBaseline === undefined && isSettled(state)) seen.windowBaseline = frame.y
+      if (seen.windowBaseline === undefined && isAtRestWhereSent(state)) seen.windowBaseline = frame.y
       showNumbers(state)
     })
   }
@@ -1122,6 +1184,18 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       showNumbers(state)
       return
     }
+    // The phone says a scroll came to rest, and it is not where the glide is
+    // going: the end of an earlier glide that this one stopped (UIKit
+    // reports it, at once or a frame later), or a glide that stopped short.
+    // The glide goes on; one that really stopped short is put right by its
+    // timer (`sendScroll`). Ended here, the list took the places the phone
+    // reported on the rest of the way as its own: it said it was not at its
+    // end, and the round button flashed, while the question rose to the top.
+    const reported = state.reported
+    if (reported === undefined || Math.abs(reported - state.glide.target) >= ARRIVED_WITHIN) {
+      showNumbers(state)
+      return
+    }
     endGlide(state)
     afterGlide(state)
   }
@@ -1180,6 +1254,7 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       drawnRows: [],
       settleTimer: undefined,
       isKeyboardMoving: false,
+      keyboardTo: 0,
     }
   }
 
@@ -1213,6 +1288,7 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       isFollowing: spec.initialScrollAtEnd,
       isUserScrolling: false,
       flingTimer: undefined,
+      frameBottom: undefined,
       anchorSeen: undefined,
       glide: undefined,
       isHidden: spec.initialScrollAtEnd,
@@ -1440,6 +1516,7 @@ const keyboardMoved = (state: ListState, inset: Inset, event: ListKeyboardEvent)
   // it is going, not where the glide happens to be at this moment.
   const from = state.glide?.target ?? state.offset
   inset.scroll.value = from
+  if (event.type !== 'bar') inset.keyboardTo = event.height
   if (event.type === 'end') {
     inset.isKeyboardMoving = false
     inset.keyboard.handlers.onEnd({ height: event.height })

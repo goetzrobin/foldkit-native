@@ -46,6 +46,15 @@ export { DRAFT_FIELD, voiceNoteText } from './composer.js'
 export { TRANSCRIPT_ID } from './transcript.js'
 
 const NOTICE_MS = 2200
+/**
+ * A hold with the keyboard up puts the keyboard away and opens the menu this
+ * much later. The phone's action sheet comes up from the bottom of the
+ * screen, where the keyboard is, and the keyboard's window is drawn over the
+ * app's: shown at once, the sheet could sit under the keyboard. A few frames
+ * are enough for the keyboard to have started down; the two then move
+ * together, as in Messages.
+ */
+const MENU_AFTER_KEYBOARD_MS = 60
 /** Longer than a push takes, on any phone. Only used if the phone never says it appeared. */
 const PUSH_WAIT_MS = 700
 
@@ -109,6 +118,8 @@ export const Message = defineMessageUnion({
   StartedRegenerate: { started: AiWire.TurnStarted },
   FailedWrite: { action: Schema.String, reason: Schema.String },
   GotActionSheetMessage: { message: ActionSheet.Message },
+  /** A held message's menu waited for the keyboard to start going. */
+  WaitedForKeyboard: { items: Schema.Array(ActionSheet.ActionSheetItem) },
   DismissedNotice: { text: Schema.String },
   CompletedSideEffect: {},
 })
@@ -177,6 +188,16 @@ const FocusDraft = Command.define('ChatFocusDraft', {
   messages: [Message.CompletedSideEffect],
   execute: focusField(Composer.DRAFT_FIELD).pipe(Effect.as(Message.CompletedSideEffect())),
 })
+
+const WaitForKeyboard = Command.define('ChatWaitForKeyboard', {
+  args: { items: Schema.Array(ActionSheet.ActionSheetItem) },
+  messages: [Message.WaitedForKeyboard],
+  execute: ({ items }) =>
+    Effect.sleep(Duration.millis(MENU_AFTER_KEYBOARD_MS)).pipe(Effect.as(Message.WaitedForKeyboard({ items }))),
+})
+
+const showMenu = (items: ReadonlyArray<ActionSheet.ActionSheetItem>) =>
+  Command.mapMessage(ActionSheet.Show({ items }), sheetMessage => Message.GotActionSheetMessage({ message: sheetMessage }))
 
 const ClearNoticeLater = Command.define('ChatClearNotice', {
   args: { text: Schema.String },
@@ -338,12 +359,13 @@ const onRow = (model: Model, message: MessageRow.OutMessage, inputs: Inputs): Re
               { key: 'share', title: 'Share' },
               ...(canRegenerate ? [{ key: 'regenerate', title: 'Regenerate' }] : []),
             ]
+      // With the keyboard up, it goes first and the menu follows (see MENU_AFTER_KEYBOARD_MS).
+      const isKeyboardUp = inputs.shared.keyboardHeight > 0
       return {
         model: modifyFields(model, { menu: () => Option.some({ rowKey, text: words, canRegenerate }) }),
-        commands: [
-          haptic.medium(),
-          Command.mapMessage(ActionSheet.Show({ items }), sheetMessage => Message.GotActionSheetMessage({ message: sheetMessage })),
-        ],
+        commands: isKeyboardUp
+          ? [haptic.medium(), dismissKeyboard(done), WaitForKeyboard({ items })]
+          : [haptic.medium(), showMenu(items)],
       }
     },
     Tapped: () => ({ model, commands: inputs.shared.keyboardHeight > 0 ? [dismissKeyboard(done)] : [] }),
@@ -450,6 +472,8 @@ export const update = (model: Model, message: Message, inputs: Inputs): Return =
     StartedRegenerate: ({ started }) => ({ model: modifyFields(model, { reply: reply => ReplyStream.regenerated(reply, started) }) }),
     FailedWrite: ({ action, reason }) => failedWrite(model, action, reason),
     GotActionSheetMessage: ({ message: sheetMessage }) => onActionSheet(model, sheetMessage, inputs),
+    // The chat may have been left meanwhile, which forgets the menu.
+    WaitedForKeyboard: ({ items }) => ({ model, commands: Option.isSome(model.menu) ? [showMenu(items)] : [] }),
     DismissedNotice: ({ text }) => ({
       model: modifyFields(model, { notice: notice => Option.filter(notice, each => each.text !== text) }),
     }),
@@ -544,7 +568,6 @@ const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html 
       rows,
       isLoading,
       reply: model.reply,
-      composerHeight: Composer.heightOf(model.composer),
     },
     toParentMessage: toTranscript,
   })
@@ -589,6 +612,16 @@ const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html 
               listId: Transcript.TRANSCRIPT_ID,
               keyboardHeight: shared.keyboardCovers,
               above: [transcriptView],
+              // The round button to the end rides on the composer's top edge.
+              overBar: [
+                h.submodel({
+                  slotId: 'scroll-to-end',
+                  view: Transcript.scrollButtonView,
+                  model: model.transcript,
+                  viewInputs: { shared, rowCount: rows.length },
+                  toParentMessage: toTranscript,
+                }),
+              ],
               children: [
                 h.submodel({
                   slotId: 'composer',

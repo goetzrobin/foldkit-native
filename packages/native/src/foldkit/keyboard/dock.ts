@@ -105,12 +105,34 @@ export type KeyboardDock = Readonly<{
   /** The bar's color, which also fills the strip beside the home indicator. */
   backgroundColor?: string
   /**
+   * Views that sit on the bar's top edge and move with the bar, frame by
+   * frame, because they are inside the view the phone moves: a chat's round
+   * "scroll to the end" button. They take no room: they are laid over what
+   * is above the bar, stacked up from its top, across its width. Touches
+   * that miss them go to what is under them.
+   */
+  overBar?: ReadonlyArray<Html>
+  /**
    * Lay the bar over the bottom of `above` and leave `above` alone. The list
    * with this id (one with `keyboardInset`) is told about the keyboard and
    * the bar's height. See INSET at the top of this file.
    */
   inset?: Readonly<{ listId: string }>
 }>
+
+/**
+ * What rides on a bar's top edge: from the bar's top up, as wide as the bar,
+ * out of the layout. On iOS a view outside its parent's frame still takes
+ * touches when the parent's own layout reaches past it, which this does.
+ */
+export const overBarView = (children: ReadonlyArray<Html>): Html =>
+  box(
+    [
+      prop('pointerEvents', 'box-none'),
+      style({ position: 'absolute', left: 0, right: 0, bottom: '100%' }),
+    ] as never,
+    children as never,
+  )
 
 /** See the top of this file. */
 export const keyboardDock = <Message>(
@@ -129,9 +151,11 @@ export const keyboardDock = <Message>(
     config.children as never,
   )
   // The view the phone moves. Its safe area view pads the home indicator's
-  // strip, which the keyboard covers once it is up.
+  // strip, which the keyboard covers once it is up. What rides on the bar is
+  // its second child, out of the layout.
   const bar = box([prop('collapsable', false), ...background] as never, [
     safeAreaView([prop('edges', BOTTOM_EDGE), style({ flex: 0 })] as never, [content]),
+    ...(config.overBar === undefined ? [] : [overBarView(config.overBar)]),
   ])
   const controller = isNative
     ? controllerView([prop('enabled', true), style(OUT_OF_FLOW as never)] as never, [])

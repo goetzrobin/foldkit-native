@@ -31,6 +31,7 @@ import { tellListKeyboard } from '../list/controller.js'
 import { keepMoving } from '../motion/clock.js'
 import { dockAnimated, noteEngine } from './detect.js'
 import { type EventDrive, driveByEvent } from './drive.js'
+import { restUnderBar } from './geometry.js'
 
 // react-native-keyboard-controller's two native views. Giving a tag a name
 // does not need the view to exist. Only drawing one does, and the dock draws
@@ -116,8 +117,12 @@ type Dock = {
   measuredRest: number | undefined
   /** Native mode: the keyboard's height as the phone last reported it. */
   reported: number
-  /** Inset: how tall the bar's content is, once the phone has said. */
+  /** How tall the bar's content is, once the phone has said. */
   contentHeight: number | undefined
+  /** How tall the bar is, its safe area padding included, once the phone has said. */
+  barHeight: number | undefined
+  /** The strip under the content the bar and the list were last given. See `restOf`. */
+  usedRest: number | undefined
   /** Inset: a finger is dragging the keyboard, and the list has been told. */
   isDragged: boolean
   /** Fallback mode: how far the bar is padded up now, or null before the first time. */
@@ -156,7 +161,14 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
   noteEngine(canDrive(engine))
   const docks = new Map<EngineNode, Dock>()
 
-  const restOf = (dock: Dock): number => dock.marker.offset ?? dock.measuredRest ?? 0
+  /** The strip under the bar's content that the keyboard covers anyway. See `geometry.ts`. */
+  const restOf = (dock: Dock): number =>
+    restUnderBar({
+      offset: dock.marker.offset,
+      measured: dock.measuredRest,
+      barHeight: dock.barHeight,
+      contentHeight: dock.contentHeight,
+    })
 
   /** The view that fills the window: the one the surface made under the root. */
   const windowView = (from: EngineNode): EngineNode => {
@@ -321,6 +333,7 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
   }
 
   const useRest = (dock: Dock): void => {
+    dock.usedRest = restOf(dock)
     if (dock.controller === undefined) {
       padFallback(dock, false)
       return
@@ -331,10 +344,17 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
     dock.liftDrive?.update(range)
   }
 
+  /** Gives the bar and the list the strip under the content, when a new reading changed it. */
+  const refreshRest = (dock: Dock): boolean => {
+    if (!dock.isAlive || restOf(dock) === dock.usedRest) return false
+    useRest(dock)
+    return true
+  }
+
   /**
    * How far the bottom of the bar's content is from the bottom of the window,
    * while the keyboard is down. That is how much of the keyboard's height
-   * the bar does not need to rise by.
+   * the bar does not need to rise by. One reading of two: see `restOf`.
    */
   const measureRest = (dock: Dock): void => {
     if (!dock.isAlive || dock.marker.offset !== undefined || !isKeyboardDown(dock)) return
@@ -342,11 +362,8 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
     let contentBottom: number | undefined
     const use = (): void => {
       if (windowBottom === undefined || contentBottom === undefined || !dock.isAlive) return
-      const rest = Math.max(0, Math.round(windowBottom - contentBottom))
-      if (rest === dock.measuredRest) return
-      dock.measuredRest = rest
-      useRest(dock)
-      engine.commit()
+      dock.measuredRest = Math.max(0, Math.round(windowBottom - contentBottom))
+      if (refreshRest(dock)) engine.commit()
     }
     engine.measure(windowView(dock.outer), frame => {
       windowBottom = frame.y + frame.height
@@ -379,6 +396,8 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
       measuredRest: undefined,
       reported: 0,
       contentHeight: undefined,
+      barHeight: undefined,
+      usedRest: undefined,
       isDragged: false,
       pad: null,
       quietAfter: 0,
@@ -395,6 +414,7 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
     if (dock.controller !== undefined) startNative(dock)
     // A keyboard that is already up puts the bar in place with no easing.
     else padFallback(dock, false)
+    dock.usedRest = restOf(dock)
     nameField(dock, field)
     dock.stops.push(
       engine.setEventListener(dock.content, 'topLayout', event => {
@@ -406,7 +426,18 @@ export const makeDockController = (engine: Engine, afterCommit: AfterCommit) => 
         if (typeof height === 'number') {
           dock.contentHeight = height
           tellBar(dock)
+          if (refreshRest(dock)) engine.commit()
         }
+        measureRest(dock)
+      }),
+      // The bar is its content and the safe area view's padding under it. On
+      // an iPhone that padding arrives after the first layout, and the
+      // content's own layout does not change when it does: the bar's does.
+      engine.setEventListener(dock.bar, 'topLayout', event => {
+        const height = (event as NativeEvent | undefined)?.nativeEvent?.layout?.height
+        if (typeof height !== 'number' || height === dock.barHeight) return
+        dock.barHeight = height
+        if (refreshRest(dock)) engine.commit()
         measureRest(dock)
       }),
     )
