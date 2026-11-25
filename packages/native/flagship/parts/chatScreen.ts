@@ -235,11 +235,32 @@ export const rowsOf = (model: Model, conversation: ConversationResult): Readonly
     }
   })
   const lastReply = rows.reduce((found, row, index) => (row.role === 'assistant' ? index : found), -1)
-  return rows.map((row, index) => ({
-    ...row,
-    key: row.source === 'saved' && row.role === 'user' ? (clientIds.get(row.key) ?? row.key) : row.key,
-    isLastReply: index === lastReply,
-  }))
+  // A saved question takes its client id, so its row keeps the key it had
+  // while sending. Two rows must never share a key (Foldkit stops the program
+  // on a repeated slot): a chat saved by an older build can hold two questions
+  // with one client id, and then the later one keeps its message id.
+  const taken = new Set(rows.map(row => row.key))
+  return rows.map((row, index) => {
+    const clientId = row.source === 'saved' && row.role === 'user' ? clientIds.get(row.key) : undefined
+    const key = clientId === undefined || taken.has(clientId) ? row.key : clientId
+    if (key !== row.key) taken.add(key)
+    return { ...row, key, isLastReply: index === lastReply }
+  })
+}
+
+/**
+ * The number for a new question's client id (`c3`): the next one no message
+ * of this chat holds. The count starts at 1 again each launch, so a chat from
+ * an earlier launch may hold `c1` already.
+ */
+const nextFreeClientId = (model: Model, conversation: ConversationResult): number => {
+  const used = new Set(model.pending.map(each => each.clientMessageId))
+  Option.map(AsyncResult.value(conversation), each => {
+    for (const message of each.messages) if (message.clientMessageId !== null) used.add(message.clientMessageId)
+  })
+  let next = model.nextClientId
+  while (used.has(`c${next}`)) next += 1
+  return next
 }
 
 const withNotice = (model: Model, notice: Notice): Update.Return<Model, Message, Resources> => ({
@@ -257,11 +278,12 @@ const withReply = (model: Model, result: ReplyStep): Return => ({
 /** Sends `text` in the open chat, making the conversation first in a new one. */
 const send = (model: Model, text: string, inputs: Inputs): Return => {
   if (text.trim() === '' || !inputs.shared.isOnline || ReplyStream.isStreaming(model.reply)) return { model }
-  const clientMessageId = `c${model.nextClientId}`
+  const number = nextFreeClientId(model, inputs.conversation)
+  const clientMessageId = `c${number}`
   const attachments = Option.match(model.composer.attachment, { onNone: () => [], onSome: each => [each] })
   const conversationId = Option.getOrElse(model.openId, () => '')
   const next = modifyFields(model, {
-    nextClientId: count => count + 1,
+    nextClientId: () => number + 1,
     // Shown at once, before the server has it.
     pending: pending =>
       PendingOps.add(pending, { clientMessageId, conversationId, text, attachments, createdAt: inputs.shared.nowMs }),
