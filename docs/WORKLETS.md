@@ -75,8 +75,10 @@ seconds, and a card to drag.
   colors for native code, and the proof does not load that code.
 - **Only a spring.** No timed easing, no decay, no chained animations. Those
   live in Reanimated's JavaScript, which the proof does not load.
-- **Only a pan gesture.** No tap, pinch, long press, or rules between
-  gestures.
+- **Only a pan gesture, and a long press.** No tap or pinch. The long
+  press (`src/host/worklets/hold.ts`) reads Fold Chat's hold on a message:
+  the engine's JavaScript responder loses the touch whenever the list
+  scrolls by itself, which it does while a reply streams.
 - **Android is a guess.** Gestures there need a special wrapper view. It is
   in the code, copied from how ng-native does it, and unseen on a device.
 - **A view moved from the UI thread stays under its control.** If Foldkit

@@ -33,6 +33,7 @@ import { dismissKeyboardOnDrag, keyboardDockMode } from '../../src/keyboard/inde
 import { type ListNumbers, formatListNumbers, list, listRowCount, scrollListToEnd } from '../../src/list/index.js'
 import { animated } from '../../src/motion/index.js'
 import type { Context, Resources } from '../context.js'
+import { holdNumbers } from '../longPress.js'
 import type { ChatRow } from '../model.js'
 import { PILL_BOTTOM } from './composer.js'
 import { onTapAway } from '../tapAway.js'
@@ -231,6 +232,8 @@ const numbersStrip = (palette: Palette): Html =>
         [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })],
         [`keyboard mode ${chatInsetAvailable() ? 'inset' : `follow (${keyboardDockMode()})`}, theme ${palette === paletteOf('dark') ? 'dark' : 'light'}`],
       ),
+      // Which route reads a hold, and how the last one went (see longPress.ts).
+      holdNumbers([style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })]),
     ],
   )
 
