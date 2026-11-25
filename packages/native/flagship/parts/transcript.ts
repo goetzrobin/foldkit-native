@@ -30,10 +30,11 @@ import { chatInsetAvailable } from '../../src/chat/index.js'
 import { type NativeStyle, prop, pressedStyle, style } from '../../src/foldkit/attributes.js'
 import { text, view as box } from '../../src/foldkit/elements.js'
 import { dismissKeyboardOnDrag, keyboardDockMode } from '../../src/keyboard/index.js'
-import { list, listNumbersLabel, scrollListToEnd } from '../../src/list/index.js'
+import { type ListNumbers, formatListNumbers, list, listRowCount, scrollListToEnd } from '../../src/list/index.js'
 import { animated } from '../../src/motion/index.js'
 import type { Context, Resources } from '../context.js'
 import type { ChatRow } from '../model.js'
+import { PILL_BOTTOM } from './composer.js'
 import { onTapAway } from '../tapAway.js'
 import { MOTION, type Palette, RADIUS, SPACE, TYPE, paletteOf } from '../theme.js'
 import { StyleHairline, arrowDown, roundButton, spinner } from '../ui.js'
@@ -194,6 +195,25 @@ const emptyChat = (h: HtmlBuilder<Message>, palette: Palette): Html =>
     ],
   )
 
+/**
+ * Where the composer and the round button are, for the developer's numbers:
+ * from the numbers the list has (see `ListNumbers.composer`). The round
+ * button sits on the composer's top edge, with its gap under it.
+ */
+export const composerLine = (numbers: ListNumbers | undefined): string => {
+  const composer = numbers?.composer
+  if (numbers === undefined || composer === undefined) return ''
+  const top = composer.top === undefined ? '-' : String(Math.round(composer.top))
+  const keyboard =
+    composer.keyboard > 0 ? `pill ${Math.round(composer.gap + PILL_BOTTOM)} above the keyboard` : 'keyboard down'
+  const isButtonShown = numbers.isAtEnd === false && !numbers.isFollowing
+  const button =
+    !isButtonShown ? 'round button hidden'
+    : composer.top === undefined ? 'round button y -'
+    : `round button y ${Math.round(composer.top - SCROLL_BUTTON_GAP - SCROLL_BUTTON_SIZE)}`
+  return `\ncomposer covers ${Math.round(composer.covered)} from the bottom, top y ${top}, ${keyboard}; ${button}`
+}
+
 const numbersStrip = (palette: Palette): Html =>
   box(
     [
@@ -202,7 +222,11 @@ const numbersStrip = (palette: Palette): Html =>
       style({ position: 'absolute', top: 0, left: 0, right: 0, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: 'rgba(13,13,14,0.86)' }),
     ],
     [
-      listNumbersLabel(TRANSCRIPT_ID, [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })]),
+      listRowCount(
+        TRANSCRIPT_ID,
+        [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })],
+        stats => formatListNumbers(stats.numbers) + composerLine(stats.numbers),
+      ),
       text(
         [style({ color: '#FFFFFF', fontSize: 11, lineHeight: 15 })],
         [`keyboard mode ${chatInsetAvailable() ? 'inset' : `follow (${keyboardDockMode()})`}, theme ${palette === paletteOf('dark') ? 'dark' : 'light'}`],

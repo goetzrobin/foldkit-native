@@ -277,3 +277,28 @@ describe('the numbers for the question held at the top', () => {
     expect(at.shown('numbers')).toContain('question y 16.0 (step +0.0, drift +0.0)')
   })
 })
+
+describe('the numbers strip', () => {
+  it('says where the composer and the round button are, and how far the pill is from the keyboard', async () => {
+    await openChat(0)
+    // Where the transcript is in the window: under the title bar, down to the bottom.
+    at.phone.fabric.frames.set(String(byTestId(at.phone.fabric, 'transcript').viewName), {
+      x: 0,
+      y: WINDOW.height - VIEWPORT,
+      width: 402,
+      height: VIEWPORT,
+    })
+    await at.ask(RUNNING)
+    await at.untilDone()
+    await hold(at.phone.fabric, 'chat-title', LONG_PRESS_MS + 80)
+    await endUnderComposer(0)
+    const bottom = COMPOSER + HOME_INDICATOR
+    expect(at.shown('numbers')).toContain(`composer covers ${bottom} from the bottom, top y ${WINDOW.height - bottom}, keyboard down`)
+    expect(at.shown('numbers')).toContain('round button hidden')
+    await keyboardMoves(KEYBOARD)
+    await endUnderComposer(100)
+    const covered = KEYBOARD + COMPOSER
+    expect(at.shown('numbers')).toContain(`composer covers ${covered} from the bottom, top y ${WINDOW.height - covered}, pill 8 above the keyboard`)
+    expect(at.shown('numbers')).toContain(`round button y ${WINDOW.height - covered - 8 - 36}`)
+  })
+})
