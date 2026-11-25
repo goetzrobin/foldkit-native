@@ -1,0 +1,104 @@
+From b0482280e0f840614bbd0bd661b30cc98c90cf0b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 23:17:45 +0100
+Subject: [PATCH] fix(fabric): a scroll the app made does not cancel a press
+
+RN's scroll view marks scrolls no finger caused (a scrollTo, a changed
+contentInset, a list following streamed content) with
+responderIgnoreScroll (RCTScrollViewComponentView.mm,
+!_isUserTriggeredScrolling), and React's responder system skips them
+(ReactFabric: topScroll && !responderIgnoreScroll). The engine cancelled
+the press on every topScroll, so any press or long press in a list that
+moved by itself under a resting finger was lost.
+
+Skip topScroll events marked responderIgnoreScroll. topScrollBeginDrag
+always comes from a finger and still cancels.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013uhLm7FKAb5kBU2n1bgL7j
+---
+ packages/fabric/src/engine.ts                 | 13 +++++++++-
+ .../integration-tests/scroll-press.test.ts    | 24 ++++++++++++++++++-
+ 2 files changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/packages/fabric/src/engine.ts b/packages/fabric/src/engine.ts
+index e6e6fc9..ed5b7b4 100644
+--- a/packages/fabric/src/engine.ts
++++ b/packages/fabric/src/engine.ts
+@@ -435,6 +435,10 @@ export interface FabricUIManager {
+  */
+ const SCROLL_CANCELS_PRESS = new Set(['topScroll', 'topScrollBeginDrag']);
+ 
++/** A scroll the app made itself, which RN marks so it does not take the touch away. */
++const isIgnoredScroll = (event: ResponderEvent): boolean =>
++  (event as { nativeEvent?: { responderIgnoreScroll?: unknown } }).nativeEvent?.responderIgnoreScroll === true;
++
+ /**
+  * RN's `directEventTypes`: delivered to the target only, never up the tree. Everything else
+  * bubbles, which matches RN's `bubblingEventTypes` for the touch and input events that matter.
+@@ -17445,10 +17449,17 @@ export class Engine implements HostEngine {
+    *
+    * Only a responder *inside* the thing that scrolled, so a scroll view moving does not cancel a
+    * press somewhere else on screen. And only while a touch is in progress: momentum after the
+-   * finger has lifted, and programmatic scrolling, have no press to cancel.
++   * finger has lifted has no press to cancel.
++   *
++   * And only a scroll a finger caused. The app can scroll a list while a finger rests on it: a
++   * chat following a streamed reply, a `scrollTo`, a changed `contentInset`. RN's scroll view marks
++   * those `responderIgnoreScroll` (`RCTScrollViewComponentView.mm`, `!_isUserTriggeredScrolling`),
++   * and React's responder system skips them (`ReactFabric`: `topScroll && !responderIgnoreScroll`).
++   * Cancelling on them killed every press and long press in a list that moved by itself.
+    */
+   private cancelPressForScroll(target: EngineNode, type: string, event: ResponderEvent): void {
+     if (!SCROLL_CANCELS_PRESS.has(type)) return;
++    if (type === 'topScroll' && isIgnoredScroll(event)) return;
+     const responder = this.currentResponder;
+     if (!responder || responder === target) return;
+     for (let node: EngineNode | null = responder; node; node = node.parent) {
+diff --git a/packages/integration-tests/scroll-press.test.ts b/packages/integration-tests/scroll-press.test.ts
+index 5465724..a71f877 100644
+--- a/packages/integration-tests/scroll-press.test.ts
++++ b/packages/integration-tests/scroll-press.test.ts
+@@ -43,11 +43,12 @@ describe('a press in a list that scrolls', () => {
+   const at = (y: number) => ({ pageX: 10, pageY: y });
+   const touch = (id: string, type: string, y: number) =>
+     fabric.emit(node(id), type, { touches: [at(y)], changedTouches: [at(y)], ...at(y) });
+-  const scroll = () =>
++  const scroll = (extra: Record<string, unknown> = {}) =>
+     fabric.emit(node('list'), 'topScroll', {
+       contentOffset: { x: 0, y: 40 },
+       contentSize: { width: 100, height: 900 },
+       layoutMeasurement: { width: 100, height: 400 },
++      ...extra,
+     });
+ 
+   it('fires an ordinary tap', async () => {
+@@ -92,4 +93,25 @@ describe('a press in a list that scrolls', () => {
+     await settle();
+     assert.equal(host.taps(), 1);
+   });
++
++  it('keeps the press when the app scrolls the list itself', async () => {
++    // A chat following a streamed reply moves under a resting finger many times a second. RN marks
++    // those scrolls `responderIgnoreScroll`, and React does not cancel a press for them.
++    touch('row', 'topTouchStart', 100);
++    scroll({ responderIgnoreScroll: true });
++    scroll({ responderIgnoreScroll: true });
++    touch('row', 'topTouchEnd', 100);
++    await settle();
++    assert.equal(host.taps(), 1);
++  });
++
++  it('still cancels when a finger scrolls the list after the app did', async () => {
++    touch('row', 'topTouchStart', 100);
++    scroll({ responderIgnoreScroll: true });
++    scroll({ responderIgnoreScroll: false });
++    touch('row', 'topTouchMove', 70);
++    touch('row', 'topTouchEnd', 70);
++    await settle();
++    assert.equal(host.taps(), 0);
++  });
+ });
+-- 
+2.43.0
+
