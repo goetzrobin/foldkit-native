@@ -544,7 +544,6 @@ const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html 
       rows,
       isLoading,
       reply: model.reply,
-      composerHeight: Composer.heightOf(model.composer),
     },
     toParentMessage: toTranscript,
   })
@@ -589,6 +588,16 @@ const view_ = (model: Model, inputs: ViewInputs, h: HtmlBuilder<Message>): Html 
               listId: Transcript.TRANSCRIPT_ID,
               keyboardHeight: shared.keyboardCovers,
               above: [transcriptView],
+              // The round button to the end rides on the composer's top edge.
+              overBar: [
+                h.submodel({
+                  slotId: 'scroll-to-end',
+                  view: Transcript.scrollButtonView,
+                  model: model.transcript,
+                  viewInputs: { shared, rowCount: rows.length },
+                  toParentMessage: toTranscript,
+                }),
+              ],
               children: [
                 h.submodel({
                   slotId: 'composer',

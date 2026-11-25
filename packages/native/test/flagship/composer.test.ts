@@ -140,3 +140,105 @@ describe('the composer covers what it really covers', () => {
     expect(listNumbers('transcript')?.inset).toBe(KEYBOARD + COMPOSER)
   })
 })
+
+/** The views from the round button up to the window, the button first. */
+const ancestorsOf = (node: FakeFabricNode): Array<FakeFabricNode> => {
+  const path: Array<FakeFabricNode> = [node]
+  for (;;) {
+    const parent = all().find(each => each.children.includes(path.at(-1) as FakeFabricNode))
+    if (parent === undefined) return path
+    path.push(parent)
+  }
+}
+
+/** The props of the round button and every view around it inside the bar, as plain data. */
+const buttonPlace = (): string =>
+  JSON.stringify(
+    ancestorsOf(byTestId(at.phone.fabric, 'scroll-to-end'))
+      .slice(0, ancestorsOf(byTestId(at.phone.fabric, 'scroll-to-end')).indexOf(bar()))
+      .map(node => ({ ...node.props, opacity: undefined, transform: undefined })),
+  )
+
+/** The round button is on screen and not on its way out (a leaving view takes no touches). */
+const isButtonShown = (): boolean =>
+  all()
+    .filter(node => node.props['testID'] === 'scroll-to-end')
+    .some(node => ancestorsOf(node).every(each => each.props['pointerEvents'] !== 'none'))
+
+/** The list scrolled by a finger so its end is `under` points below the composer's top. */
+const endUnderComposer = async (under: number): Promise<void> => {
+  phone.drag(phone.furthest() - under)
+  await at.advance(200)
+  // The button's fade, which runs on the phone's own clock.
+  await new Promise(resolve => setTimeout(resolve, 250))
+}
+
+describe('the round button to the end', () => {
+  it('appears once the reply runs under the composer, not once it runs under the keyboard', async () => {
+    await openChat(HOME_INDICATOR)
+    await at.ask(RUNNING)
+    await at.untilDone()
+    await endUnderComposer(0)
+    expect(isButtonShown()).toBe(false)
+    // One line of the reply is under the composer: the button offers the way down.
+    await endUnderComposer(30)
+    expect(listNumbers('transcript')?.isAtEnd).toBe(false)
+    expect(isButtonShown()).toBe(true)
+    // A few points are not a line: the end is still in view.
+    await endUnderComposer(4)
+    expect(isButtonShown()).toBe(false)
+    // The same with the keyboard up: the composer's top is the end, not the keyboard's.
+    await keyboardMoves(KEYBOARD)
+    await endUnderComposer(0)
+    expect(isButtonShown()).toBe(false)
+    await endUnderComposer(30)
+    expect(isButtonShown()).toBe(true)
+  })
+
+  it('rides on the composer: the phone moves it with the keyboard, and nothing places it again', async () => {
+    await openChat(HOME_INDICATOR)
+    await at.ask(RUNNING)
+    await at.untilDone()
+    await endUnderComposer(100)
+    expect(isButtonShown()).toBe(true)
+    // Inside the bar the phone moves frame by frame, and the bar is all it moves.
+    expect(flatten([bar()]).some(node => node.props['testID'] === 'scroll-to-end')).toBe(true)
+    expect(animated.drivenViews()).toEqual([bar().reactTag])
+    const before = buttonPlace()
+    await keyboardMoves(KEYBOARD)
+    expect(buttonPlace()).toBe(before)
+    // A draft of several lines makes the composer taller: the button stays on its top, by layout.
+    await at.type('draft', 'one line\nand another\nand a third')
+    await at.advance(100)
+    expect(buttonPlace()).toBe(before)
+    await keyboardMoves(0)
+    expect(buttonPlace()).toBe(before)
+  })
+
+  it('fades and grows in, and fades and shrinks out, briefly', async () => {
+    await openChat(HOME_INDICATOR)
+    await at.ask(RUNNING)
+    await at.untilDone()
+    await endUnderComposer(0)
+    phone.drag(phone.furthest() - 100)
+    await at.advance(20, 20)
+    const node = (): FakeFabricNode => byTestId(at.phone.fabric, 'scroll-to-end-motion')
+    const scale = (): number =>
+      ((node().props['transform'] as Array<{ scale?: number }> | undefined)?.[0]?.scale ?? 1)
+    expect(Number(node().props['opacity'])).toBeLessThan(1)
+    expect(scale()).toBeLessThan(1)
+    await new Promise(resolve => setTimeout(resolve, 400))
+    await at.advance(20, 20)
+    expect(node().props['opacity']).toBe(1)
+    expect(scale()).toBe(1)
+    // Back at the end: it eases out, takes no touch meanwhile, and is gone.
+    phone.drag(phone.furthest())
+    await at.advance(20, 20)
+    expect(at.has('scroll-to-end-motion')).toBe(true)
+    expect(node().props['pointerEvents']).toBe('none')
+    expect(scale()).toBeLessThan(1)
+    await new Promise(resolve => setTimeout(resolve, 400))
+    await at.advance(20, 20)
+    expect(at.has('scroll-to-end-motion')).toBe(false)
+  })
+})

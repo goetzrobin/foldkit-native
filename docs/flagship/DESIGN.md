@@ -17,8 +17,10 @@ quick motion that means something. No purple, no sparkles, no gradients.
    conversation's title. Right bar button: a menu (Rename, Delete, Settings).
    The transcript fills the screen and runs under the composer. Your
    question goes near the top of the screen after Send; the reply streams in
-   under it. A round "scroll to end" button appears when the end is out of
-   view. The composer floats at the bottom on glass.
+   under it. A round "scroll to end" button appears when the end of the
+   transcript has gone under the composer's top edge; it sits 8 above that
+   edge and moves with the composer. The composer floats at the bottom on
+   glass, 8 above the keyboard when the keyboard is up.
 3. **Settings** (sheet, half and full height). Theme: System, Light, Dark.
    Demo controls, labelled as such: reply speed (slow, normal, fast) and four
    failure switches. About Foldkit Native. A "Show numbers" switch.
@@ -82,7 +84,7 @@ tables 12. Pressed row highlight 12.
 | Reply words fade in | 200 ms | native (Markdown view) |
 | Thinking shimmer | one sweep every 1.4 s | linear |
 | Send turns into Stop | 120 ms cross fade | ease out |
-| Scroll to end button | 150 ms fade | ease out |
+| Scroll to end button | 150 ms fade, growing from 80% | ease out |
 | Press on a row or button | instant dim to 60% | none |
 | Screens, sheets, menus | the phone's own | native |
 
