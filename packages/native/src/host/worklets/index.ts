@@ -2,7 +2,8 @@
  * Code on the phone's UI thread, with no React and no view library: the
  * native pieces and how they are found (`host.ts`), the two threads
  * (`run.ts`), the worklets that ship (`ui.ts`), the channel back to
- * JavaScript (`channel.ts`) and what this build can do (`status.ts`). How an
+ * JavaScript (`channel.ts`), a press and hold read natively (`hold.ts`) and
+ * what this build can do (`status.ts`). How an
  * element is tied to them is the binding's (`src/foldkit/worklets/views.ts`).
  */
 export {
@@ -40,6 +41,16 @@ export {
   stopAnimation,
 } from './ui.js'
 export type { Measured, PanEvent, Spring, UiTarget } from './ui.js'
+export {
+  HOLD_ACTIVE,
+  HOLD_BEGAN,
+  HOLD_CANCELLED,
+  HOLD_END,
+  HOLD_FAILED,
+  attachNativeHold,
+  nativeHoldCheck,
+} from './hold.js'
+export type { NativeHold, NativeHoldChange, NativeHoldConfig } from './hold.js'
 export { listenToChannel, uiChannel } from './channel.js'
 export type { UiChannel } from './channel.js'
 export type { GestureTag } from './ui.js'

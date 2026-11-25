@@ -85,6 +85,12 @@ press and hold the chat's title) before you take it.
 13. Does pressing and holding a chat in the list open the phone's own menu?
 14. Settings, Theme, Dark: does everything turn dark at once, the bar and keyboard included?
 15. Do you feel a light tap on Send and a softer tick when the first words arrive?
+16. While an answer is being written, press and hold it. Do you feel a firm
+    tap after half a second, and does a menu with "Copy so far" and "Stop"
+    open? With the numbers on, the last line starts "hold: native recogniser
+    on" and then says "last: recognised by native after ... ms". If you feel
+    no tap, or the menu does not open, screenshot that line: it says which
+    way the hold was read, or why it was cancelled.
 
 ## If the build fails
 

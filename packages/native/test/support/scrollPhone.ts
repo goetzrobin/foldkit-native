@@ -23,6 +23,14 @@
  * - After a commit, each row reports its height when it has changed. How
  *   tall a row is comes from `rowHeight`, which a test writes from the
  *   row's text, as a phone would lay the text out.
+ * - Every scroll event says whether a finger did it, as React Native 0.88
+ *   says it: `responderIgnoreScroll` is true unless the user is dragging
+ *   (`RCTScrollViewComponentView.mm`, `_scrollViewMetrics`). React's own
+ *   responder ignores such a scroll; the engine's does not (see
+ *   `test/flagship/hold.test.ts`).
+ * - With `insetScrolls`, a new `contentInset` is a scroll as well: UIKit
+ *   calls `scrollViewDidScroll` when the inset is set, and React Native
+ *   sends that on as `onScroll`, even where the offset stays where it was.
  *
  * `topOf(id)` is where a view with that testID is in the window, worked out
  * the way the phone would draw it, so a test can say whether something on
@@ -45,6 +53,8 @@ export type ScrollPhoneOptions = Readonly<{
   glideSteps?: number
   /** A glide stopped by a new one says it came to rest a frame late. */
   lateEnds?: boolean
+  /** A new bottom inset is reported as a scroll, as UIKit does. Default false. */
+  insetScrolls?: boolean
   /**
    * How long after a commit a row reports a new height, in milliseconds of
    * real time: 0 or undefined for at once. A text view that measures itself
@@ -79,11 +89,19 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
 
   const furthest = (): number => Math.max(0, phone.size + phone.inset - viewport)
 
+  /** Whether a finger is dragging the list now. */
+  let isDragging = false
+  /** Every scroll event the phone sent, with whether a finger did it. */
+  const told: Array<Readonly<{ offset: number; byFinger: boolean }>> = []
+
   const tell = (scroll: FakeFabricNode): void => {
+    told.push({ offset: phone.offset, byFinger: isDragging })
     fabric.emit(scroll, 'topScroll', {
       contentOffset: { x: 0, y: phone.offset },
       layoutMeasurement: { width: 390, height: viewport },
       contentSize: { width: 390, height: phone.size },
+      contentInset: { top: 0, left: 0, bottom: phone.inset, right: 0 },
+      responderIgnoreScroll: !isDragging,
     })
   }
 
@@ -105,7 +123,9 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
     const inset = (scroll.props['contentInset'] as { bottom?: number } | undefined)?.bottom ?? 0
     if (inset !== phone.inset) {
       phone.inset = inset
+      const clamped = clamps.length
       clamp(scroll)
+      if (options.insetScrolls === true && clamps.length === clamped) tell(scroll)
     }
     // Then the state: the content view's height.
     const size = Number(canvasOf(scroll)?.props['height'] ?? 0)
@@ -217,11 +237,13 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
       contentOffset: { x: 0, y: phone.offset },
       layoutMeasurement: { width: 390, height: viewport },
     })
+    isDragging = true
     const from = phone.offset
     for (const part of [0.25, 0.5, 0.75, 1]) {
       phone.offset = Math.min(Math.max(0, from + (to - from) * part), furthest())
       tell(scrollNode)
     }
+    isDragging = false
     fabric.emit(scrollNode, 'topScrollEndDrag', {
       contentOffset: { x: 0, y: phone.offset },
       layoutMeasurement: { width: 390, height: viewport },
@@ -231,6 +253,7 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
   return {
     phone,
     clamps,
+    told,
     furthest,
     topOf,
     drag,
