@@ -140,8 +140,9 @@ export const makeChatApp = (
 
   const Delete = Command.define('ChatDelete', {
     args: { id: Schema.String },
-    messages: [Message.DeletedConversation, Message.FailedWrite],
-    execute: ({ id }) => chat.delete(id, () => Message.DeletedConversation({ id }), failed('delete the chat')),
+    messages: [Message.DeletedConversation, Message.FailedDelete],
+    execute: ({ id }) =>
+      chat.delete(id, () => Message.DeletedConversation({ id }), reason => Message.FailedDelete({ id, reason })),
   })
 
   const SetServerDials = Command.define('ChatServerDials', {
@@ -221,6 +222,7 @@ export const makeChatApp = (
         keyboardCovers: 0,
       },
       list: AsyncResult.initial(),
+      deleting: [],
       conversation: AsyncResult.initial(),
       conversations: ConversationList.init(),
       chat: ChatScreen.init(),
@@ -254,6 +256,12 @@ export const makeChatApp = (
   const openChat = (model: Model, maybeId: Option.Option<string>): Model =>
     modifyFields(model, { conversation: () => AsyncResult.initial(), chat: chat_ => ChatScreen.open(chat_, maybeId) })
 
+  /** The list as it is shown: the server's, less the chats being deleted. */
+  const shownList = (model: Model): Model['list'] =>
+    model.deleting.length === 0
+      ? model.list
+      : AsyncResult.map(model.list, summaries => summaries.filter(each => !model.deleting.includes(each.id)))
+
   const closeChat = (model: Model): Model =>
     modifyFields(model, { conversation: () => AsyncResult.initial(), chat: ChatScreen.close })
 
@@ -267,7 +275,7 @@ export const makeChatApp = (
     if (key === 'rename') {
       const title = Option.getOrElse(
         Option.map(
-          Option.flatMap(AsyncResult.value(model.list), list => Option.fromNullishOr(list.find(each => each.id === id))),
+          Option.flatMap(AsyncResult.value(shownList(model)), list => Option.fromNullishOr(list.find(each => each.id === id))),
           each => each.title,
         ),
         () => '',
@@ -278,10 +286,9 @@ export const makeChatApp = (
       }
     }
     if (key === 'delete') {
-      // Gone from the list at once. The server's answer confirms it.
-      const without = modifyFields(model, {
-        list: list => AsyncResult.map(list, summaries => summaries.filter(each => each.id !== id)),
-      })
+      // Gone from the list at once, and kept out of it until the server's
+      // list no longer has it (see `deleting` in appModel.ts).
+      const without = modifyFields(model, { deleting: ids => (ids.includes(id) ? ids : [...ids, id]) })
       const next = Option.contains(model.chat.openId, id) ? closeChat(without) : without
       return { model: next, commands: [Delete({ id }), haptic.warning()] }
     }
@@ -405,7 +412,17 @@ export const makeChatApp = (
       CompletedSideEffect: () => ({ model }),
 
       // SERVER DATA
-      ChangedList: ({ result }) => ({ model: modifyFields(model, { list: () => result }), commands: [ReadClock()] }),
+      ChangedList: ({ result }) => ({
+        model: modifyFields(model, {
+          list: () => result,
+          // A finished load without a deleted chat: the delete is done with.
+          deleting: ids =>
+            result._tag === 'Success' && !result.waiting
+              ? ids.filter(id => result.value.some(each => each.id === id))
+              : ids,
+        }),
+        commands: [ReadClock()],
+      }),
       ChangedConversation: ({ id, result }) => {
         if (!Option.contains(model.chat.openId, id)) return { model }
         const next = modifyFields(model, { conversation: () => result })
@@ -449,6 +466,11 @@ export const makeChatApp = (
         }),
       RenamedConversation: () => ({ model }),
       DeletedConversation: () => ({ model }),
+      FailedDelete: ({ id, reason }) =>
+        withChat(
+          modifyFields(model, { deleting: ids => ids.filter(each => each !== id) }),
+          ChatScreen.writeFailed(model.chat, 'delete the chat', reason),
+        ),
       FailedWrite: ({ action, reason }) => withChat(model, ChatScreen.writeFailed(model.chat, action, reason)),
     })
 
@@ -519,7 +541,7 @@ export const makeChatApp = (
           slotId: 'conversations',
           view: ConversationList.view,
           model: model.conversations,
-          viewInputs: { ...context, list: model.list },
+          viewInputs: { ...context, list: shownList(model) },
           toParentMessage: toList,
         }),
         ...(model.chat.isOpen
