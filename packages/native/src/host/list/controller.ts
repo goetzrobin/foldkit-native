@@ -618,7 +618,23 @@ const anchoredKeyOf = (state: ListState): RowKey | undefined => {
   return at === undefined ? undefined : state.keys[at]
 }
 
+/**
+ * The row to keep in place when rows change height: the anchored row (the
+ * question after Send) while it is on screen, else the row at the top of the
+ * screen. A row above the question that lays itself out again late (a reply
+ * whose Markdown measured itself again, a stopped reply that gained its
+ * "Stopped" line) then moves the rows above the question, not the question:
+ * held by the row at the top, the question moved down by the difference.
+ */
 const takeAnchor = (state: ListState): void => {
+  const pinned = state.anchoredKey === undefined ? undefined : state.indexByKey.get(state.anchoredKey)
+  if (pinned !== undefined) {
+    const top = state.heights.offsetOf(pinned)
+    if (top >= state.offset && top < state.offset + viewportOf(state)) {
+      state.anchor = { key: state.anchoredKey as RowKey, within: state.offset - top }
+      return
+    }
+  }
   if (state.keys.length === 0 || state.offset <= 0) {
     state.anchor = undefined
     return
@@ -639,10 +655,17 @@ const holdAnchor = (state: ListState): void => {
   if (anchor === undefined) return
   const at = state.indexByKey.get(anchor.key)
   if (at === undefined) return
-  const wanted = Math.min(state.heights.offsetOf(at) + anchor.within, furthestOffset(state))
-  if (Math.abs(wanted - state.offset) < 1) return
+  const wanted = Math.max(0, Math.min(state.heights.offsetOf(at) + anchor.within, furthestOffset(state)))
+  // A list gliding somewhere is reckoned to be where it is going: the anchor
+  // was taken there (see `scrolled`). A correction to the glide glides too.
+  // Sent from where the glide happened to be, it stopped the glide there,
+  // and a question on its way to the top stayed half way.
+  const from = state.glide?.target ?? state.offset
+  // Half a point: the most the question may drift (see `ListNumbers.anchor`).
+  if (Math.abs(wanted - from) < 0.5) return
   state.offset = wanted
   state.pendingScroll = wanted
+  if (state.glide !== undefined) state.pendingAnimated = true
 }
 
 const chooseRows = (state: ListState): boolean => {
@@ -1099,7 +1122,8 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       hasGlideEnded = true
     }
     repeatHold(state)
-    takeAnchor(state)
+    // On the way of a glide, the anchor stays the one taken where it is going.
+    if (state.glide === undefined) takeAnchor(state)
     const viewport = native?.layoutMeasurement?.height
     if (typeof viewport === 'number' && viewport > 0 && viewport !== state.viewport) {
       resized(state, viewport)

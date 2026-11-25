@@ -45,6 +45,12 @@ export type ScrollPhoneOptions = Readonly<{
   glideSteps?: number
   /** A glide stopped by a new one says it came to rest a frame late. */
   lateEnds?: boolean
+  /**
+   * How long after a commit a row reports a new height, in milliseconds of
+   * real time: 0 or undefined for at once. A text view that measures itself
+   * late (native Markdown) reports later than the rest of its commit.
+   */
+  measureDelay?: (row: FakeFabricNode) => number | undefined
 }>
 
 export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions) => {
@@ -140,13 +146,31 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
       if (isGliding) fabric.emit(scroll, 'topMomentumScrollEnd', {})
     }
     commandsSeen = fabric.commands.length
-    // Then the rows report their heights.
+    // Then the rows report their heights: at once, or a moment later.
     for (const row of rowsOf(scroll)) {
-      const height = options.rowHeight(row)
-      if (height === undefined || reported.get(row.reactTag) === height) continue
-      reported.set(row.reactTag, height)
-      fabric.emit(row, 'topLayout', { layout: { x: 0, y: 0, width: 390, height } })
+      const delay = options.measureDelay?.(row) ?? 0
+      if (delay <= 0) report(row)
+      else setTimeout(() => isOn && report(row), delay)
     }
+  }
+
+  /** A row says how tall it is, if that has changed and it is still drawn. */
+  const report = (drawn: FakeFabricNode): void => {
+    const scroll = list()
+    // The row as the newest commit has it, if it is still drawn.
+    const row = scroll === undefined ? undefined : rowsOf(scroll).find(each => each.reactTag === drawn.reactTag)
+    if (row === undefined) return
+    const height = options.rowHeight(row)
+    if (height === undefined || reported.get(row.reactTag) === height) return
+    reported.set(row.reactTag, height)
+    fabric.emit(row, 'topLayout', { layout: { x: 0, y: 0, width: 390, height } })
+  }
+
+  /** Every row drawn lays itself out again now, as text that measured itself late does. */
+  const remeasure = (): void => {
+    const scroll = list()
+    if (scroll === undefined || !isOn) return
+    for (const row of rowsOf(scroll)) report(row)
   }
 
   // Each commit is mounted a moment later, as on a phone.
@@ -177,6 +201,14 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
     throw new Error(`No row holds ${id}`)
   }
 
+  /** How tall the row holding a view with this testID last said it is, or undefined. */
+  const heightOf = (id: string): number | undefined => {
+    const scrollNode = list()
+    const canvas = scrollNode === undefined ? undefined : canvasOf(scrollNode)
+    const row = canvas?.children.slice(1).find(each => flatten([each]).some(node => node.props['testID'] === id))
+    return row === undefined ? undefined : reported.get(row.reactTag)
+  }
+
   /** A finger drags the list to `to`, in a few moves, and lets go there. */
   const drag = (to: number): void => {
     const scrollNode = list()
@@ -202,6 +234,8 @@ export const startScrollPhone = (fabric: FakeFabric, options: ScrollPhoneOptions
     furthest,
     topOf,
     drag,
+    remeasure,
+    heightOf,
     /** Scroll commands sent since the phone started, as [y, animated]. */
     scrolls: (): Array<readonly [number, boolean]> =>
       fabric.commands

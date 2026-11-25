@@ -23,7 +23,6 @@ import {
 } from 'react-native'
 import { type NativeAnimated, getFabricUIManager, registerPlatformComponents } from '@ng-native/fabric'
 import { Layer } from 'effect'
-import { Runtime } from 'foldkit'
 import remend from 'remend'
 
 // The compiled Tailwind classes (see metro.config.js). Fold Chat draws with
@@ -46,7 +45,7 @@ import { registerSearchBar } from './native/src/foldkit/navigation/searchBar'
 import { configureSkia, registerSkia } from './native/src/skia'
 import { registerNativeSwipe } from './native/src/swipeNative'
 import { configureWorklets } from './native/src/worklets'
-import { makeChatApp } from './native/flagship/app'
+import { startChatApp } from './native/flagship/start'
 import { appearanceLive } from './native/flagship/appearance'
 
 registerPlatformComponents(Platform.OS)
@@ -161,6 +160,10 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
     fileSystem: Phone.Native.fileSystemFromGlobal(),
   })
   const resources = Layer.mergeAll(phone, ActionSheet.live(), appearanceLive(Appearance))
-  Runtime.embed(makeChatApp(surface.container, { device }, resources).program)
+  // The crash screen's Reload starts the program again here; Copy puts the
+  // error on the clipboard, to paste into a message.
+  startChatApp(surface.container, { device }, resources, {
+    copy: text => void ExpoClipboard.setStringAsync(text).catch(() => undefined),
+  })
   setTimeout(hideSplash, 50)
 })

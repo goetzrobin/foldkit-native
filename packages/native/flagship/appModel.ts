@@ -4,6 +4,7 @@
  * - `shared`: what every part reads (see `context.ts`), the future Provider.
  * - `list` and `conversation`: server data, as the server last sent it,
  *   handed down to the parts that draw it. In Effect UI, the query cache.
+ * - `deleting`: chats deleted here that the server's list may still hold.
  * - one field for each part's own Model: the list of chats, the chat screen.
  * - `sheet`: which sheet is open over the stack.
  *
@@ -25,6 +26,14 @@ import * as SettingsSheet from './parts/settingsSheet.js'
 export const Model = Schema.Struct({
   shared: Shared,
   list: ConversationListResult,
+  /**
+   * Chats deleted here, by id, hidden from `list` until a finished load of
+   * the list no longer has them. The delete makes the list load again, and
+   * while it loads the list hands back what it held before: without this,
+   * the deleted chat came back for a moment. A failed delete shows it again.
+   */
+  // effect-ui: an optimistic update of the list's query
+  deleting: Schema.Array(Schema.String),
   conversation: ConversationResult,
   conversations: ConversationList.Model,
   chat: ChatScreen.Model,
@@ -61,6 +70,7 @@ export const Message = defineMessageUnion({
   PressedSaveRename: {},
   RenamedConversation: {},
   DeletedConversation: { id: Schema.String },
+  FailedDelete: { id: Schema.String, reason: Schema.String },
   FailedWrite: { action: Schema.String, reason: Schema.String },
 })
 export type Message = typeof Message.Type
