@@ -39,6 +39,7 @@ import {
   Storage,
   type Services,
 } from '../src/device/index.js'
+import { type NativeCrashOptions, nativeCrash } from '../src/foldkit/devLoop/crashView.js'
 import { type Device, stack } from '../src/foldkit/navigation/stack.js'
 import { ActionSheet } from '../src/menus/index.js'
 import { type ServerState, focusEntry, watchAtom } from '../src/serverState/index.js'
@@ -78,6 +79,8 @@ export type ChatAppOptions = Readonly<{
    * it. For a log that replays a session (see test/flagship/replay.test.ts).
    */
   onMessage?: (message: Message, before: Model, after: Model) => void
+  /** The crash screen's buttons and words. It is drawn with native views either way. */
+  crash?: NativeCrashOptions
 }>
 
 /** What the program needs from outside: the phone, the action sheet, the theme. */
@@ -543,6 +546,9 @@ export const makeChatApp = (
     subscriptions,
     resources: Layer.mergeAll(chat.layer, resources),
     container,
+    // Foldkit's own crash screen is made of web elements, which a phone
+    // draws as lines of text piled up at the top of the screen.
+    crash: nativeCrash<Model, Message>(options.crash),
   })
 
   const chatTitle = (model: Model): string => ChatScreen.chatTitle(model.chat, model.conversation)

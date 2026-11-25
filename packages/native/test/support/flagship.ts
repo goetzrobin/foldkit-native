@@ -9,14 +9,14 @@
  */
 import { Clock, Effect, Exit, Layer, Scope } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
-import { Runtime } from 'foldkit'
 
 import { type AiServer, NO_CHAOS, type Timing, makeAiServer, memoryDisk } from '../../src/aiChat/index.js'
 import * as Device from '../../src/device/index.js'
 import { registerNavigation } from '../../src/index.js'
 import { ActionSheet } from '../../src/menus/index.js'
 import { registerSearchBar } from '../../src/foldkit/navigation/searchBar.js'
-import { type ChatAppOptions, makeChatApp } from '../../flagship/app.js'
+import type { ChatAppOptions, makeChatApp } from '../../flagship/app.js'
+import { startChatApp } from '../../flagship/start.js'
 import { appearanceTest } from '../../flagship/appearance.js'
 import { type Phone, byTestId, flatten, hasTestId, press, startPhone, textOf } from './phone.js'
 
@@ -47,6 +47,8 @@ export const startChatPhone = async (
     now?: number
     /** Hears every Message the program handles. See `ChatAppOptions.onMessage`. */
     onMessage?: ChatAppOptions['onMessage']
+    /** What the crash screen's Copy hands its text to. */
+    copy?: (text: string) => void
   }> = {},
 ) => {
   registerNavigation()
@@ -60,7 +62,9 @@ export const startChatPhone = async (
   const clockScope = Effect.runSync(Scope.make())
   const clock = await Effect.runPromise(TestClock.make().pipe(Scope.provide(clockScope)))
   const server: AiServer = makeAiServer({ disk: disk.disk, timing: options.timing ?? TIMING, chaos: NO_CHAOS })
-  const app = makeChatApp(
+  // The program now running: a Reload on the crash screen starts another.
+  let app!: ReturnType<typeof makeChatApp>
+  const handle = startChatApp(
     phone.surface.container,
     { device: { platform, osVersion: platform === 'ios' ? 26 : 35 } },
     Layer.mergeAll(device.layer, sheet.layer, appearance.layer),
@@ -69,9 +73,12 @@ export const startChatPhone = async (
       extra: Layer.succeed(Clock.Clock, clock),
       now: () => options.now ?? NOW,
       ...(options.onMessage === undefined ? {} : { onMessage: options.onMessage }),
+      ...(options.copy === undefined ? {} : { copy: options.copy }),
+      onStart: each => {
+        app = each
+      },
     },
   )
-  const handle = Runtime.embed(app.program)
 
   /** Moves the test clock on in small steps, letting the program run between them. */
   const advance = async (ms: number, step = 50): Promise<void> => {
@@ -141,5 +148,5 @@ export const startChatPhone = async (
   }
 
   await advance(300)
-  return { phone, device, sheet, appearance, disk, server, app, advance, has, fieldText, shown, tap, type, screens, transcriptRows, until, untilDone, stop, ask, pressBar }
+  return { phone, device, sheet, appearance, disk, server, get app() { return app }, advance, has, fieldText, shown, tap, type, screens, transcriptRows, until, untilDone, stop, ask, pressBar }
 }
