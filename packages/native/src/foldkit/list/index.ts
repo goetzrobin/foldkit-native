@@ -399,7 +399,8 @@ const anchorLine = (anchor: ListNumbers['anchor']): string => {
       ? ''
       : `, window y ${tenth(anchor.windowY)} (step ${signed(anchor.windowStep ?? 0)}, ` +
         `drift ${anchor.windowDrift === undefined ? '-' : signed(anchor.windowDrift)})`
-  return `\nquestion y ${tenth(anchor.top)} (step ${signed(anchor.step)}, drift ${signed(anchor.drift)})${window}`
+  const drift = anchor.drift === undefined ? '-' : signed(anchor.drift)
+  return `\nquestion y ${tenth(anchor.top)} (step ${signed(anchor.step)}, drift ${drift})${window}`
 }
 
 /**

@@ -187,13 +187,15 @@ export type ListNumbers = Readonly<{
    * where the phone last said it is (`top`), and in the window as the phone
    * measured it (`windowY`, once the phone has answered). `step` is how far
    * it moved in the last draw, `drift` how far since the list last moved on
-   * purpose (a scroll it asked for, or a finger). Both should stay at 0.
+   * purpose (a scroll it asked for, or a finger) and came to rest where it
+   * was sent. Both should stay at 0. `drift` is undefined until the list has
+   * come to rest there.
    */
   anchor:
     | Readonly<{
         top: number
         step: number
-        drift: number
+        drift: number | undefined
         windowY: number | undefined
         windowStep: number | undefined
         windowDrift: number | undefined
@@ -515,7 +517,7 @@ const anchorNumbersOf = (state: ListState): ListNumbers['anchor'] => {
   return {
     top: seen.top,
     step: seen.step,
-    drift: seen.baseline === undefined ? 0 : seen.top - seen.baseline,
+    drift: seen.baseline === undefined ? undefined : seen.top - seen.baseline,
     windowY: seen.windowY,
     windowStep: seen.windowStep,
     windowDrift:
@@ -528,6 +530,15 @@ const anchorNumbersOf = (state: ListState): ListNumbers['anchor'] => {
 /** Nothing is moving the list on purpose: no glide, no hold, no finger, no scroll waiting to go. */
 const isSettled = (state: ListState): boolean =>
   !state.holdEnd && state.glide === undefined && !state.isUserScrolling && state.pendingScroll === undefined
+
+/**
+ * Settled, and the phone has said it is where it was last sent. Drift is
+ * counted from here. Settled alone is not enough: the phone can say a glide
+ * came to rest while it is still on its way (see `cameToRest`), and a place
+ * read on the way made every later reading look like drift.
+ */
+const isAtRestWhereSent = (state: ListState): boolean =>
+  isSettled(state) && (state.lastScroll === undefined || state.lastScroll.arrived)
 
 /**
  * Notes where the anchored row is now, for the numbers on screen: from the
@@ -549,7 +560,7 @@ const noteAnchor = (state: ListState): void => {
     seen.step = top - seen.top
     seen.top = top
   }
-  if (seen.baseline === undefined && isSettled(state)) seen.baseline = top
+  if (seen.baseline === undefined && isAtRestWhereSent(state)) seen.baseline = top
 }
 
 /** The list moves on purpose: drift is counted again from where it comes to rest. */
@@ -1007,7 +1018,7 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       if (!state.isAlive || state.anchorSeen !== seen) return
       seen.windowStep = seen.windowY === undefined ? 0 : frame.y - seen.windowY
       seen.windowY = frame.y
-      if (seen.windowBaseline === undefined && isSettled(state)) seen.windowBaseline = frame.y
+      if (seen.windowBaseline === undefined && isAtRestWhereSent(state)) seen.windowBaseline = frame.y
       showNumbers(state)
     })
   }
@@ -1119,6 +1130,18 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       return
     }
     if (state.glide === undefined) {
+      showNumbers(state)
+      return
+    }
+    // The phone says a scroll came to rest, and it is not where the glide is
+    // going: the end of an earlier glide that this one stopped (UIKit
+    // reports it, at once or a frame later), or a glide that stopped short.
+    // The glide goes on; one that really stopped short is put right by its
+    // timer (`sendScroll`). Ended here, the list took the places the phone
+    // reported on the rest of the way as its own: it said it was not at its
+    // end, and the round button flashed, while the question rose to the top.
+    const reported = state.reported
+    if (reported === undefined || Math.abs(reported - state.glide.target) >= ARRIVED_WITHIN) {
       showNumbers(state)
       return
     }

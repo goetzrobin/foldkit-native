@@ -20,12 +20,14 @@ vi.setConfig({ testTimeout: 90000 })
 import type { FakeFabricNode } from '@ng-native/testing/fake'
 
 import { type ChatPhone, startChatPhone } from '../support/flagship.js'
+import { hold } from '../support/expoUi.js'
 import { makeNativeAnimated } from '../support/nativeAnimated.js'
 import { byTestId, flatten, textOf } from '../support/phone.js'
 import { type ScrollPhone, startScrollPhone } from '../support/scrollPhone.js'
 import { DOCK_CONTENT_ID } from '../../src/foldkit/keyboard/dock.js'
 import { configureKeyboardDock } from '../../src/keyboard/index.js'
 import { listNumbers } from '../../src/list/index.js'
+import { LONG_PRESS_MS } from '../../flagship/longPress.js'
 
 const RUNNING = 'How do I start running?'
 /** An iPhone 17 Pro's window, as the owner's screenshots show it. */
@@ -80,7 +82,7 @@ const rowHeight = (row: FakeFabricNode): number | undefined => {
  * 0 on the owner's phone, whose safe area view had not yet padded the
  * composer when it was measured. The strip then arrives as the bar's height.
  */
-const openChat = async (measuredBottom: number): Promise<void> => {
+const openChat = async (measuredBottom: number, glideSteps = 0, lateEnds = false): Promise<void> => {
   animated = makeNativeAnimated()
   configureKeyboardDock({ controller: true, nativeAnimated: animated.native })
   at = await startChatPhone()
@@ -89,7 +91,7 @@ const openChat = async (measuredBottom: number): Promise<void> => {
   fabric.frames.set(DOCK_CONTENT_ID, { x: 0, y: WINDOW.height - measuredBottom - COMPOSER, width: 402, height: COMPOSER })
   await at.tap('start-chat')
   await at.advance(100)
-  phone = startScrollPhone(fabric, { listId: 'transcript', viewport: VIEWPORT, rowHeight, listTop: WINDOW.height - VIEWPORT })
+  phone = startScrollPhone(fabric, { listId: 'transcript', viewport: VIEWPORT, rowHeight, listTop: WINDOW.height - VIEWPORT, glideSteps, lateEnds })
   fabric.emit(dockContent(), 'topLayout', { layout: { x: 0, y: 0, width: 402, height: COMPOSER } })
   await at.advance(100)
   // The safe area view takes the home indicator's strip: the bar grows by it.
@@ -240,5 +242,38 @@ describe('the round button to the end', () => {
     await new Promise(resolve => setTimeout(resolve, 400))
     await at.advance(20, 20)
     expect(at.has('scroll-to-end-motion')).toBe(false)
+  })
+})
+
+describe('the numbers for the question held at the top', () => {
+  it.each([
+    ['the keyboard stays up', false, 0, false],
+    ['Send puts the keyboard away', true, 0, false],
+    ['the keyboard stays up, glides take frames', false, 12, false],
+    ['Send puts the keyboard away, glides take frames', true, 12, false],
+    ['the keyboard stays up, a stopped glide ends late', false, 12, true],
+    ['Send puts the keyboard away, a stopped glide ends late', true, 12, true],
+  ])('a question sent with the keyboard up: %s; drift is counted from where it was put', async (_title, hides, glideSteps, lateEnds) => {
+    await openChat(HOME_INDICATOR, glideSteps, lateEnds)
+    await at.ask(RUNNING)
+    await at.untilDone()
+    await hold(at.phone.fabric, 'chat-title', LONG_PRESS_MS + 80)
+    expect(at.has('numbers')).toBe(true)
+    await keyboardMoves(KEYBOARD)
+    await at.ask('Ok')
+    if (hides) await keyboardMoves(0)
+    // While the list glides the question to the top, the end is never out of view.
+    const shown: Array<boolean> = []
+    for (let frame = 0; frame < 20; frame++) {
+      await new Promise(resolve => setTimeout(resolve, 16))
+      shown.push(isButtonShown() || listNumbers('transcript')?.isAtEnd === false)
+    }
+    expect(shown.filter(Boolean)).toEqual([])
+    await at.until(() => /pretend assistant/.test(at.transcriptRows().at(-1) ?? ''))
+    await at.advance(400)
+    const key = at.transcriptRows().map(row => row.split(':')[0]).filter(each => /^c\d+$/.test(each ?? '')).at(-1)
+    expect(phone.topOf(`row-${key}`)).toBe(WINDOW.height - VIEWPORT + 16)
+    expect(listNumbers('transcript')?.anchor).toMatchObject({ top: 16, step: 0, drift: 0 })
+    expect(at.shown('numbers')).toContain('question y 16.0 (step +0.0, drift +0.0)')
   })
 })
