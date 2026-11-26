@@ -21,7 +21,8 @@
 //   --dispatch       lets a coding agent send Messages into the running app
 //   --local          the relay listens on this Mac only: simulators can connect, phones cannot
 //   --port <n>       the page's port (4774)
-//   --phone-port <n> the relay's port (4775)
+//   --phone-port <n> the relay's port (4775). The apps look for 4775: change it in
+//                    their index.ts too (the second argument of serverFromBundle)
 import { createRequire } from 'node:module'
 import net from 'node:net'
 import os from 'node:os'

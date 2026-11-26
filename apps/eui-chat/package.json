@@ -9,7 +9,8 @@
     "android": "npm run sync && expo run:android",
     "typecheck": "tsc --noEmit",
     "postinstall": "npm run sync",
-    "sync": "bash ../../scripts/sync-eui-chat.sh"
+    "sync": "bash ../../scripts/sync-eui-chat.sh",
+    "devtools": "node ../../scripts/eui-devtools.mjs"
   },
   "dependencies": {
     "@effect/ui": "file:../../packages/effect-ui-native/vendor/effect-ui-0.0.0.tgz",
@@ -39,6 +40,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@effect/platform-node": "4.1.6",
+    "@effect/ui-devtools": "file:../../packages/effect-ui-native/vendor/effect-ui-devtools-0.0.0.tgz",
     "@types/react": "~19.3.0",
     "typescript": "~6.0.3"
   },

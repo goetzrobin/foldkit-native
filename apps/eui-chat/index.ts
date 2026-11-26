@@ -11,6 +11,7 @@ import * as SecureStore from 'expo-secure-store'
 import * as ReactNative from 'react-native'
 import { AppRegistry, Image, Platform, TurboModuleRegistry, processColor } from 'react-native'
 import { type NativeAnimated, getFabricUIManager, registerPlatformComponents } from '@ng-native/fabric'
+import type { Layer } from 'effect'
 import remend from 'remend'
 
 import { configureWorklets } from './native/native/src/host/worklets'
@@ -86,6 +87,25 @@ const hideSplash = (): void => {
   }
 }
 
+/**
+ * Development builds only: Effect UI's dev tools. The app sends its message
+ * log to the dev tools server on the Mac (`npm run devtools`), which shows
+ * it on a page in a browser. The Mac's address is the one this build loaded
+ * its code from, as React Native keeps it. A release build has no such
+ * address, and this whole block is left out of it. See docs/DEV_TOOLS.md.
+ */
+let devTools: Layer.Layer<never> | undefined
+if (__DEV__) {
+  try {
+    const NativeDevTools = require('./native/effect-ui-native/src/NativeDevTools') as typeof import('./native/effect-ui-native/src/NativeDevTools')
+    const source = TurboModuleRegistry.get('SourceCode') as { getConstants?: () => { scriptURL?: string } } | null
+    const server = NativeDevTools.serverFromBundle(source?.getConstants?.().scriptURL)
+    if (server !== undefined) devTools = NativeDevTools.layer({ server })
+  } catch {
+    // No dev tools in this build. The app runs as it always does.
+  }
+}
+
 AppRegistry.registerRunnable('main', ({ rootTag }) => {
   let blurFocused = (): void => {}
   startChat({
@@ -102,6 +122,7 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
     },
     // The chats are kept in the app's documents, so they are still there after the app closes.
     disk: phoneDisk(),
+    ...(devTools === undefined ? {} : { devTools }),
     device: Phone.Device.live({
       reactNative: ReactNative,
       haptics: ExpoHaptics,
