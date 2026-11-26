@@ -45,6 +45,7 @@ import { Native, NativeViews, Phone } from '../../src/index.js'
 import { RefreshChat, ResumeTurn, followTurn } from '../data.js'
 import { copyIcon, regenerateIcon, shareIcon, tick } from '../icons.js'
 import { thinkingLabel } from '../shimmer.js'
+import { ReplyText } from './replyText.js'
 import { SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { roundButton, textButton } from '../ui.js'
 
@@ -241,12 +242,8 @@ export const ReplyStream = Native.component({
                 .key(`part-${index}`)
                 .testId(`reply-text-${props.id}`)
                 .children(
-                  NativeViews.markdown(h, {
-                    text: part.text,
-                    scheme: props.scheme,
-                    isStreaming,
-                    style: { ...TYPE.replyBody, color: palette.ink } as Native.ViewStyle,
-                  }),
+                  // Its links and its code blocks' Copy buttons can be tapped: see `replyText.ts`.
+                  ReplyText(h, { key: 'text', props: { text: part.text, scheme: props.scheme, isStreaming } }),
                 )
             : part._tag === 'Reasoning'
               ? part.seconds === 0 && isStreaming

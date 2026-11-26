@@ -402,23 +402,53 @@ export const ShowMarkdown = Mount.makeStream(
 /**
  * Markdown as rich text, drawn by the native view where the build has it
  * (react-native-enriched-markdown), and as plain text elsewhere.
+ *
+ * `onLink` hears a tap on a link, with its address. `onCopyCode` hears a tap
+ * on a code block's Copy button, with the code. With `onLink`, the phone's
+ * own preview of a held link is off, so a hold is left to whatever is around
+ * the text. The plain text has neither.
  */
 export const markdown = <Msg>(
   h: Native.H<Msg>,
-  options: Readonly<{ text: string; scheme?: 'light' | 'dark'; isStreaming?: boolean; style?: Native.ViewStyle }>,
-): View.ElementBuilder<Msg, never, any, any> =>
-  isNativeMarkdownAvailable()
-    ? (h
-        .el(NATIVE_MARKDOWN_TAG)
-        .prop('style', options.style)
-        .onMount(
-          ShowMarkdown({
-            text: options.text,
-            scheme: options.scheme ?? 'light',
-            isStreaming: options.isStreaming ?? false,
-          }) as never,
-        ) as View.ElementBuilder<Msg, never, any, any>)
-    : h.text.style({ fontSize: 16, lineHeight: 23, ...options.style }).children(options.text)
+  options: Readonly<{
+    text: string
+    scheme?: 'light' | 'dark'
+    isStreaming?: boolean
+    style?: Native.ViewStyle
+    onLink?: (url: string) => Msg
+    onCopyCode?: (copy: Readonly<{ code: string; language: string }>) => Msg
+  }>,
+): View.ElementBuilder<Msg, never, any, any> => {
+  if (!isNativeMarkdownAvailable()) {
+    return h.text.style({ fontSize: 16, lineHeight: 23, ...options.style }).children(options.text)
+  }
+  // The view's own events are not in the vocabulary, so the names are cast here, once.
+  type Hearing = { prop: (name: string, value: unknown) => Hearing; on: (name: never, handler: never) => Hearing }
+  let view = h.el(NATIVE_MARKDOWN_TAG).prop('style', options.style) as unknown as Hearing
+  const { onLink, onCopyCode } = options
+  if (onLink !== undefined) {
+    view = view
+      .prop('enableLinkPreview', false)
+      .on('linkPress' as never, ((event: { url?: unknown }) => onLink(typeof event.url === 'string' ? event.url : '')) as never)
+  }
+  if (onCopyCode !== undefined) {
+    view = view.on(
+      'copyPress' as never,
+      ((event: { code?: unknown; language?: unknown }) =>
+        onCopyCode({
+          code: typeof event.code === 'string' ? event.code : '',
+          language: typeof event.language === 'string' ? event.language : '',
+        })) as never,
+    )
+  }
+  return (view as unknown as { onMount: (mount: never) => View.ElementBuilder<Msg, never, any, any> }).onMount(
+    ShowMarkdown({
+      text: options.text,
+      scheme: options.scheme ?? 'light',
+      isStreaming: options.isStreaming ?? false,
+    }) as never,
+  )
+}
 
 // CANVAS
 
