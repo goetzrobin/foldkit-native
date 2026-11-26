@@ -1,0 +1,23 @@
+{
+  "name": "effect-ui-native",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Effect UI programs on native iOS and Android views, through ng-native's Fabric engine.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@effect/ui": "*",
+    "@ng-native/fabric": "^0.25.0",
+    "effect": "^4.1.4"
+  },
+  "devDependencies": {
+    "@effect/ui": "file:vendor/effect-ui-0.0.0.tgz",
+    "effect": "4.1.6",
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.0"
+  }
+}
