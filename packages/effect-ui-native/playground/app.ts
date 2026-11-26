@@ -20,9 +20,11 @@ import { MotionScreen } from './motion.js'
 import { NoteDetail, Notes } from './notes.js'
 import { PhoneScreen } from './phone.js'
 import { ServerState } from './serverState.js'
+import { SnakeGame } from './snake/SnakeGame.js'
+import { BACKDROP as SNAKE_BACKDROP } from './snake/look.js'
 import { Touch } from './touch.js'
 
-const Demo = Schema.Literals(['Counter', 'Notes', 'LongList', 'Touch', 'Phone', 'ServerState', 'Motion'])
+const Demo = Schema.Literals(['Counter', 'Notes', 'LongList', 'Touch', 'Phone', 'ServerState', 'Motion', 'Snake'])
 type Demo = typeof Demo.Type
 
 const Screen = Schema.Union([
@@ -55,6 +57,7 @@ const DEMOS: ReadonlyArray<Readonly<{ demo: Demo; title: string; what: string }>
   { demo: 'Phone', title: 'Phone', what: 'Haptics, clipboard, keyboard, dark mode.' },
   { demo: 'ServerState', title: 'Server state', what: 'A list from a pretend server: load, add, delete, fail.' },
   { demo: 'Motion', title: 'Motion', what: 'Boxes that fade, move and spring while JavaScript is blocked.' },
+  { demo: 'Snake', title: 'Snake', what: "Effect UI's Snake game on an old handset. Keys or a swipe steer." },
 ]
 
 const titleOf = (screen: Screen): string =>
@@ -128,6 +131,8 @@ export const App = Native.component({
           return ServerState(h, { key: screen.key })
         case 'Motion':
           return MotionScreen(h, { key: screen.key })
+        case 'Snake':
+          return SnakeGame(h, { key: screen.key, props: { hasReadout } })
       }
     }
     return h.stack.testId('stack').children(
@@ -135,7 +140,8 @@ export const App = Native.component({
         h.screen
           .key(screen.key)
           .testId(`screen-${screen.key}`)
-          .style({ backgroundColor: Look.PAPER })
+          // The handset of the Snake screen stands on a dark ground, down to the bottom of the phone.
+          .style({ backgroundColor: screen._tag === 'Demo' && screen.demo === 'Snake' ? SNAKE_BACKDROP : Look.PAPER })
           .on('dismissed', ({ dismissCount }) => AppMessage.DismissedByPhone({ count: dismissCount ?? 1 }))
           .children(
             h.header.set({ title: titleOf(screen), backTitle: 'Back' }),
