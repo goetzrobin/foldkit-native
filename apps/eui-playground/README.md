@@ -1,9 +1,10 @@
 # EUI Playground
 
 A small app that runs Effect UI on the phone's own views. React draws
-nothing. It has six screens, picked from a menu, and it exists to answer
+nothing. It has seven screens, picked from a menu, and it exists to answer
 questions on a real phone: does a long list scroll well, do touches behave,
-and does data from a server load and save as it should.
+does data from a server load and save as it should, and do animations keep
+running while the app's own code is busy.
 
 Nobody has run this app on a phone yet. It was built and tested on a
 laptop, where a simulated phone can check what the app asks for but cannot
@@ -44,7 +45,7 @@ and run the last two commands again.
 Changing the app's TypeScript needs no new build: the app reloads from the
 Mac while `npx expo run:ios --device` is running.
 
-## Fourteen checks
+## Eighteen checks
 
 Answer yes or no, or write the number down.
 
@@ -98,6 +99,27 @@ inside the app. It takes about half a second to answer.
     line. Go to the home screen, then open the app again. Is the number
     one higher?
 
+The last four are on the Motion screen. It needs no new build if you built
+this app before: the packages it uses were already in it.
+
+15. **Which way animations run.** Tap Motion. Read the first line. Does it
+    say "Animations run: on the phone's own thread"? (If it says "set at
+    once", write down the reason in the brackets. The boxes will jump, and
+    checks 16 and 17 cannot be answered.)
+16. **Fade, move, spring.** Tap Run. Does the black box fade, the blue box
+    slide to the right, and the red box slide, grow and swing a little past
+    its end before it settles? Does the grey box fade too? Tap Run again:
+    do all four go back?
+17. **JavaScript blocked.** Tap "Run, and block JavaScript for one second".
+    For that second the app's own code does nothing. Do the black, blue and
+    red boxes keep moving smoothly the whole time? Does the grey box stand
+    still for about a second and then jump or hurry on? Afterwards, does
+    the line under the buttons say "JavaScript was blocked for" and a
+    number near 1000?
+18. **A line that comes and goes.** Tap "Show a line". Does a line of text
+    rise in and fade in? Tap "Take the line away". Does it fade out, and
+    not just vanish?
+
 ## What is in it
 
 | Screen | Program | What it shows |
@@ -108,6 +130,7 @@ inside the app. It takes about half a second to answer.
 | Touch tests | `playground/touch.ts` | Press, hold, a button in a row, a list the app scrolls |
 | Phone | `playground/phone.ts` | Haptics, clipboard, keyboard, colour scheme, app state |
 | Server state | `playground/serverState.ts` | A list from a pretend server: load, add, delete at once, a save that fails |
+| Motion | `playground/motion.ts` | Boxes that fade, move and spring on the phone's own thread, and a button that blocks JavaScript for a second |
 
 The programs are in `packages/effect-ui-native/playground`. The app copies
 them, with the host, into `./native` each time it starts

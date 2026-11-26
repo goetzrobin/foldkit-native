@@ -6,9 +6,10 @@ Fold Chat is our finished chat app. It is written in Foldkit. Effect Chat is
 the same app written again in Effect UI, the framework that replaces
 Foldkit. It draws with the phone's own views, and React draws nothing.
 
-The work was cut into three steps. All three are done. One thing in Fold
-Chat was left out on purpose: swiping a chat sideways in the list. The full
-list of what is and is not built is under "Step 3" below.
+The work was cut into three steps. All three are done. Swiping a chat
+sideways in the list, and four animations, were left out of step 3 and
+built after it: see "After step 3". The full list of what is and is not
+built is under "Step 3" below.
 
 **Step 1, done.** You can see your chats in a list, start a new one,
 open one and read it, and send a message. The reply is written a few words
@@ -351,7 +352,8 @@ keyboard).
 
 ### Not in step 2
 
-Step 3 built all of these but the cross fade between Send and Stop.
+Step 3 built all of these but the cross fade between Send and Stop, which
+came after it with `Motion`.
 
 - Glass behind the composer. It has the plain surface colour.
 - The round button's fade, and the cross fade between Send and Stop.
@@ -398,7 +400,7 @@ Features that steps 1 and 2 already built are left out.
 | Search: the iPhone's own field under the title, a plain field on Android. "No chats match" | Built |
 | The Settings button at the top left | Built |
 | Hold a chat: Rename and Delete | Built, as the phone's list of choices. Fold Chat uses the phone's context menu, which lifts the row and shows the menu beside it |
-| Swipe a chat left: Delete and Rename, and a full swipe deletes | **Not built.** See "Not built, and why" |
+| Swipe a chat left: Delete and Rename, and a full swipe deletes | Built, after step 3, with the project's own native swipe view. Fold Chat uses the swipe row written in TypeScript. Needs a new build of the app. See "After step 3" |
 | A spinner while the list loads | Built |
 | Delete takes the row away at once, and it never comes back for a moment | Built, by the cache. Fold Chat keeps a list of deleted ids in its Model for this. Effect Chat has no such code |
 | A failed delete puts the row back and says why | Built |
@@ -425,9 +427,9 @@ Features that steps 1 and 2 already built are left out.
 | A reply picked up again when the network comes back | Not built as its own rule. A lost connection is tried again four times by itself, then a Reconnect button shows, as before |
 | Links in a reply open in the browser. A code block's copy button says "Code copied" | **Not built.** The Markdown binding has no events yet |
 | The composer on Liquid Glass | Built. A pale plain pill where the phone has none |
-| The round button fades and grows in, and out | Built |
-| Send turns into Stop with a cross fade. A new message rises into place. "Thinking" fades in | **Not built.** `Fade` is the only motion binding so far |
-| Haptics: Send, the first words, Stop, write again, copy, delete, a hold, the theme, a recording starting and ending, a reply or a write that fails | Built. The one for a full swipe is missing with the swipe |
+| The round button fades and grows in, and out | Built. Since "After step 3" the phone's own thread moves it, and it leaves the tree when it is away |
+| Send turns into Stop with a cross fade. A new message rises into place. "Thinking" fades in | Built, after step 3, on the phone's own thread. See "After step 3" |
+| Haptics: Send, the first words, Stop, write again, copy, delete, a hold, the theme, a recording starting and ending, a reply or a write that fails | Built. The tick when a full swipe reaches the delete line is the native row's own |
 | A voice note: record with a clock, throw away, finish, a chip above the field, send | Built |
 | The numbers strip says which way holds are read and how the last one went | Built |
 | The numbers strip says where the composer and the round button are | Not built |
@@ -456,19 +458,18 @@ Features that steps 1 and 2 already built are left out.
 
 ### Not built, and why
 
-- **Swiping a chat sideways.** The row's behaviour is in the host
-  (`host/swipe`, about 1,800 lines). Fold Chat reaches it through 560 lines
-  of Foldkit view code that build the row's layers and wire its drivers.
-  That code has to be written again for Effect UI, and it is its own piece
-  of work with its own phone test. Delete and Rename are both reachable two
-  other ways: hold the chat, or use the chat's own menu.
+- **Swiping a chat sideways** was not built in step 3. It is built now,
+  another way: through the native swipe view, not the TypeScript row. See
+  "After step 3". Still not built: a Swipe screen in the playground, and
+  closing an open row from native code when the list scrolls.
 - **Links and the code block's copy button.** `NativeViews.markdown` hands
   text to the native view and hears nothing back. It needs two events.
   `Phone.OpenUrl` is ready for the link.
-- **The three other animations.** The host's motion code animates a view as
-  it enters and leaves the tree. Effect UI has no hook for "this view is
-  about to leave", so only a view that stays in the tree can be faded, which
-  is what `Fade` does.
+- **The three other animations** were not built in step 3. They are built
+  now, with `Motion`. Effect UI still has no hook for "this view is about
+  to leave". The native host keeps such a view on screen itself until its
+  way out is over. Still not built: a way out for the views inside one that
+  is taken away, a real cross fade between Send and Stop, and colours.
 - **The crash screen.** `NativeHost.mount` takes a `fallback`. It was not
   written.
 - **The phone's own switches and segmented control.** They are Expo UI's
@@ -577,10 +578,11 @@ notes, worklets, swipes and Fold Chat itself). `apps/chat` still typechecks.
    gives its parent one node. So the chat screen cannot draw the reasoning
    sheet. It tells the app what to show, with the text, and the app draws
    it. The reasoning shown is the reasoning at the moment of the press.
-3. **The round button stays in the tree.** There is no hook for a view that
-   is about to leave, so the button is always drawn and `Fade` makes it
-   see-through and out of reach. Its `testID` is `scroll-to-end` only while
-   it is wanted.
+3. **The round button stayed in the tree.** There was no hook for a view
+   that is about to leave, so the button was always drawn and `Fade` made
+   it see-through and out of reach. This is gone since "After step 3": the
+   button is only drawn while it is wanted, and `Motion` gives it a way
+   out.
 4. **A step of two kinds loses its services.** `cond ? $.run(a) : $.run(b)`
    and then `.run(c)` on the result turned the component's requirements
    into `any`, with no error until the mount. One `.run(...list)` avoids it.
@@ -614,6 +616,171 @@ Besides what is marked not built above:
 - A new chat is made on the server when it opens. Fold Chat waits for the
   first message.
 - The reasoning sheet shows the reasoning as it was when it was opened.
+- A chat is swiped with the native swipe view. Fold Chat swipes with the row
+  written in TypeScript and keeps the native view for the showcase.
+
+## After step 3: swipe and animations
+
+Two things Fold Chat has and step 3 left out. Both are built now.
+
+### What it built
+
+| What | Where |
+|---|---|
+| The native swipe row, moved to a folder two apps share | `modules/foldkit-swipe` |
+| `NativeViews.swipeRow`, with `closeSwipeRows`, `closeSwipeRow` and `swipeStatus` | `packages/effect-ui-native/src/NativeViews.ts` |
+| `Motion`: animations on the phone's own thread | `src/Motion.ts`, `src/internal/motion.ts`, `src/internal/motionUi.ts` |
+| A view that is taken away can finish a way out first | `src/NativeHost.ts` |
+| Swipe on the list of chats, and a guard against a delete said twice | `chat/parts/conversationList.ts`, `chat/app.ts` |
+| Five animations in the chat | `chat/parts/messageRow.ts`, `replyStream.ts`, `composer.ts`, `chatScreen.ts`, `conversationList.ts` |
+| Two lines in the numbers strip: `motion:` and `swipe:` | `chat/parts/transcript.ts` |
+| A Motion screen in the playground | `playground/motion.ts` |
+| Tests: 14 for `Motion`, 15 for swipe, 10 for the chat's animations, 2 for the round button, 2 for the Motion screen | `test/motion.test.ts`, `swipe.test.ts`, `chatMotion.test.ts`, `chatMechanics.test.ts`, `playground.test.ts` |
+
+With these the package has 230 tests. They pass on both builds of the
+engine.
+
+### How the swipe works
+
+The row is this project's own native view: UIKit on iOS, Android's own
+views on Android. It was written for the showcase app and has not been
+compiled yet. Effect Chat now builds it too. Both apps name the shared
+folder in their `package.json`, and Expo's tooling finds the module for
+both.
+
+While a finger drags a row, only native code runs. JavaScript hears three
+things: an action was triggered, the row opened, the row closed. Each is a
+Message.
+
+- **Rename and Delete.** They are the same two the hold menu offers, and
+  they go the same way: the list tells the app (`ChoseRowAction`), and the
+  app opens the sheet or runs `DeleteConversation`. So a delete by swipe
+  has the same optimistic patch, the same haptic and the same notice when
+  the server refuses.
+- **A full swipe deletes once.** The app keeps the ids of chats whose
+  delete is on its way and ignores a second "delete" for one of them. When
+  the server has answered, the id is dropped, so a chat whose delete was
+  refused can be deleted again.
+- **One row open at a time** is shared work. The native view closes the
+  other rows of a group when one is dragged, and a tap on an open row
+  closes it. It does not know about the list around it. So the list
+  remembers which row is open, and closes it itself when the list is
+  scrolled or another chat is tapped. That tap opens nothing, as in Mail.
+- **No native view in the build.** The row is a plain view with the same
+  content. Nothing swipes, and holding a chat still works.
+
+### How the animations work
+
+A component says where a view should be:
+
+```ts
+Motion.animate(h.view.style({ padding: 16 }), {
+  from: { opacity: 0, translateY: 24 },
+  to: { opacity: 1, translateY: 0 },
+  ms: 380,
+  easing: 'easeOutExpo',
+})
+```
+
+The host takes it there. A worklet on the phone's UI thread writes the
+view's opacity and transform a step per frame, through Reanimated's native
+code (`_updateProps`). JavaScript starts the animation and hears when it is
+over. In between it does nothing, so the animation keeps going while
+JavaScript is busy. This is the route `docs/WORKLETS.md` describes, with a
+timed curve added to the spring it had.
+
+- **Two routes.** Where worklets or Reanimated's native code are missing,
+  and in the tests, the view gets its end values in one go and nothing
+  moves. `Motion.status()` says which route a build uses, and the numbers
+  strip shows it.
+- **The first draw.** A view that comes in is drawn by JavaScript at its
+  start (see-through, or below its place), so it never shows at its end
+  place for a frame first. The UI thread takes it from there.
+- **A change in the Model.** When `to` changes, a new animation starts from
+  wherever the view is, also in the middle of the old one.
+- **A way out.** With `exit`, a view the Model has dropped stays on screen,
+  out of reach of fingers, until its way out is over. The host keeps it.
+  The renderer has already let go of it.
+- **Reduce Motion.** The apps tell `Motion` the phone's setting at
+  startup. With it on, nothing moves or grows: a view goes to its place at
+  once and only a fade of at most 120 ms is left.
+
+Where each is used:
+
+| Animation | How |
+|---|---|
+| A new message rises | 380 ms, from 24 points below, fast at first then gentle. Only the message sent just now. After 0.7 seconds its row is an ordinary row again |
+| "Thinking" fades in | 200 ms, after waiting 300 ms |
+| Send and Stop | The one that comes fades in over 120 ms. The one that goes is simply taken away, as in Fold Chat |
+| The round button | Fades and grows in from 80% over 150 ms, and out the same way before it is taken away |
+| The notice lines | Fade in over 150 ms, and out before they are taken away |
+
+The "Thinking" shimmer is unchanged. It is drawn by Skia every frame, from
+JavaScript.
+
+### Changed in the host layer
+
+Nothing but one comment (`host/swipeNative/detect.ts` names the module's
+new folder). `host/swipeNative/detect.ts` and `host/worklets/*` are used as
+they are.
+
+### Changed in the native code
+
+Neither change has been compiled.
+
+1. **Swift.** When a row closed, its tiles were hidden at the first frame
+   of the closing animation. That left an empty gap behind the content
+   until the row was shut. The tiles now stay until the animation has
+   ended.
+2. **Kotlin.** With animations switched off in the phone's settings, the
+   row goes to its place at once. The Swift row already did that for Reduce
+   Motion.
+
+### Workarounds
+
+1. **Scroll and tap-elsewhere close a row from JavaScript.** The native
+   view has no part in it. A drag that starts on the list's own scroll
+   view reaches JavaScript as a Message, which then asks the native module
+   to close the group. On a phone the row closes a moment after the scroll
+   starts, not in the same frame.
+2. **The swipe line is in the numbers strip.** The other "what this build
+   draws with" lines are in Settings. That sheet was being changed by other
+   work at the same time.
+3. **JavaScript's copy of an animated view's style holds where it last came
+   to rest.** While the UI thread moves a view, a draw from JavaScript
+   carries the old values. Reanimated's native code lays its own values
+   over every commit, so the view does not jump back. That is how the
+   source reads. A phone has not shown it.
+4. **A way out has a timer behind it.** If the UI thread's word that the
+   animation is over never comes, the view is taken away 0.4 seconds after
+   its time.
+5. **A view on its way out is unknown to the renderer.** It is still a
+   neighbour in the native tree, and the host may hand it to the renderer
+   as the place to put a new view before. That is where it would have been
+   put anyway.
+6. **An animated view may not have a `pressedStyle`.** The press writes the
+   view's style by itself and would drop the animation's values. The
+   pressable goes inside the animated view.
+7. **A row counts as new for 0.7 seconds.** `from` counts when a view is
+   first drawn, and a row that scrolls out of a long list and back is drawn
+   again. So the chat screen names the message that rises and forgets it a
+   moment later.
+8. **Two lines in the app's start-up file** tell `Motion` the phone's
+   Reduce Motion setting. The swipe row needs no line there: it names
+   itself the first time a row is drawn.
+
+### Where this differs from the brief
+
+- **A full swipe is set for the whole row, not per action.** The native
+  view triggers the first action of the side. Delete is first.
+- **Icons are for iPhone only.** The native view draws SF Symbols. On
+  Android a tile shows its word.
+- **No Swipe screen in the playground.** That app does not have the native
+  module, and adding it would need a new build of it. The Motion screen
+  needs none.
+- **Send and Stop do not cross fade.** The new button fades in. The old one
+  is not kept for a fade out, because the two would have to sit on top of
+  each other for it. Fold Chat does the same.
 
 ## What could not be checked
 
@@ -648,7 +815,8 @@ From step 3:
 - The sheets: their heights, the grabber, the footer at the bottom edge and
   clear of the home indicator, the swipe down.
 - Liquid Glass behind the composer, and messages showing through it.
-- The round button's fade, which is written from JavaScript frame by frame.
+- The round button's fade. Since "After step 3" the phone's own thread
+  moves it.
 - The shimmer over "Thinking".
 - Light and dark reaching the title bar, the sheets and the keyboard.
 - All of speech recognition: the permission questions, words arriving while
@@ -657,6 +825,37 @@ From step 3:
   ones Fold Chat uses, but this app has not recorded a sound.
 - The share sheet.
 - Every haptic.
+
+From swipe and animations. These are the parts most at risk:
+
+- **That the Swift and Kotlin of the swipe row compile.** They never have.
+  A compile error stops the whole app from building. If that happens, take
+  the `expo` block out of `apps/eui-chat/package.json` and build again: the
+  app then has no swipe and everything else works.
+- That the native row's three events reach the program under the names it
+  listens for (`actionTriggered`, `swipeOpened`, `swipeClosed`).
+- That a chat's own views sit inside the native row and slide with it, and
+  that a tap on a chat still opens it.
+- That the tiles look right behind a chat: their colours, their size next
+  to a two-line row, the rounded corners.
+- That a row closes when the list is scrolled. The close is asked for from
+  JavaScript.
+- That Reanimated's native code accepts a view of ours and moves it. The
+  showcase's Worklets demo asks the same question and has not been run on a
+  phone either. The `motion:` line of the numbers strip says which route
+  the build took, and how many animations went each way.
+- That a view does not jump back to its start when JavaScript draws in the
+  middle of an animation (workaround 3 above).
+- That nothing flashes: a new message at its end place for one frame before
+  it rises, or a view that should fade out showing solid for a frame.
+- That a row which has risen is laid out as before. The list measures row
+  heights, and a transform must not change them.
+- The curves and times. They are Fold Chat's numbers, and nobody has seen
+  them.
+- Reduce Motion: that the phone's setting reaches the app, at startup and
+  when it changes.
+- Anything on Android. There the UI thread route needs Reanimated's native
+  code only, not gesture-handler's root view, so it may work. Unseen.
 
 ## How to check
 
@@ -733,6 +932,45 @@ listening.
 One did not turn a test red: letting the composer send while offline. The
 chat screen refuses an offline send as well, and the button has no press
 while it is grey, so the one line alone changes nothing.
+
+Each test of swipe and of the animations was seen to fail once too. These
+tests were written after the code, so each defect was put in on purpose.
+
+For swipe: no guard against a second delete, a guard that is never lifted,
+a refused delete that says nothing, a tap that opens a chat while another
+is swiped open, any row's "closed" forgetting the open row, a scroll that
+does not close, a scroll that asks to close with nothing open, rows with no
+group, Rename before Delete, an action not passed on to the app, the native
+view drawn where the build has none, the plain row losing its style, a full
+swipe reported as a tile press, "opened" always saying trailing, "closed"
+not listened for, a destructive action sent as a normal one, a symbol sent
+as nothing, a close that does not reach the native module, the same close
+number every time, and a row that may be folded into its parent.
+
+For `Motion`: a new view first drawn at its end, the UI thread never saying
+it is over, a new run starting from the old start, the delay ignored,
+Reduce Motion still moving, Reduce Motion keeping the full time, a first
+draw away from its place with Reduce Motion, a view with a way out taken
+away at once, no timer behind the UI thread's word, a leaving view still
+taking presses, the UI thread not told to forget a view that is gone,
+Reanimated not told either, the animation's style replacing the element's
+own, a new style not merged again, a new view drawn at its start in a build
+without worklets, a Command ignoring its start, a spring run as a timed
+curve, the switch-off ignored, an animation writing an opacity it was not
+asked for, and timers left running after unmount.
+
+For the chat: a new message that does not rise, every message rising, the
+new message never becoming an ordinary row again, the rise on a straight
+line, "Thinking" not waiting, "Thinking" not animated, Send and Stop at the
+default time, a notice with no way out, a notice that pops in, no motion
+line in the strip, a row keeping its animation values after it stops being
+new, the round button with no way out, not growing, or kept in the tree.
+For the Motion screen: a block that does not block, a block that starts
+before the draw, a box that is not animated, and a route line that is a
+fixed text.
+
+One did not turn a test red: giving Send and Stop the same key. Send has
+already gone when Stop comes, so Stop is a new view either way.
 
 One defect of step 2 did not turn a test red: taking out the line that stops
 following the moment a finger leaves the end. The list stops following

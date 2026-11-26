@@ -9,7 +9,7 @@
  *   isNativeSwipeAvailable()             whether this build has the native view
  *
  * `detect.ts` explains how the answer is found, `swipeNative.ts` the row.
- * The native code is in `apps/showcase/modules/foldkit-swipe`, and
+ * The native code is in `modules/foldkit-swipe`, and
  * `docs/NATIVE_VIEWS.md` explains it.
  */
 export {

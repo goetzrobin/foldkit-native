@@ -66,7 +66,8 @@ configureSkia({ nativeModule: name => TurboModuleRegistry.get(name) })
 registerGlass()
 
 // For the "Swipe actions (native view)" demo. The swipe row is this app's
-// own native view, written in Swift and Kotlin in modules/foldkit-swipe.
+// own native view, written in Swift and Kotlin in modules/foldkit-swipe at
+// the top of the repository (package.json names that folder for Expo).
 // It is only in an app built with `npx expo run:ios` or `run:android`. Expo
 // Go does not have it: there the demo draws plain rows and says so. This
 // line only gives the view its name. It must run after `import 'expo'`.
