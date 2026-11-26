@@ -38,7 +38,7 @@ import { Command, UiSchema } from '@effect/ui'
 import { Schema } from 'effect'
 
 import { Attachment, MessageStatus, Part } from '../../../native/src/host/aiChat/wire.js'
-import { AnchoredList, KeyboardBar, Native, NativeHost, NativeViews } from '../../src/index.js'
+import { AnchoredList, KeyboardBar, Motion, Native, NativeHost, NativeViews } from '../../src/index.js'
 import { RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { centred } from '../ui.js'
 import { MessageRow } from './messageRow.js'
@@ -68,6 +68,8 @@ export const TranscriptProps = Schema.Struct({
   platform: Schema.String,
   /** The question held near the top of the screen, by its row key. */
   anchorKey: Schema.NullOr(Schema.String),
+  /** The message that was sent a moment ago, by its row key. Its row rises into place. */
+  risingKey: Schema.NullOr(Schema.String),
   /** The numbers strip is on. */
   showsNumbers: Schema.Boolean,
   /** A reply that is asked to copy what is written so far: its row, and a count that goes up by one. */
@@ -168,7 +170,7 @@ export const Transcript = Native.component({
     CopiedSoFar: $ => $.emit(TranscriptEvents.CopiedSoFar()),
   },
   view: (h, model) => {
-    const { rows, scheme, platform, conversationId, isLoading, anchorKey, showsNumbers, copyRequest } = h.props
+    const { rows, scheme, platform, conversationId, isLoading, anchorKey, risingKey, showsNumbers, copyRequest } = h.props
     const palette = paletteOf(scheme)
     const anchorIndex = anchorKey === null ? -1 : rows.findIndex(row => row.key === anchorKey)
     const last = rows.length - 1
@@ -215,7 +217,13 @@ export const Transcript = Native.component({
                     row.role === 'user'
                       ? MessageRow(h, {
                           key,
-                          props: { id: row.key, text: textOf(row), attachments: row.attachments.map(each => each.name), scheme },
+                          props: {
+                            id: row.key,
+                            text: textOf(row),
+                            attachments: row.attachments.map(each => each.name),
+                            scheme,
+                            rises: row.key === risingKey,
+                          },
                         })
                       : ReplyStream(h, {
                           key,
@@ -289,6 +297,11 @@ export const Transcript = Native.component({
                 ),
               // Which way holds are read, and how the last one went. Drawn again with each hold.
               h.text.testId('numbers-hold-route').style(STRIP_TEXT).children(NativeHost.holdReport()),
+              // Whether animations run on the phone's own thread in this build, and how many did.
+              h.text
+                .testId('numbers-motion')
+                .style(STRIP_TEXT)
+                .children(`motion: ${Motion.status()} | ${Motion.stats().onUiThread} run there, ${Motion.stats().atOnce} set at once`),
             )
         : null,
     )

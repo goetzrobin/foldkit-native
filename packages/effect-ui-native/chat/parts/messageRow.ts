@@ -5,14 +5,18 @@
  * It keeps no state and is drawn from its props. A message looks the same
  * before and after the server has saved it, so nothing moves when it is.
  *
+ * A message that was sent just now rises into place as it fades in
+ * (`rises`). The phone moves it, on its own thread. Only a new message
+ * does: one that scrolls back into view is drawn where it belongs.
+ *
  * A voice note that went with the message shows as a small chip above the
  * words. Holding a message for its menu is the transcript's: it listens on
  * the row around this part.
  */
 import { Schema } from 'effect'
 
-import { Native } from '../../src/index.js'
-import { RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
+import { Motion, Native } from '../../src/index.js'
+import { ENTER_RISE, MOTION, RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { attachmentChip } from '../ui.js'
 
 export const MessageRowProps = Schema.Struct({
@@ -21,7 +25,17 @@ export const MessageRowProps = Schema.Struct({
   /** The names of the voice notes that went with it. */
   attachments: Schema.Array(Schema.String),
   scheme: Scheme,
+  /** Sent a moment ago: it rises into place. */
+  rises: Schema.Boolean,
 })
+
+/** Fast at first, then a long gentle stop. */
+const RISE: Motion.Spec = {
+  from: { opacity: 0, translateY: ENTER_RISE },
+  to: { opacity: 1, translateY: 0 },
+  ms: MOTION.messageEnter,
+  easing: 'easeOutExpo',
+}
 
 export const MessageRow = Native.component({
   name: 'MessageRow',
@@ -33,26 +47,28 @@ export const MessageRow = Native.component({
   update: $ => $.model,
   view: h => {
     const palette = paletteOf(h.props.scheme)
-    return h.view
-      .testId(`message-${h.props.id}`)
-      .style({ alignItems: 'flex-end', paddingHorizontal: SPACE.xl, paddingTop: SPACE.xxl })
-      .children(
-        h.view
-          .style({
-            maxWidth: '85%',
-            paddingHorizontal: SPACE.l,
-            paddingVertical: 10,
-            borderRadius: RADIUS.bubble,
-            backgroundColor: palette.surface,
-            gap: SPACE.s,
-          })
-          .children(
-            h.props.attachments.map((name, index) =>
-              h.view.key(`note-${index}`).testId(`message-note-${h.props.id}`).children(attachmentChip(h, palette, name)),
-            ),
-            // Not selectable: a hold opens the message's menu, and Select text is in it.
-            h.text.style({ ...TYPE.message, color: palette.ink }).children(h.props.text),
+    return Motion.animate(
+      h.view
+        .testId(`message-${h.props.id}`)
+        .style({ alignItems: 'flex-end', paddingHorizontal: SPACE.xl, paddingTop: SPACE.xxl }),
+      h.props.rises ? RISE : undefined,
+    ).children(
+      h.view
+        .style({
+          maxWidth: '85%',
+          paddingHorizontal: SPACE.l,
+          paddingVertical: 10,
+          borderRadius: RADIUS.bubble,
+          backgroundColor: palette.surface,
+          gap: SPACE.s,
+        })
+        .children(
+          h.props.attachments.map((name, index) =>
+            h.view.key(`note-${index}`).testId(`message-note-${h.props.id}`).children(attachmentChip(h, palette, name)),
           ),
-      )
+          // Not selectable: a hold opens the message's menu, and Select text is in it.
+          h.text.style({ ...TYPE.message, color: palette.ink }).children(h.props.text),
+        ),
+    )
   },
 })

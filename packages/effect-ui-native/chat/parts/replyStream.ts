@@ -41,11 +41,11 @@ import {
   reconnectDelayMs,
 } from '../../../native/src/host/aiChat/turns.js'
 import { MessageStatus, Part } from '../../../native/src/host/aiChat/wire.js'
-import { Native, NativeViews, Phone } from '../../src/index.js'
+import { Motion, Native, NativeViews, Phone } from '../../src/index.js'
 import { RefreshChat, ResumeTurn, followTurn } from '../data.js'
 import { copyIcon, regenerateIcon, shareIcon, tick } from '../icons.js'
 import { thinkingLabel } from '../shimmer.js'
-import { SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
+import { MOTION, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { roundButton, textButton } from '../ui.js'
 
 export const ReplyStreamProps = Schema.Struct({
@@ -234,7 +234,15 @@ export const ReplyStream = Native.component({
       .testId(`reply-${props.id}`)
       .style({ paddingHorizontal: SPACE.xl, paddingTop: SPACE.m, gap: SPACE.s })
       .children(
-        isStreaming && !hasText && !isBusyElsewhere ? thinkingLabel(h, palette, `reply-thinking-${props.id}`) : null,
+        // "Thinking" fades in a moment after the question has risen into place.
+        isStreaming && !hasText && !isBusyElsewhere
+          ? Motion.animate(h.view.key('thinking-in').testId(`reply-thinking-motion-${props.id}`), {
+              from: { opacity: 0 },
+              to: { opacity: 1 },
+              ms: MOTION.thinkingIn,
+              delayMs: MOTION.thinkingDelay,
+            }).children(thinkingLabel(h, palette, `reply-thinking-${props.id}`))
+          : null,
         parts.map((part, index) =>
           part._tag === 'Text'
             ? h.view

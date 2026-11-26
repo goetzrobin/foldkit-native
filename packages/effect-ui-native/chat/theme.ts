@@ -78,7 +78,21 @@ export const SPACE = { xs: 4, s: 8, m: 12, l: 16, xl: 20, xxl: 24, xxxl: 32, hug
 export const RADIUS = { bubble: 20, field: 22, chip: 12, row: 12 } as const
 
 /** Milliseconds. */
-export const MOTION = { scrollButton: 150, shimmerSweep: 1400 } as const
+export const MOTION = {
+  /** Your new message rises and fades in. */
+  messageEnter: 380,
+  /** "Thinking" fades in, once your message has risen. */
+  thinkingIn: 200,
+  thinkingDelay: 300,
+  /** Send and Stop take each other's place. */
+  sendStop: 120,
+  scrollButton: 150,
+  notice: 150,
+  shimmerSweep: 1400,
+} as const
+
+/** How far your new message rises as it fades in, in points. */
+export const ENTER_RISE = 24
 
 /** As thin as the screen draws a line. */
 export const HAIRLINE = 0.5
