@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": {
+      // The host layer in packages/native must see this package's Effect, not its own.
+      "effect": ["./node_modules/effect/dist/index.d.ts"],
+      "effect/*": ["./node_modules/effect/dist/*"],
+      "@ng-native/fabric": ["./node_modules/@ng-native/fabric/dist/index.d.ts"],
+      "@ng-native/testing/fake": ["../../../../repos/ngn/src/packages/testing/src/test-utils.ts"]
+    }
+  },
+  "include": ["src", "playground", "test", "types"]
+}
