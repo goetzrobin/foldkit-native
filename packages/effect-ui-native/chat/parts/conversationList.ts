@@ -14,6 +14,14 @@
  * those do belongs to the app (`ChoseRowAction`), because a chat can also be
  * renamed and deleted from its own screen.
  *
+ * Swiping a chat to the left shows the same two as tiles, and swiping all
+ * the way deletes. The row is the phone's own (`NativeViews.swipeRow`): the
+ * finger is read and the row is moved by native code, and this part only
+ * hears what was chosen and which row is open. One row is open at a time.
+ * The native view closes the others when one is dragged. Scrolling the
+ * list, or a tap anywhere else, closes the open row from here. In a build
+ * without the native view the rows do not swipe, and holding still works.
+ *
  * iOS: a large title with the phone's own search field under it. Android: a
  * plain search field at the top.
  */
@@ -22,11 +30,11 @@ import { Schema } from 'effect'
 import { AsyncResult } from 'effect/reactivity'
 
 import type { ConversationSummary } from '../../../native/src/host/aiChat/wire.js'
-import { Menus, Native, NativeViews, Phone } from '../../src/index.js'
+import { Menus, Motion, Native, NativeViews, Phone } from '../../src/index.js'
 import { CreateConversation, ListConversations } from '../data.js'
 import { After, NOTICE_MS, Toast, toasts } from '../events.js'
 import { listItems } from '../list.js'
-import { RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
+import { MOTION, RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { centred, navBar, solidButton } from '../ui.js'
 
 export const ConversationListProps = Schema.Struct({
@@ -45,6 +53,13 @@ export const ConversationListMessage = UiSchema.TaggedEnum({
   ChangedQuery: { text: Schema.String },
   /** A finger rested on a chat for half a second. */
   HeldChat: { id: Schema.String, title: Schema.String },
+  /** A tile behind a swiped chat was pressed, or the chat was swiped all the way. */
+  ChoseSwipeAction: { id: Schema.String, title: Schema.String, key: Schema.String, isFullSwipe: Schema.Boolean },
+  /** A chat came to rest swiped open, or closed again. */
+  OpenedRow: { id: Schema.String },
+  ClosedRow: { id: Schema.String },
+  /** The list was dragged, or tapped where no chat is. */
+  TouchedList: {},
   AnsweredMenu: { answer: Menus.Answer },
   HeardToast: { toast: Toast },
   WaitedForNotice: { text: Schema.String },
@@ -66,6 +81,8 @@ const ConversationListModel = Schema.Struct({
   query: Schema.String,
   /** The chat whose menu is open. */
   menuFor: Schema.NullOr(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  /** The chat that is swiped open, as the native row last said. */
+  openRow: Schema.NullOr(Schema.String),
 })
 
 export const ROW_MENU = [
@@ -73,10 +90,24 @@ export const ROW_MENU = [
   { key: 'delete', title: 'Delete', isDestructive: true },
 ] as const
 
+/** Every chat's row is in this group, so the native view keeps one open at a time. */
+export const SWIPE_GROUP = 'chats'
+
+/**
+ * Behind a chat, from the screen's edge inwards. Delete is first, so it is
+ * the one a full swipe triggers. Rename is a quiet grey: the accent colour
+ * is kept for Send and links.
+ */
+export const swipeActions = (scheme: 'light' | 'dark', danger: string): ReadonlyArray<NativeViews.SwipeAction> => [
+  { key: 'delete', label: 'Delete', symbol: 'trash', isDestructive: true, color: danger },
+  { key: 'rename', label: 'Rename', symbol: 'pencil', color: scheme === 'dark' ? '#48484A' : '#5C5C63' },
+]
+
 const previewOf = (summary: ConversationSummary): string =>
   summary.preview.trim() === '' ? 'No messages yet' : summary.preview.replace(/\s+/g, ' ')
 
 const ignored = Command.as(ConversationListMessage.Ignored())
+const closeRows = () => NativeViews.closeSwipeRows(SWIPE_GROUP).pipe(ignored)
 
 export const ConversationList = Native.component({
   name: 'ConversationList',
@@ -86,7 +117,7 @@ export const ConversationList = Native.component({
   events: ConversationListEvents,
   queries: { list: { query: ListConversations, args: () => ({}) } },
 }).make({
-  init: () => ({ isCreating: false, notice: null, query: '', menuFor: null }),
+  init: () => ({ isCreating: false, notice: null, query: '', menuFor: null, openRow: null }),
   update: {
     PressedNewChat: $ =>
       $.model.isCreating
@@ -99,20 +130,32 @@ export const ConversationList = Native.component({
               }),
             ),
           ),
-    PressedSettings: $ => $.emit(ConversationListEvents.OpenedSettings()),
-    PressedChat: ($, { id }) => $.emit(ConversationListEvents.OpenedChat({ id, isNew: false })),
+    PressedSettings: $ =>
+      $.model.openRow === null
+        ? $.emit(ConversationListEvents.OpenedSettings())
+        : $.run(closeRows()).emit(ConversationListEvents.OpenedSettings()),
+    // With a chat swiped open, a tap anywhere else only closes it, as in Mail.
+    PressedChat: ($, { id }) =>
+      $.model.openRow === null ? $.emit(ConversationListEvents.OpenedChat({ id, isNew: false })) : $.run(closeRows()),
+    TouchedList: $ => ($.model.openRow === null ? $.model : $.run(closeRows())),
+    OpenedRow: ($, { id }) => $.evolve({ openRow: id }),
+    ClosedRow: ($, { id }) => ($.model.openRow === id ? $.evolve({ openRow: null }) : $.model),
+    // The same as choosing it from the chat's menu. The native row closes itself, or slides away for Delete.
+    ChoseSwipeAction: ($, { id, title, key }) =>
+      $.evolve({ openRow: $.model.openRow === id ? null : $.model.openRow }).emit(
+        ConversationListEvents.ChoseRowAction({ id, key, title }),
+      ),
     CreatedChat: ($, { id }) => $.evolve({ isCreating: false }).emit(ConversationListEvents.OpenedChat({ id, isNew: true })),
     FailedCreate: ($, { reason }) =>
       $.evolve({ isCreating: false, notice: { text: `Could not start a chat: ${reason}`, tone: 'error' as const } }),
     ChangedQuery: ($, { text }) => $.evolve({ query: text }),
     HeldChat: ($, { id, title }) =>
-      $.evolve({ menuFor: { id, title } })
-        .run(Phone.Impact.make({ style: 'medium' }).pipe(ignored))
-        .run(
-          Menus.Show.make({ title, items: ROW_MENU }).pipe(
-            Command.map(answer => ConversationListMessage.AnsweredMenu({ answer })),
-          ),
-        ),
+      $.evolve({ menuFor: { id, title } }).run(
+        Phone.Impact.make({ style: 'medium' }).pipe(ignored),
+        Menus.Show.make({ title, items: ROW_MENU }).pipe(Command.map(answer => ConversationListMessage.AnsweredMenu({ answer }))),
+        // A chat that is swiped open closes under the menu.
+        ...($.model.openRow === null ? [] : [closeRows()]),
+      ),
     AnsweredMenu: ($, { answer }) => {
       const chat = $.model.menuFor
       const next = $.evolve({ menuFor: null })
@@ -149,6 +192,9 @@ export const ConversationList = Native.component({
         indicatorStyle: scheme === 'dark' ? 'white' : 'black',
         ...(isIos ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {}),
       })
+      // A drag, or a tap where no chat is, closes a chat that is swiped open.
+      .on('scrollBeginDrag', ConversationListMessage.TouchedList())
+      .on('press', ConversationListMessage.TouchedList())
       .children(
         items.map((item, index) =>
           item._tag === 'Header'
@@ -162,31 +208,45 @@ export const ConversationList = Native.component({
                     .style({ ...TYPE.section, color: palette.ink3 })
                     .children(item.title),
                 )
-            : h.pressable
+            : NativeViews.swipeRow(h, {
+                testId: `chat-swipe-${item.summary.id}`,
+                trailing: swipeActions(scheme, palette.danger),
+                group: SWIPE_GROUP,
+                cornerRadius: RADIUS.row,
+                style: { marginHorizontal: SPACE.s },
+                onAction: ({ key, isFullSwipe }) =>
+                  ConversationListMessage.ChoseSwipeAction({ id: item.summary.id, title: item.summary.title, key, isFullSwipe }),
+                onOpened: () => ConversationListMessage.OpenedRow({ id: item.summary.id }),
+                onClosed: () => ConversationListMessage.ClosedRow({ id: item.summary.id }),
+              })
                 .key(item.key)
-                .testId(`chat-row-${item.summary.id}`)
-                .set({ accessibilityRole: 'button', accessibilityLabel: item.summary.title })
-                .style({
-                  marginHorizontal: SPACE.s,
-                  paddingHorizontal: SPACE.m,
-                  paddingVertical: SPACE.m,
-                  borderRadius: RADIUS.row,
-                  gap: 2,
-                })
-                .pressedStyle({ backgroundColor: palette.surface2 })
-                .on('press', ConversationListMessage.PressedChat({ id: item.summary.id }))
-                .on('longPress', ConversationListMessage.HeldChat({ id: item.summary.id, title: item.summary.title }))
                 .children(
-                  h.text
-                    .testId(`chat-title-${item.summary.id}`)
-                    .style({ ...TYPE.rowTitle, color: palette.ink })
-                    .set({ numberOfLines: 1 })
-                    .children(item.summary.title),
-                  h.text
-                    .testId(`chat-preview-${item.summary.id}`)
-                    .style({ ...TYPE.rowPreview, color: palette.ink2 })
-                    .set({ numberOfLines: 1 })
-                    .children(previewOf(item.summary)),
+                  h.pressable
+                    .testId(`chat-row-${item.summary.id}`)
+                    .set({ accessibilityRole: 'button', accessibilityLabel: item.summary.title })
+                    .style({
+                      paddingHorizontal: SPACE.m,
+                      paddingVertical: SPACE.m,
+                      borderRadius: RADIUS.row,
+                      gap: 2,
+                      // Solid, so the tiles behind the row do not show through it.
+                      backgroundColor: palette.bg,
+                    })
+                    .pressedStyle({ backgroundColor: palette.surface2 })
+                    .on('press', ConversationListMessage.PressedChat({ id: item.summary.id }))
+                    .on('longPress', ConversationListMessage.HeldChat({ id: item.summary.id, title: item.summary.title }))
+                    .children(
+                      h.text
+                        .testId(`chat-title-${item.summary.id}`)
+                        .style({ ...TYPE.rowTitle, color: palette.ink })
+                        .set({ numberOfLines: 1 })
+                        .children(item.summary.title),
+                      h.text
+                        .testId(`chat-preview-${item.summary.id}`)
+                        .style({ ...TYPE.rowPreview, color: palette.ink2 })
+                        .set({ numberOfLines: 1 })
+                        .children(previewOf(item.summary)),
+                    ),
                 ),
         ),
       )
@@ -240,13 +300,16 @@ export const ConversationList = Native.component({
       rows,
       overlay,
       // Over the list, at the bottom, so the rows do not jump when it comes and goes.
+      // It fades in, and out again before it is taken away.
       notice === null
         ? null
-        : h.view
-            .key('notice')
-            .set({ pointerEvents: 'none' })
-            .style({ position: 'absolute', left: SPACE.l, right: SPACE.l, bottom: SPACE.xxxl, alignItems: 'center' })
-            .children(
+        : Motion.animate(
+            h.view
+              .key('notice')
+              .set({ pointerEvents: 'none' })
+              .style({ position: 'absolute', left: SPACE.l, right: SPACE.l, bottom: SPACE.xxxl, alignItems: 'center' }),
+            { from: { opacity: 0 }, to: { opacity: 1 }, exit: { opacity: 0 }, ms: MOTION.notice },
+          ).children(
               h.text
                 .testId('list-notice')
                 .style({
