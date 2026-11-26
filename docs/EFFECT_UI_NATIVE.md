@@ -415,3 +415,20 @@ npx tsc --noEmit
 ```
 
 `@effect/ui` is vendored. See `packages/effect-ui-native/vendor/README.md`.
+
+## Added later: `NativeCrash` and `NativeDevTools`
+
+| Module | What it gives |
+|---|---|
+| `NativeCrash` | `screen(options)` for the mount's `crash` option: a screen that shows when any part of the app fails, with Copy and Start again. `CrashScreen`, `reportOf`, `reportText` |
+| `effect-ui-native/src/NativeDevTools` | `layer({ server })` sends the app's message log to Effect UI's dev tools server and answers its requests. `serverFromBundle(scriptURL)` finds the Mac. Not in the package's index: an app loads it by its file inside `if (__DEV__)` |
+
+`NativeViews.markdown` takes `onLink` and `onCopyCode`. `NativeTest.mount`
+takes `crash`.
+
+Two of the open questions above are answered. The crash screen is built,
+without the mount's `fallback`: see "The crash screen" in
+`docs/EFFECT_UI_CHAT.md`. The dev tools run without `@effect/ui-kit` on the
+phone's side: see `docs/DEV_TOOLS.md`.
+
+The test count is 218.

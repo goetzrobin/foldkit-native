@@ -121,3 +121,15 @@ npm install
 npx tsc --noEmit
 CI=1 EXPO_NO_TELEMETRY=1 npx expo export --platform ios --platform android --output-dir /tmp/eui-export
 ```
+
+## Dev tools and the crash screen
+
+Added later. Run `npm install` once after pulling. The app does not have to
+be built again.
+
+- **Dev tools.** `npm run devtools` in this folder starts a page on your
+  Mac, at `http://127.0.0.1:4774`, that shows everything the running app
+  does. `docs/DEV_TOOLS.md` has the steps and the checks.
+- **The crash screen.** Open Phone and scroll to the bottom. Three small
+  buttons break the app on purpose: in update, in view, in a Command. Each
+  shows the crash screen, with Copy and Start again.

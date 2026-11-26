@@ -751,3 +751,122 @@ FOLDKIT_DIR=/path/to/foldkit NG_NATIVE_DIR=/path/to/ng-native node_modules/vites
 
 The pin scenarios take a seed. `PIN_SCENARIOS=40` runs more of them and
 `PIN_SEED=7` runs one again.
+
+## After step 3: links, code copy, the crash screen, dev tools
+
+Two rows of the tables above said "Not built": links and the code block's
+copy button, and the crash screen. Both are built now. Dev tools are new.
+`docs/DEV_TOOLS.md` is the guide for a person. This section is for an
+engineer.
+
+### What it built
+
+| What | Where |
+|---|---|
+| A reply's text as a part of its own, which acts on a tapped link and a tapped Copy button | `chat/parts/replyText.ts` |
+| The Markdown view's two events | `NativeViews.markdown(h, { onLink, onCopyCode })` |
+| The crash screen and the supervisor that shows it and starts the app again | `packages/effect-ui-native/src/NativeCrash.ts` |
+| `crash` as an option of the mount | `NativeHost.mount(App, props, { crash: NativeCrash.screen() })` |
+| Three buttons that break the playground on purpose | `playground/crash.ts`, at the bottom of the Phone screen |
+| The dev tools Layer | `packages/effect-ui-native/src/NativeDevTools.ts` |
+| The dev tools server, vendored | `packages/effect-ui-native/vendor/effect-ui-devtools-0.0.0.tgz` |
+| The script that starts it, with a relay for phones | `scripts/eui-devtools.mjs`, run as `npm run devtools` in either app |
+| Tests: 7 for links and copy, 12 for the crash screen, 11 for dev tools | `test/chatLinks.test.ts`, `crash.test.ts`, `devtools.test.ts` |
+
+### Links and code copy
+
+The native Markdown view finds the tap itself. It sends `topLinkPress` with
+the address, and `topCopyPress` with the code. `NativeViews.markdown` hears
+both. `ReplyText` runs `Phone.OpenUrl` for a link. For Copy it runs
+`Phone.Copy` with the code, then a light tap, then says "Copied" through
+the events service, so the chat screen shows it above the composer for 2.2
+seconds.
+
+- **A hold on a link opens the message menu.** The phone's own link preview
+  is switched off (`enableLinkPreview: false`), so one finger opens one
+  thing. The menu has no "Copy link". The native view can report a held
+  link (`topLinkLongPress`), but the row's own hold reads the same finger,
+  and two readers of one hold would open two things.
+- **The code is copied twice on a real phone.** The native view copies it
+  before it sends the event, and `ReplyText` copies it again. It is the
+  same text. The second copy is what the tests can see.
+- **"Copied" is heard by the list of chats too.** The events service has
+  one kind of line, and every screen that listens shows it. Go back to the
+  list within two seconds and the line is there for a moment.
+- **A link nobody can open** shows "Could not open the link." in the same
+  place.
+- **Plain text has neither.** In a build without the native Markdown view,
+  a reply is plain text and nothing in it can be tapped.
+
+`replyStream.ts` changed in one place: where it drew the Markdown view it
+now draws `ReplyText`. The row and its native view are still the same ones
+from the first word to the last. A test checks it.
+
+### The crash screen
+
+Effect UI stops a part whose `init`, `update` or `view` throws, or whose
+Command, Subscription or Mount dies. It draws nothing in its place, or the
+`fallback` its parent gave. It also writes a `Failed` entry to the message
+log. That entry is the hook: it is written for every failure, at any depth,
+with the cause.
+
+`NativeCrash.screen()` puts a watcher in front of whichever message log the
+app was given. On the first `Failed` entry it closes the app's Scope, which
+takes the whole tree off the screen, and mounts `CrashScreen` on the same
+surface. `CrashScreen` is an ordinary Effect UI component with a Model of
+its own, so its buttons are Messages like any other. Start again closes it
+and mounts the app anew. The app's Layers are not rebuilt: the server, the
+files and the phone's services are the same objects, so saved chats are
+still listed.
+
+Font sizes and line heights are numbers of points (22/28, 16/22, 15/21,
+13/18, 12/17, 14/20). A test fails if any line is shorter than its letters
+plus 4.
+
+What it does not catch: a failure outside the tree. If one of the app's
+own Layers fails to build, or the main fiber dies before the mount, there
+is no surface to draw on and the screen stays as it was.
+
+### Dev tools
+
+See "For an engineer" in `docs/DEV_TOOLS.md` for how the log, the address,
+the control connection and the relay fit together, the six workarounds, and
+what Effect UI could change to make them unnecessary.
+
+### Changed in files the motion work also touches
+
+- `packages/effect-ui-native/src/NativeViews.ts`: the `markdown` function
+  only, replaced whole.
+- `chat/parts/replyStream.ts`: one import, and the one place that drew the
+  Markdown view.
+
+Not touched: `conversationList.ts`, `transcript.ts`, `composer.ts`,
+`messageRow.ts`, `NativeMount.ts`, the playground's menu (`playground/app.ts`),
+`app.json`.
+
+### Each test was seen to fail once
+
+Links and copy: before `ReplyText` was wired in, all seven failed. Then,
+with the code broken on purpose: a link opened twice, the code trimmed
+before the copy, no light tap, the link preview left on, the two events
+heard only for a finished reply, a failed open saying nothing.
+
+The crash screen: Command failures not watched, view failures not watched,
+a web line height of 1.5, Start again not mounting the app, Copy without the
+stack, the broken app left on screen under the crash screen. The last one
+passed every test at first. Two tests now check that the app's own root
+view is gone.
+
+Dev tools: Messages not checked before `dispatch` sends them, the relay
+keeping the origin, the relay passing every path, a `file:` address taken
+as a server, `show_entry` answering as if it had painted, the crash watcher
+taking the log for itself, the control connection tried again every 10 ms,
+mounted trees not told to the server.
+
+### What could not be checked
+
+All of it on a real phone. `docs/DEV_TOOLS.md` has nineteen yes or no
+checks. In particular: that the native view's two events arrive with these
+names, that a hold on a link opens only the message menu, that the crash
+screen clears the notch and the home indicator with its fixed padding, and
+that React Native's WebSocket carries the log.

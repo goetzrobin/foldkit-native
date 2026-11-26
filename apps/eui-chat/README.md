@@ -328,3 +328,18 @@ CI=1 EXPO_NO_TELEMETRY=1 npx expo export --platform ios --platform android --out
 Speech recognition is the package `expo-speech-recognition`, version 58.0.1,
 which is the one made for Expo SDK 58. Its permission texts are in
 `app.json`.
+
+## Dev tools, links and the crash screen
+
+Added after step 3. Run `npm install` once after pulling. The app does not
+have to be built again.
+
+- **Dev tools.** `npm run devtools` in this folder starts a page on your
+  Mac, at `http://127.0.0.1:4774`, that shows everything the running app
+  does. `docs/DEV_TOOLS.md` has the steps, what the page shows, and
+  nineteen yes or no checks for an iPhone.
+- **Links.** A link in a reply opens in the phone's browser.
+- **Code blocks.** Copy on a code block puts the code on the clipboard and
+  says "Copied".
+- **If the app breaks.** It shows a screen that says so, with the error,
+  Copy and Start again. Your chats are kept.

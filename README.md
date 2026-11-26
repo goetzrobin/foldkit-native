@@ -126,3 +126,10 @@ To make the fork: check out Foldkit at `144eeb4`, apply
 
 Foldkit 0.171.0, `@ng-native/fabric` 0.25.0, Effect 4.1.0, Expo SDK 58,
 React Native 0.88, react-native-screens 4.30.
+
+## Dev tools for the Effect UI apps
+
+`npm run devtools` in `apps/eui-chat` or `apps/eui-playground` starts a page
+on your Mac that shows everything the running app does, as it happens. A
+coding agent can read the same. `docs/DEV_TOOLS.md` explains it for a person
+with no technical background.
