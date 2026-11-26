@@ -35,7 +35,7 @@ topic, and every screen that named the topic loads its data again. Effect UI
 has this built in, and it is called Query. Effect Chat uses Query and has
 none of our own code for it.
 
-What we know: 188 tests pass on a simulated phone, on two builds of the
+What we know: 260 tests pass on a simulated phone, on two builds of the
 engine. The app bundles for iPhone and Android.
 
 What we do not know: anything only a real phone can show. Nobody has run the
@@ -637,7 +637,7 @@ Two things Fold Chat has and step 3 left out. Both are built now.
 | A Motion screen in the playground | `playground/motion.ts` |
 | Tests: 14 for `Motion`, 15 for swipe, 10 for the chat's animations, 2 for the round button, 2 for the Motion screen | `test/motion.test.ts`, `swipe.test.ts`, `chatMotion.test.ts`, `chatMechanics.test.ts`, `playground.test.ts` |
 
-With these the package has 230 tests. They pass on both builds of the
+With these the package has 260 tests. They pass on both builds of the
 engine.
 
 ### How the swipe works

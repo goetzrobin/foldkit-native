@@ -22,7 +22,7 @@ What exists now:
   notes, a 1,000 row list, touch tests, phone features, a list loaded
   from a pretend server, and boxes that keep moving while JavaScript is
   blocked. It is there to answer questions on a real phone.
-- **188 tests** on a simulated phone, all passing. 135 of them came with
+- **260 tests** on a simulated phone, all passing. 135 of them came with
   Effect Chat, the port of Fold Chat, which is now done in three steps. See
   `docs/EFFECT_UI_CHAT.md`.
 
