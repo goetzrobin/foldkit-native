@@ -90,6 +90,8 @@ const TranscriptModel = Schema.Struct({
   /** How many holds this chat has seen. Shown in the numbers strip. */
   holds: Schema.Number,
   lastHeld: Schema.String,
+  /** Counts the touches the list was told of, so it can tell their order. */
+  touches: Schema.Number,
 })
 
 /** The transcript's list, by the name the Commands and the numbers know it by. */
@@ -119,7 +121,7 @@ export const Transcript = Native.component({
   events: TranscriptEvents,
 }).make({
   // A list that opens at its end starts there and follows.
-  init: () => ({ window: AnchoredList.init(), isAtEnd: true, isFollowing: true, holds: 0, lastHeld: 'none' }),
+  init: () => ({ window: AnchoredList.init(), isAtEnd: true, isFollowing: true, holds: 0, lastHeld: 'none', touches: 0 }),
   update: {
     PlannedWindow: ($, { window }) => $.evolve({ window }),
     ChangedAtEnd: ($, { isAtEnd }) =>
@@ -127,7 +129,10 @@ export const Transcript = Native.component({
     ChangedFollowing: ($, { isFollowing }) =>
       $.evolve({ isFollowing }).emit(TranscriptEvents.ChangedEnd({ isAtEnd: $.model.isAtEnd, isFollowing })),
     // The list waits under a resting finger, and catches up when it lifts.
-    TouchedRow: ($, { isDown }) => $.run(AnchoredList.touch(TRANSCRIPT_ID, isDown).pipe(Command.asNoop)),
+    TouchedRow: ($, { isDown }) =>
+      $.evolve({ touches: count => count + 1 }).run(
+        AnchoredList.touch(TRANSCRIPT_ID, isDown, $.model.touches + 1).pipe(Command.asNoop),
+      ),
     HeldRow: ($, { key }) => $.evolve({ holds: count => count + 1, lastHeld: key }),
     Tapped: $ => $.emit(TranscriptEvents.Tapped()),
     PressedSuggestion: ($, { text }) => $.emit(TranscriptEvents.PressedSuggestion({ text })),

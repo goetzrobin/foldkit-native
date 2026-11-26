@@ -121,7 +121,9 @@ const makePainter = (id: string, engine: Engine, content: EngineNode): Painter =
     forget: () => {},
     clear: () => {
       plan = undefined
-      if (painters.get(id) === painter) painters.delete(id)
+      if (painters.get(id) !== painter) return
+      painters.delete(id)
+      touchedAt.delete(id)
     },
     nodeOf: key => painter.rows.get(String(key)),
     canvas,
@@ -326,23 +328,33 @@ export const ScrollToEnd = Command.make(
     }),
 )
 
+// The newest touch each list was told of. See `Touch`.
+const touchedAt = new Map<string, number>()
+
 /**
  * A finger came to rest on a row (`true`) or left it. A list that follows
  * its end waits under a resting finger and catches up when it lifts.
+ *
+ * `at` counts the touches, from the owner's Model. Two Commands run on
+ * their own, and a tap issues two within a moment. Should the "down" ever
+ * run after the "up", it is dropped, so the list is not left waiting.
  */
 export const Touch = Command.make(
   'AnchoredList.touch',
-  { args: { id: Schema.String, isTouched: Schema.Boolean } },
-  ({ id, isTouched }) =>
+  { args: { id: Schema.String, isTouched: Schema.Boolean, at: Schema.Number } },
+  ({ id, isTouched, at }) =>
     Effect.sync(() => {
-      touchList(id, isTouched)
+      if (at >= (touchedAt.get(id) ?? -Infinity)) {
+        touchedAt.set(id, at)
+        touchList(id, isTouched)
+      }
       return Component.noop
     }),
 )
 
 export const scrollToEnd = (id: string, animated = true) => ScrollToEnd.make({ id, animated })
 
-export const touch = (id: string, isTouched: boolean) => Touch.make({ id, isTouched })
+export const touch = (id: string, isTouched: boolean, at: number) => Touch.make({ id, isTouched, at })
 
 /** The list's own numbers, for a test or a readout. Undefined when no list has this id. */
 export const numbers = (id: string): ListNumbers | undefined => listNumbers(id)

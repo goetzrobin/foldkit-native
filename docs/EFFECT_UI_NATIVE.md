@@ -20,7 +20,7 @@ What exists now:
 - **A playground app** (`apps/eui-playground`) with six screens: a counter,
   notes, a 1,000 row list, touch tests, phone features, and a list loaded
   from a pretend server. It is there to answer questions on a real phone.
-- **126 tests** on a simulated phone, all passing. 73 of them came with
+- **127 tests** on a simulated phone, all passing. 74 of them came with
   Effect Chat, the first two steps of the Fold Chat port. See
   `docs/EFFECT_UI_CHAT.md`.
 

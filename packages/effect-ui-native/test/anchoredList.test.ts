@@ -25,6 +25,8 @@ const DemoMessage = UiSchema.TaggedEnum({
   PressedAdd: {},
   PressedToEnd: {},
   Touched: { isDown: Schema.Boolean },
+  /** A touch told to the list with a count of the test's choosing. */
+  TouchedAt: { isDown: Schema.Boolean, at: Schema.Number },
   TappedList: {},
   PressedFocus: {},
   ChangedText: { text: Schema.String },
@@ -40,6 +42,7 @@ const DemoModel = Schema.Struct({
   ends: Schema.Array(Schema.Boolean),
   follows: Schema.Array(Schema.Boolean),
   taps: Schema.Number,
+  touches: Schema.Number,
   text: Schema.String,
   keyboard: Schema.Number,
 })
@@ -53,7 +56,7 @@ const Demo = Native.component({
   model: DemoModel,
   message: DemoMessage,
 }).make({
-  init: () => ({ window: AnchoredList.init(), windows: 0, count: 60, lines: 1, ends: [], follows: [], taps: 0, text: '', keyboard: 0 }),
+  init: () => ({ window: AnchoredList.init(), windows: 0, count: 60, lines: 1, ends: [], follows: [], taps: 0, touches: 0, text: '', keyboard: 0 }),
   update: {
     PlannedWindow: ($, { window }) => $.evolve({ window, windows: count => count + 1 }),
     ChangedAtEnd: ($, { isAtEnd }) => $.evolve({ ends: [...$.model.ends, isAtEnd] }),
@@ -61,7 +64,9 @@ const Demo = Native.component({
     PressedGrow: $ => $.evolve({ lines: lines => lines + 1 }),
     PressedAdd: $ => $.evolve({ count: count => count + 1 }),
     PressedToEnd: $ => $.run(AnchoredList.scrollToEnd('demo', false).pipe(Command.asNoop)),
-    Touched: ($, { isDown }) => $.run(AnchoredList.touch('demo', isDown).pipe(Command.asNoop)),
+    Touched: ($, { isDown }) =>
+      $.evolve({ touches: count => count + 1 }).run(AnchoredList.touch('demo', isDown, $.model.touches + 1).pipe(Command.asNoop)),
+    TouchedAt: ($, { isDown, at }) => $.run(AnchoredList.touch('demo', isDown, at).pipe(Command.asNoop)),
     TappedList: $ => $.evolve({ taps: taps => taps + 1 }),
     PressedFocus: $ => $.run(NativeCommand.focus(Field).pipe(Command.asNoop)),
     ChangedText: ($, { text }) => $.evolve({ text }),
@@ -226,6 +231,25 @@ describe('AnchoredList', () => {
         yield* app.emit('list', 'topScrollBeginDrag', { contentOffset: { x: 0, y: 0 } })
         yield* app.touchEnd('list')
         expect(app.root.model()?.taps).toBe(1)
+      }),
+    ))
+})
+
+describe('AnchoredList.touch', () => {
+  it('a "down" that runs after its "up" is dropped, so the list is not left waiting', () =>
+    run(
+      Effect.gen(function* () {
+        const { app, scroll } = yield* start()
+        yield* app.press('to-end')
+        yield* app.wait(60)
+        // A tap, with its two Commands run in the wrong order.
+        app.root.send(DemoMessage.TouchedAt({ isDown: false, at: 2 }))
+        yield* app.wait(20)
+        app.root.send(DemoMessage.TouchedAt({ isDown: true, at: 1 }))
+        yield* app.wait(20)
+        app.root.send(DemoMessage.PressedGrow())
+        yield* app.wait(60)
+        expect(scroll.phone.offset).toBe(61 * ROW - VIEWPORT)
       }),
     ))
 })

@@ -58,7 +58,7 @@ export const ChatScreenMessage = UiSchema.TaggedEnum({
   StartedTurn: { turnId: Schema.String, messageId: Schema.String },
   FailedSend: { reason: Schema.String },
   ChangedConversation: {},
-  ChangedKeyboard: { height: Schema.Number },
+  ChangedKeyboard: { height: Schema.Number, covers: Schema.Number },
   DismissedByPhone: { count: Schema.Number },
   /** The phone says the push has finished. */
   AppearedChat: {},
@@ -88,6 +88,12 @@ const ChatScreenModel = Schema.Struct({
   started: Schema.NullOr(Schema.Struct({ turnId: Schema.String, messageId: Schema.String })),
   notice: Schema.String,
   keyboardHeight: Schema.Number,
+  /**
+   * How much of the app's window the keyboard covers. 0 on an Android window
+   * that makes itself shorter for the keyboard. Read only where the app pads
+   * the composer itself.
+   */
+  keyboardCovers: Schema.Number,
   /** The question held near the top of the screen, by its row key. */
   anchorKey: Schema.NullOr(Schema.String),
   /** Whether the end of the transcript is in view, and whether the list follows it. */
@@ -161,6 +167,7 @@ export const ChatScreen = Native.component({
     started: null,
     notice: '',
     keyboardHeight: 0,
+    keyboardCovers: 0,
     anchorKey: null,
     isAtEnd: true,
     isFollowing: true,
@@ -205,8 +212,10 @@ export const ChatScreen = Native.component({
         ? $.evolve({ started: null })
         : $.model
     },
-    ChangedKeyboard: ($, { height }) =>
-      Math.round(height) === $.model.keyboardHeight ? $.model : $.evolve({ keyboardHeight: Math.round(height) }),
+    ChangedKeyboard: ($, { height, covers }) =>
+      Math.round(height) === $.model.keyboardHeight && Math.round(covers) === $.model.keyboardCovers
+        ? $.model
+        : $.evolve({ keyboardHeight: Math.round(height), keyboardCovers: Math.round(covers) }),
     DismissedByPhone: ($, { count }) => $.emit(ChatScreenEvents.Dismissed({ count })),
     // The first of the two that says the push is done raises the keyboard, once.
     AppearedChat: $ => ($.model.focus === 'pending' ? $.evolve({ focus: 'asked' as const }) : $.model),
@@ -224,7 +233,7 @@ export const ChatScreen = Native.component({
     HeldTitle: $ => $.emit(ChatScreenEvents.ToggledNumbers()),
   },
   subscriptions: ({ model }) => [
-    Phone.keyboard(frame => ChatScreenMessage.ChangedKeyboard({ height: frame.height })),
+    Phone.keyboard(frame => ChatScreenMessage.ChangedKeyboard({ height: frame.height, covers: frame.covers })),
     model.focus === 'pending' && pushWait,
   ],
   view: (h, model) => {
@@ -249,7 +258,7 @@ export const ChatScreen = Native.component({
         h.safeArea.set({ edges: { ...Native.safeAreaEdges(platform, { hasHeader: true }), bottom: false } }).children(
           h.view.style({ flex: 1, backgroundColor: palette.bg }).children(
             KeyboardBar.view(h, {
-              keyboardHeight: model.keyboardHeight,
+              keyboardHeight: model.keyboardCovers,
               listId: TRANSCRIPT_ID,
               fieldId: DRAFT_FIELD_ID,
               backgroundColor: palette.bg,

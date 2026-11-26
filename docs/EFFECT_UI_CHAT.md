@@ -29,7 +29,7 @@ topic, and every screen that named the topic loads its data again. Effect UI
 has this built in, and it is called Query. Effect Chat uses Query and has
 none of our own code for it.
 
-What we know: 126 tests pass on a simulated phone, on two builds of the
+What we know: 127 tests pass on a simulated phone, on two builds of the
 engine. The app bundles for iPhone and Android.
 
 What we do not know: anything only a real phone can show. Nobody has run the
@@ -218,7 +218,7 @@ Two findings about our own host, not about Effect UI:
 | The chat screen, transcript and composer on top of these | `chat/parts/` |
 | Stop, as a Command | `chat/data.ts` |
 | The drawn arrow and the Stop square | `chat/icons.ts` |
-| Tests: 37 for the chat screen, 8 for the new modules, 3 for the arrow | `test/chatMechanics.test.ts`, `anchoredList.test.ts`, `chatIcons.test.ts` |
+| Tests: 37 for the chat screen, 9 for the new modules, 3 for the arrow | `test/chatMechanics.test.ts`, `anchoredList.test.ts`, `chatIcons.test.ts` |
 
 ### The open question from step 1, answered
 
@@ -311,15 +311,19 @@ keyboard).
    host's node hooks look for. It is how the list and the bar start before
    the commit that shows them. A Mount would start a moment after the
    commit, and could miss the phone's first layout report.
-4. **A parent cannot tell a child to act.** A ref only resolves inside the
+4. **Two Commands may not run in the order they were issued.** A tap on a
+   row issues "finger down" and "finger up" within a moment. Each carries a
+   count from the Model, and the list drops one that arrives late. Without
+   it, a list could be left waiting for a finger that has gone.
+5. **A parent cannot tell a child to act.** A ref only resolves inside the
    component that owns the element. So the chat screen cannot focus the
    composer's field. It raises a number in the composer's props, and the
    composer has a Subscription keyed by that number that sends itself one
    Message. It works. It is not pretty.
-5. **Events that are not in the vocabulary are cast.** The list's own
+6. **Events that are not in the vocabulary are cast.** The list's own
    events (`listWindowChanged`, `listAtEndChanged`, `listFollowChanged`)
    are cast once, inside `AnchoredList.view`.
-6. **The first question of a new chat sits at 0, not at 16.** There is
+7. **The first question of a new chat sits at 0, not at 16.** There is
    nothing above it to scroll away. Fold Chat does the same.
 
 ### Where this differs from the brief
@@ -455,7 +459,8 @@ Each test of step 2 was seen to fail once too. The defects tried, by point:
     are here.
 
 And for the new modules: the numbers line not written by the list, row
-heights not reaching the controller, the scroll view's content view not
+heights not reaching the controller, a late "finger down" not dropped, the
+scroll view's content view not
 announced to the host's hooks, the window told on every draw (the test does
 not end), the text field not named for the keyboard's drag, and the arrow's
 head drawn beside the stem.
