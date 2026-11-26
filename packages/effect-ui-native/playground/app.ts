@@ -18,9 +18,10 @@ import { LongList } from './longList.js'
 import * as Look from './look.js'
 import { NoteDetail, Notes } from './notes.js'
 import { PhoneScreen } from './phone.js'
+import { ServerState } from './serverState.js'
 import { Touch } from './touch.js'
 
-const Demo = Schema.Literals(['Counter', 'Notes', 'LongList', 'Touch', 'Phone'])
+const Demo = Schema.Literals(['Counter', 'Notes', 'LongList', 'Touch', 'Phone', 'ServerState'])
 type Demo = typeof Demo.Type
 
 const Screen = Schema.Union([
@@ -51,6 +52,7 @@ const DEMOS: ReadonlyArray<Readonly<{ demo: Demo; title: string; what: string }>
   { demo: 'LongList', title: 'Long list', what: '1,000 rows, with numbers for how it runs.' },
   { demo: 'Touch', title: 'Touch tests', what: 'Press, hold, a button in a row, and a list that moves by itself.' },
   { demo: 'Phone', title: 'Phone', what: 'Haptics, clipboard, keyboard, dark mode.' },
+  { demo: 'ServerState', title: 'Server state', what: 'A list from a pretend server: load, add, delete, fail.' },
 ]
 
 const titleOf = (screen: Screen): string =>
@@ -120,6 +122,8 @@ export const App = Native.component({
           return Touch(h, { key: screen.key, props: { hasReadout } })
         case 'Phone':
           return PhoneScreen(h, { key: screen.key })
+        case 'ServerState':
+          return ServerState(h, { key: screen.key })
       }
     }
     return h.stack.testId('stack').children(

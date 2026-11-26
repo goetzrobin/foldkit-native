@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { registerNavigation } from '../../native/src/host/navigation/views.js'
 import { App } from '../playground/app.js'
 import { MAX_DRAFT } from '../playground/notes.js'
+import { playgroundServices } from '../playground/start.js'
 import { Phone } from '../src/index.js'
 import { NativeTest } from '../src/testing/index.js'
 import { run } from './support.js'
@@ -16,7 +17,7 @@ const start = () =>
   Effect.gen(function* () {
     registerNavigation()
     const device = Phone.Device.makeTest()
-    const layer = Layer.provideMerge(Phone.layer, device.layer)
+    const layer = Layer.provideMerge(playgroundServices(device.layer, { serverDelayMs: 20 }), device.layer)
     const app = yield* NativeTest.mount(App, { platform: 'ios', hasReadout: false }).pipe(Effect.provide(layer))
     return { app, device }
   })
