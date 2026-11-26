@@ -9,6 +9,7 @@
 import { Layer } from 'effect'
 
 import * as Alert from './alert.js'
+import * as Appearance from './appearance.js'
 import * as Native from './audioNative.js'
 import * as AppState from './appState.js'
 import * as Clipboard from './clipboard.js'
@@ -21,6 +22,7 @@ import * as Network from './network.js'
 import * as Player from './player.js'
 import * as Recorder from './recorder.js'
 import * as Share from './share.js'
+import * as Speech from './speech.js'
 import * as Storage from './storage.js'
 import * as VoiceNotes from './voiceNotes.js'
 import * as Window from './window.js'
@@ -30,6 +32,7 @@ export type { Source, TestSource } from './common.js'
 
 export {
   Alert,
+  Appearance,
   AppState,
   Clipboard,
   ColorScheme,
@@ -41,6 +44,7 @@ export {
   Player,
   Recorder,
   Share,
+  Speech,
   Storage,
   VoiceNotes,
   Window,
@@ -62,6 +66,8 @@ export type Services =
   | Recorder.Recorder
   | Player.Player
   | VoiceNotes.VoiceNotes
+  | Speech.Speech
+  | Appearance.Appearance
 
 /** The real modules, as the app imports them. */
 export type LiveModules = Readonly<{
@@ -93,6 +99,11 @@ export type LiveModules = Readonly<{
   audio?: Native.AudioModule | null
   /** `Native.fileSystemFromGlobal()`, for saved voice notes. */
   fileSystem?: Native.FileSystemModule | null
+  /**
+   * `Speech.moduleFromGlobal()`, for speech recognition. Left out or null,
+   * every speech call fails and says the build has no such module.
+   */
+  speech?: Speech.SpeechModule | null
 }>
 
 /** The recorder, the player and the notes store, sharing one audio session. */
@@ -147,6 +158,9 @@ export const live = (modules: LiveModules): Layer.Layer<Services> => {
     Network.live(modules.network),
     Window.live(reactNative.Dimensions),
     liveVoice(modules),
+    Speech.live(modules.speech),
+    // React Native's `Appearance` both reports the scheme and sets it.
+    Appearance.live(reactNative.Appearance as Appearance.AppearanceSetter),
   )
 }
 
@@ -194,6 +208,9 @@ export const makeTest = (
   const recorder = Recorder.makeTest({ audio, files, session })
   const player = Player.makeTest({ audio, session })
   const voiceNotes = VoiceNotes.makeTest({ files })
+  const speech = Speech.makeTest()
+  // The pretend phone reports the scheme the program set, as a real one does.
+  const appearance = Appearance.makeTest({ onSet: scheme => colorScheme.set(scheme) })
   const layer: Layer.Layer<Services> = Layer.mergeAll(
     haptics.layer,
     clipboard.layer,
@@ -209,6 +226,8 @@ export const makeTest = (
     recorder.layer,
     player.layer,
     voiceNotes.layer,
+    speech.layer,
+    appearance.layer,
   )
   return {
     layer,
@@ -226,6 +245,8 @@ export const makeTest = (
     recorder,
     player,
     voiceNotes,
+    speech,
+    appearance,
     /** The pretend audio module behind the recorder and the player. */
     audio,
     /** The pretend files behind the recorder and the notes store. */
