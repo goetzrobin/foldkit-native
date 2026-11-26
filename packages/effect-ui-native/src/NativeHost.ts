@@ -41,6 +41,7 @@ import { type Bag, type NodeData, type NodeHooks, makeNodeHooks } from '../../na
 import { registered } from '../../native/src/host/fabric/registry.js'
 import { type HostSurface, type HostSurfaceOptions, createHostSurface } from '../../native/src/host/fabric/surface.js'
 import { CHANGE_TEXT, type Source, isTouchEvent, nativeOf, sourcesOf } from './internal/events.js'
+import { type MotionController, makeMotion } from './internal/motion.js'
 import { TOUCH, type TouchSpec, type TouchStats, makeTouchHooks } from './internal/touch.js'
 
 export { NATIVE_GRACE_MS, NATIVE_HOLD, holdReport, resetHoldReport } from './internal/touch.js'
@@ -178,12 +179,16 @@ export const makeHost = (
   stats: HostStats,
   entries: Map<EngineNode, Entry>,
   options: MakeHostOptions = {},
+  /** Who animates views (`internal/motion.ts`). A view with a way out is kept on screen until it has run. */
+  motion?: MotionController,
 ): NativeHostHandle => {
   const engine = surface.engine
   const throttleMs = options.scrollThrottleMs ?? 16
   const shelfOf = new WeakMap<EngineNode, Shelf>()
   const dirty: Array<EngineNode> = []
   const detached = new Set<EngineNode>()
+  /** Taken away in this flush, with a way out to run first (`Motion.animate` with `exit`). Still on screen. */
+  const leaving = new Set<EngineNode>()
   /** Content views, back to their scroll view. */
   const ownerOfContent = new WeakMap<EngineNode, EngineNode>()
 
@@ -351,6 +356,34 @@ export const makeHost = (
     shelfOf.delete(node)
   }
 
+  /** The renderer has let go of these elements. Nothing they report is handed on. */
+  const silence = (node: EngineNode): void => {
+    const entry = entries.get(node)
+    if (entry !== undefined) {
+      entry.dispatch = undefined
+      if (entry.heldScroll !== undefined) clearTimeout(entry.heldScroll)
+      entry.heldScroll = undefined
+    }
+    for (const child of node.childList) silence(child as EngineNode)
+  }
+
+  /**
+   * A view the renderer took away, with a way out. It stays where it is,
+   * out of reach of fingers, until its animation is over. Then it goes.
+   */
+  const startLeaving = (node: EngineNode): void => {
+    if (!entries.has(node) || engine.parentNode(node) === null) return
+    silence(node)
+    engine.setProp(node, 'pointerEvents', 'none')
+    const takeAway = (): void => {
+      if (!entries.has(node)) return
+      engine.removeChild(null, node)
+      destroy(node)
+      surface.commit()
+    }
+    if (motion?.leave(node, takeAway) !== true) takeAway()
+  }
+
   /** Where children of `parent` really go. */
   const insideOf = (parent: EngineNode): EngineNode => entries.get(parent)?.content ?? parent
 
@@ -435,6 +468,8 @@ export const makeHost = (
     insertBefore(parent, node, ref) {
       if (node instanceof Shelf) return
       detached.delete(node)
+      // Put back in the same flush: it is not leaving after all.
+      if (leaving.delete(node)) engine.removeChild(null, node)
       leaveShelf(node)
       if (parent instanceof Shelf) {
         engine.removeChild(null, node)
@@ -452,7 +487,11 @@ export const makeHost = (
     remove(node) {
       if (node instanceof Shelf) return
       if (shelfOf.has(node)) leaveShelf(node)
-      else engine.removeChild(null, node)
+      else if (motion?.hasExit(node) === true) {
+        // Kept on screen for its way out, which starts once this flush is committed.
+        leaving.add(node)
+        return
+      } else engine.removeChild(null, node)
       // It may be put back in this same flush (a kept child). Destroyed at the commit if not.
       detached.add(node)
     },
@@ -517,13 +556,16 @@ export const makeHost = (
       }
       detached.clear()
       flushHooks()
-      if (held > 0) {
-        isCommitOwed = true
-        return
+      const goingOut = leaving.size === 0 ? undefined : [...leaving]
+      leaving.clear()
+      if (held > 0) isCommitOwed = true
+      else {
+        stats.commits++
+        surface.commit()
+        if (step !== undefined) endStep(now() - step.startedAt, true)
       }
-      stats.commits++
-      surface.commit()
-      if (step !== undefined) endStep(now() - step.startedAt, true)
+      // After the commit: a way out that cannot run takes the view away at once, with a commit of its own.
+      if (goingOut !== undefined) for (const node of goingOut) startLeaving(node)
     },
   }
 
@@ -595,6 +637,8 @@ export const makeHost = (
     }
     for (const node of detached) destroy(node)
     detached.clear()
+    leaving.clear()
+    motion?.dispose()
     dirty.length = 0
     // The phone is told the screen is empty now.
     surface.commit()
@@ -650,7 +694,10 @@ export const makeSurface = (
   const entries = new Map<EngineNode, Entry>()
   let hooks: Array<NodeHooks> = []
   let handle: NativeHostHandle | undefined
+  let motion: MotionController | undefined
   const surface = createHostSurface(fabric, rootTag, hostOptions, (engine, afterCommit) => {
+    // Opacity and transform that the phone animates. After the element's own hooks: it writes the style last.
+    const animator = (motion = makeMotion(engine, afterCommit, node => entries.get(node)?.props ?? {}))
     hooks = [
       // Props, styles, events, the text field echo, screens.
       ...makeNodeHooks(engine, afterCommit),
@@ -661,13 +708,19 @@ export const makeSurface = (
         afterCommit,
         ...(longPressMs === undefined ? {} : { longPressMs }),
       }),
+      animator.hooks,
       // What other host features registered at import (modal screens, the app window).
       ...registered().flatMap(each => (each.kind === 'hooks' ? [each.factory(engine, afterCommit)] : [])),
     ]
   })
-  handle = makeHost(surface, hooks, stats, entries, {
-    ...(scrollThrottleMs === undefined ? {} : { scrollThrottleMs }),
-  })
+  handle = makeHost(
+    surface,
+    hooks,
+    stats,
+    entries,
+    { ...(scrollThrottleMs === undefined ? {} : { scrollThrottleMs }) },
+    motion,
+  )
   const made = handle
   return {
     ...made,
