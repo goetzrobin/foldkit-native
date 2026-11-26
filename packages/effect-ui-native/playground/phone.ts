@@ -17,6 +17,7 @@ import * as Look from './look.js'
 export const PhoneMessage = UiSchema.TaggedEnum({
   PressedImpact: { style: Phone.Device.Haptics.ImpactStyle },
   PressedNotify: {},
+  CompletedHaptic: { outcome: Phone.Outcome },
   PressedCopy: {},
   CompletedCopy: { outcome: Phone.Outcome },
   PressedPaste: {},
@@ -30,6 +31,7 @@ export const PhoneMessage = UiSchema.TaggedEnum({
 
 const PhoneModel = Schema.Struct({
   taps: Schema.Number,
+  haptic: Schema.String,
   copied: Schema.Number,
   clipboard: Schema.String,
   field: Schema.String,
@@ -46,6 +48,7 @@ export const PhoneScreen = Native.component({
 }).make({
   init: () => ({
     taps: 0,
+    haptic: 'none asked yet',
     copied: 0,
     clipboard: 'nothing read yet',
     field: '',
@@ -55,8 +58,19 @@ export const PhoneScreen = Native.component({
     appStateChanges: 0,
   }),
   update: {
-    PressedImpact: ($, { style }) => $.evolve({ taps: n => n + 1 }).run(Phone.Impact.make({ style })),
-    PressedNotify: $ => $.evolve({ taps: n => n + 1 }).run(Phone.Notify.make({ type: 'success' })),
+    PressedImpact: ($, { style }) => $.evolve({ taps: n => n + 1 }).run(
+        Phone.Impact.make({ style }).pipe(Command.map(outcome => PhoneMessage.CompletedHaptic({ outcome }))),
+      ),
+    PressedNotify: $ =>
+      $.evolve({ taps: n => n + 1 }).run(
+        Phone.Notify.make({ type: 'success' }).pipe(
+          Command.map(outcome => PhoneMessage.CompletedHaptic({ outcome })),
+        ),
+      ),
+    // The phone's answer, shown as it is: a tap that is not felt is either
+    // refused here (a reason) or taken and left to the phone's settings.
+    CompletedHaptic: ($, { outcome }) =>
+      $.evolve({ haptic: outcome._tag === 'Done' ? 'the phone took it' : `failed: ${outcome.reason}` }),
     PressedCopy: $ =>
       $.run(
         Phone.Copy.make({ text: `Copied from the playground, ${$.model.copied + 1}` }).pipe(
@@ -94,7 +108,7 @@ export const PhoneScreen = Native.component({
           Look.plainButton(h, 'phone-heavy', 'Heavy tap', PhoneMessage.PressedImpact({ style: 'heavy' })),
           Look.plainButton(h, 'phone-success', 'Success', PhoneMessage.PressedNotify()),
         ),
-        h.text.testId('phone-taps').style(Look.small).children(`Taps asked for: ${model.taps}`),
+        h.text.testId('phone-taps').style(Look.small).children(`Taps asked for: ${model.taps}. Last answer: ${model.haptic}`),
 
         h.text.style({ ...Look.label, color: ink }).children('Clipboard'),
         h.view.style({ flexDirection: 'row', gap: 8 }).children(

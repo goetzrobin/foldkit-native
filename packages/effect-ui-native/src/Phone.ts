@@ -41,15 +41,19 @@ export type Outcome = typeof Outcome.Type
 const done: Outcome = { _tag: 'Done' }
 const failed = (error: Device.DeviceError): Outcome => ({ _tag: 'Failed', reason: error.reason })
 
-/** A tap under the finger. The phone decides whether anything is felt. */
+/**
+ * A tap under the finger. `Done` means the phone took the request; whether
+ * anything is felt is the phone's own choice (its settings can turn taps off).
+ * `Failed` carries the reason, such as the native module missing from the build.
+ */
 export class Impact extends Command.Service<Impact>()('Phone/Impact', {
   args: { style: Haptics.ImpactStyle },
-  success: Component.Noop,
+  success: Outcome,
 }) {
   static readonly layer = this.toLayer(
     Effect.gen(function* () {
       const haptics = yield* Haptics.Haptics
-      return ({ style }) => Effect.as(Effect.ignore(haptics.impact(style)), Component.noop)
+      return ({ style }) => Effect.match(haptics.impact(style), { onSuccess: () => done, onFailure: failed })
     }),
   )
 }
@@ -57,12 +61,12 @@ export class Impact extends Command.Service<Impact>()('Phone/Impact', {
 /** The small tick of a picker moving. */
 export class Selection extends Command.Service<Selection>()('Phone/Selection', {
   args: {},
-  success: Component.Noop,
+  success: Outcome,
 }) {
   static readonly layer = this.toLayer(
     Effect.gen(function* () {
       const haptics = yield* Haptics.Haptics
-      return () => Effect.as(Effect.ignore(haptics.selection), Component.noop)
+      return () => Effect.match(haptics.selection, { onSuccess: () => done, onFailure: failed })
     }),
   )
 }
@@ -70,12 +74,12 @@ export class Selection extends Command.Service<Selection>()('Phone/Selection', {
 /** The pattern the phone plays for an outcome. */
 export class Notify extends Command.Service<Notify>()('Phone/Notify', {
   args: { type: Haptics.NotificationType },
-  success: Component.Noop,
+  success: Outcome,
 }) {
   static readonly layer = this.toLayer(
     Effect.gen(function* () {
       const haptics = yield* Haptics.Haptics
-      return ({ type }) => Effect.as(Effect.ignore(haptics.notification(type)), Component.noop)
+      return ({ type }) => Effect.match(haptics.notification(type), { onSuccess: () => done, onFailure: failed })
     }),
   )
 }

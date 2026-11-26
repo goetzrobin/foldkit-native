@@ -121,6 +121,11 @@ describe('playground app', () => {
         yield* app.press('phone-light')
         yield* app.press('phone-success')
         expect(device.haptics.calls).toEqual(['impact:light', 'notification:success'])
+        expect(app.text('phone-taps')).toBe('Taps asked for: 2. Last answer: the phone took it')
+        // A phone that refuses says why on the screen.
+        yield* Effect.sync(() => device.haptics.failNext('no haptics module'))
+        yield* app.press('phone-heavy')
+        expect(app.text('phone-taps')).toBe('Taps asked for: 3. Last answer: failed: no haptics module')
         yield* app.press('phone-copy')
         expect(device.clipboard.contents()).toBe('Copied from the playground, 1')
         yield* app.press('phone-paste')
