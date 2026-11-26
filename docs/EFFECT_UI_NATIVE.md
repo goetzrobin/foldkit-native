@@ -20,8 +20,8 @@ What exists now:
 - **A playground app** (`apps/eui-playground`) with six screens: a counter,
   notes, a 1,000 row list, touch tests, phone features, and a list loaded
   from a pretend server. It is there to answer questions on a real phone.
-- **78 tests** on a simulated phone, all passing. 25 of them came with
-  Effect Chat, the first step of the Fold Chat port. See
+- **126 tests** on a simulated phone, all passing. 73 of them came with
+  Effect Chat, the first two steps of the Fold Chat port. See
   `docs/EFFECT_UI_CHAT.md`.
 
 Effect UI itself needed no change. It runs on the phone's JavaScript engine
@@ -153,15 +153,20 @@ the code is checked and when it runs.
 | `NativeViews` | `sheet(options)`, `glass(h, options)`, `markdown(h, options)`, `makeCanvas(name, args, paint)`, and the register and status functions |
 | `Phone` | Commands `Impact`, `Selection`, `Notify`, `Copy`, `Paste`, `DismissKeyboard`. Subscriptions `keyboard`, `appState`, `colorScheme`. `Phone.live(modules)`, `Phone.layer`. |
 | `VirtualList` | `Model`, `init`, `scrolled`, `measured`, `view` |
-| `effect-ui-native/src/testing` | `NativeTest.mount(Component, props)`: a simulated phone with `press`, `touchStart`, `typeText`, `scroll`, `emit`, `text`, `commands` |
+| `AnchoredList` | A chat's list: the host's list controller places it, Effect UI draws the rows. `Window`, `init`, `view`, `scrollToEnd`, `touch`, `numbers`, `numbersLabel`. See `docs/EFFECT_UI_CHAT.md`, step 2 |
+| `KeyboardBar` | A bar the phone moves with the keyboard, over a list that makes room with a bottom inset. `view`, `configure`, `mode`, `isInset` |
+| `effect-ui-native/src/testing` | `NativeTest.mount(Component, props)`: a simulated phone with `press`, `touchStart`, `typeText`, `scroll`, `emit`, `text`, `commands`. `ChatPhone.start(app, options)`: a scroll view that behaves as UIKit's does, and a keyboard that moves the bar |
 
 A screen stack is state in a Model. The component that owns the stack draws
 one `h.screen` per entry, the last one on top, and listens for `dismissed`
 to drop the screens the phone closed by itself. `playground/app.ts` shows
 it.
 
-Not wrapped yet: the keyboard dock, menus, Expo UI controls, swipe rows,
-tabs and the search bar. Their native halves are in the host layer.
+Not wrapped yet: menus, Expo UI controls, swipe rows, tabs and the search
+bar. Their native halves are in the host layer. A host feature that finds
+its elements by a key in the node's data can be switched on for an element
+with the `nodeData` prop (`NativeHost.NODE_DATA`): the list and the keyboard
+bar work that way.
 
 ## Question 1: lists
 

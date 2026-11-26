@@ -10,11 +10,11 @@ import * as ExpoNetwork from 'expo-network'
 import * as SecureStore from 'expo-secure-store'
 import * as ReactNative from 'react-native'
 import { AppRegistry, Image, Platform, TurboModuleRegistry, processColor } from 'react-native'
-import { getFabricUIManager, registerPlatformComponents } from '@ng-native/fabric'
+import { type NativeAnimated, getFabricUIManager, registerPlatformComponents } from '@ng-native/fabric'
 import remend from 'remend'
 
 import { configureWorklets } from './native/native/src/host/worklets'
-import { NativeViews, Phone } from './native/effect-ui-native/src'
+import { KeyboardBar, NativeViews, Phone } from './native/effect-ui-native/src'
 import { phoneDisk, startChat } from './native/effect-ui-native/chat/start'
 
 registerPlatformComponents(Platform.OS)
@@ -23,8 +23,32 @@ registerPlatformComponents(Platform.OS)
 // name. remend finishes half-written Markdown while a reply streams in.
 NativeViews.configureMarkdown({ remend })
 
-// Nothing in step 1 uses worklets. They are set up as in the playground, so
-// that a later step can attach the phone's own long press with no new build.
+/**
+ * React Native's animation module. With it, the phone moves the composer
+ * with the keyboard on the native side. It has no public import path, so it
+ * is asked for by its file. Missing: the composer is padded up from
+ * JavaScript, and the numbers strip says so.
+ */
+const nativeAnimated = (): NativeAnimated | null => {
+  try {
+    const helper = require('react-native/src/private/animated/NativeAnimatedHelper').default as
+      | (NativeAnimated & { assertNativeAnimatedModule: () => void })
+      | undefined
+    if (helper === undefined) return null
+    helper.assertNativeAnimatedModule()
+    return helper
+  } catch {
+    return null
+  }
+}
+
+// The composer travels with the keyboard frame by frame, and the transcript
+// makes room by scrolling, with react-native-keyboard-controller's native
+// view where the build has it (iPhone).
+KeyboardBar.configure({ nativeAnimated: nativeAnimated() })
+
+// Nothing uses worklets yet. They are set up as in the playground, so that
+// step 3 can attach the phone's own long press with no new build.
 configureWorklets({
   load: () => require('react-native-worklets'),
   nativeModule: name => TurboModuleRegistry.get(name),
