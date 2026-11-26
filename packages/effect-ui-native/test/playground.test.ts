@@ -3,13 +3,17 @@
  * stack, notes with a text field, and the phone's services.
  */
 import { Effect, Layer } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { registerNavigation } from '../../native/src/host/navigation/views.js'
+import { configureWorklets, resetWorklets } from '../../native/src/host/worklets/host.js'
+import { requireCompiledWorklets } from '../../native/src/host/worklets/run.js'
+import { type FakeWorklets, makeWorklets } from '../../native/test/support/worklets.js'
 import { App } from '../playground/app.js'
+import { BLOCK_MS, TRAVEL_MS } from '../playground/motion.js'
 import { MAX_DRAFT } from '../playground/notes.js'
 import { playgroundServices } from '../playground/start.js'
-import { Phone } from '../src/index.js'
+import { Motion, Phone } from '../src/index.js'
 import { NativeTest } from '../src/testing/index.js'
 import { run } from './support.js'
 
@@ -195,6 +199,73 @@ describe('playground app', () => {
         expect(device.keyboard.listenerCount()).toBe(0)
         expect(device.colorScheme.listenerCount()).toBe(0)
         expect(device.appState.listenerCount()).toBe(0)
+      }),
+    ))
+})
+
+describe('playground: the Motion screen', () => {
+  let ui: FakeWorklets | undefined
+  afterEach(() => {
+    ui?.uninstall()
+    ui = undefined
+    resetWorklets()
+    requireCompiledWorklets(true)
+    Motion.reset()
+    delete (globalThis as { __effectUiMotion?: unknown }).__effectUiMotion
+  })
+
+  const translateX = (style: Readonly<Record<string, unknown>>): number | undefined =>
+    (style['transform'] as ReadonlyArray<{ translateX?: number }> | undefined)?.find(each => 'translateX' in each)?.translateX
+
+  it('says which route is in use, and without worklets the boxes jump to their end', () =>
+    run(
+      Effect.gen(function* () {
+        const { app } = yield* start()
+        yield* app.press('menu-Motion')
+        expect(app.text('motion-route')).toBe('Animations run: set at once, no movement (the app did not call configureWorklets())')
+        expect(translateX(app.byTestId('motion-move').props)).toBe(0)
+        yield* app.press('motion-run')
+        expect(translateX(app.byTestId('motion-move').props)).toBe(180)
+        expect(app.byTestId('motion-fade').props['opacity']).toBe(0.15)
+      }),
+    ))
+
+  it('with worklets the three boxes are started before JavaScript is blocked, and move with no draw from JavaScript', () =>
+    run(
+      Effect.gen(function* () {
+        const worklets = makeWorklets()
+        ui = worklets
+        requireCompiledWorklets(false)
+        configureWorklets(worklets.config)
+        const { app } = yield* start()
+        yield* app.press('menu-Motion')
+        expect(app.text('motion-route')).toBe("Animations run: on the phone's own thread")
+        const tags = ['motion-fade', 'motion-move', 'motion-spring'].map(id => app.byTestId(id).reactTag)
+        const sentTo = (tag: number) => worklets.updates.filter(update => update.tag === tag)
+        // Not through `app.press`: that waits, and the wait would end inside the block.
+        const button = app.byTestId('motion-block')
+        const touch = { identifier: 0, target: button.reactTag, pageX: 0, pageY: 0, locationX: 0, locationY: 0, timestamp: 0 }
+        app.fabric.emit(button, 'topTouchStart', { ...touch, touches: [touch], changedTouches: [touch] })
+        app.fabric.emit(button, 'topTouchEnd', { ...touch, touches: [], changedTouches: [touch] })
+        // The draw that starts the animations, and no more: the block begins 60 ms later.
+        yield* Effect.promise(() => new Promise<void>(resolve => setTimeout(resolve, 20)))
+        expect(app.text('motion-blocked')).toBe('JavaScript is blocked now.')
+        worklets.flushUi()
+        const before = tags.map(tag => sentTo(tag).length)
+        // The phone's own thread runs frames. JavaScript does nothing at all here: this test
+        // is the only JavaScript running, as it would be during the block.
+        const commits = app.commitCount()
+        for (let frame = 0; frame < 30; frame++) worklets.frame(16, { deliver: false })
+        expect(app.commitCount()).toBe(commits)
+        tags.forEach((tag, index) => expect(sentTo(tag).length - (before[index] as number)).toBeGreaterThanOrEqual(29))
+        expect(translateX(sentTo(tags[1] as number).at(-1)?.style ?? {})).toBeGreaterThan(20)
+        // The block itself: one second in which nothing else in JavaScript runs.
+        const startedAt = Date.now()
+        yield* app.wait(BLOCK_MS + 200)
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(BLOCK_MS)
+        expect(app.text('motion-blocked')).toMatch(/^JavaScript was blocked for 1\d\d\d ms\./)
+        // The boxes take longer than the block, so there is something left to see when it ends.
+        expect(TRAVEL_MS).toBeGreaterThan(BLOCK_MS)
       }),
     ))
 })

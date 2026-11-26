@@ -16,6 +16,7 @@ import remend from 'remend'
 import { configureWorklets } from './native/native/src/host/worklets'
 import { KeyboardBar, Menus, NativeViews, Phone } from './native/effect-ui-native/src'
 import { phoneDisk, startChat } from './native/effect-ui-native/chat/start'
+import { Motion } from './native/effect-ui-native/src'
 
 registerPlatformComponents(Platform.OS)
 
@@ -65,6 +66,10 @@ configureWorklets({
   load: () => require('react-native-worklets'),
   nativeModule: name => TurboModuleRegistry.get(name),
 })
+
+// Animations run on the phone's own thread through the same worklets. With
+// the phone's Reduce Motion setting on, nothing moves and only a short fade is left.
+Motion.configure({ accessibilityInfo: ReactNative.AccessibilityInfo })
 
 /**
  * The splash screen hides itself when the first screen is drawn. Our first
