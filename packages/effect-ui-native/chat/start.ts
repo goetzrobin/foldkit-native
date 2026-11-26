@@ -12,7 +12,7 @@
 import type { FabricUIManager } from '@ng-native/fabric'
 import { Layer } from 'effect'
 
-import { type AiServer, type Disk, makeAiServer, memoryDisk } from '../../native/src/host/aiChat/server.js'
+import { type AiServer, type Disk, diskFromFiles, makeAiServer, memoryDisk } from '../../native/src/host/aiChat/server.js'
 import { type InProcessLink, layerInProcess, makeInProcessLink } from '../../native/src/host/aiChat/transport.js'
 import { registerNavigation } from '../../native/src/host/navigation/views.js'
 import { NativeHost, NativeQuery, Phone } from '../src/index.js'
@@ -42,6 +42,20 @@ export type ChatOptions = NativeHost.SurfaceOptions &
     device: Layer.Layer<DeviceServices>
     onSurface?: (surface: NativeHost.NativeSurface) => void
   }>
+
+/**
+ * Where the chats are kept on a phone: files in the app's documents, which
+ * are still there after the app closes. In a build without the file module:
+ * memory, kept while the app runs.
+ */
+export const phoneDisk = (): Disk => {
+  try {
+    const module = Phone.Device.Native.fileSystemFromGlobal()
+    return module === null ? memoryDisk().disk : diskFromFiles(Phone.Device.Native.filesFrom(module, 'effect-chat'))
+  } catch {
+    return memoryDisk().disk
+  }
+}
 
 /**
  * What the app's components ask for, over the phone's services: the queries
