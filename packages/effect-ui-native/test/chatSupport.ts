@@ -118,7 +118,18 @@ export const listed = (app: TestApp): Array<string> =>
     .filter(id => id.startsWith('chat-row-'))
     .map(id => id.slice('chat-row-'.length))
 
-export const textIn = (node: FakeFabricNode): string => NativeTest.textOf(node)
+/** The words in a view: its text, and what its native Markdown views were last given. */
+export const textIn = (node: FakeFabricNode): string =>
+  NativeTest.flatten([node])
+    .map(each =>
+      each.viewName === 'RawText'
+        ? each.props['text']
+        : each.viewName === 'EnrichedMarkdown'
+          ? each.props['markdown']
+          : undefined,
+    )
+    .filter((value): value is string => typeof value === 'string')
+    .join('')
 
 /** A finger resting on a view for longer than a long press, then lifting. */
 export const hold = (app: TestApp, id: string, ms = HOLD_MS + 60) =>
@@ -161,12 +172,9 @@ export const onEveryCommit = (app: TestApp, check: () => void): void => {
   }
 }
 
-/**
- * The text the program last put into a text field itself. While a person
- * types, the phone owns the text and the program sends none.
- */
+/** The text the program holds for the composer's field, as the phone was last given it. */
 export const lastSetText = (app: TestApp): string | undefined => {
-  const sets = app.commands().filter(command => command.name === 'setTextAndSelection')
-  const text = sets[sets.length - 1]?.args[1]
+  if (!app.has('draft')) return undefined
+  const text = app.byTestId('draft').props['text']
   return typeof text === 'string' ? text : undefined
 }

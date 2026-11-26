@@ -11,8 +11,10 @@
  *
  * - Empty field: two buttons. The sound wave records a voice note. The
  *   microphone listens and writes what it hears into the field.
- * - Something to send: Send. Grey and off while a message is on its way or
- *   the phone is offline.
+ * - Something to send: the microphone, to add to it by voice, and Send.
+ *   Send is grey and off while a message is on its way or the phone is
+ *   offline.
+ * - The phone is listening: the microphone alone, filled, to stop it.
  * - A reply is being written: Stop.
  *
  * Listening (speech recognition). A press on the microphone asks the phone
@@ -391,36 +393,38 @@ export const Composer = Native.component({
               microphone(h, palette.bg),
             ),
           ]
-        : hasSomething
-          ? [
-              roundButton(
-                h,
-                {
-                  id: 'send',
-                  label: 'Send',
-                  fill: canSend ? palette.accent : palette.surface2,
-                  message: canSend ? ComposerMessage.PressedSend() : undefined,
-                },
-                arrowUp(h, canSend ? palette.onAccent : palette.ink3),
-              ),
-            ]
-          : [
-              roundButton(
-                h,
-                {
-                  id: 'record',
-                  label: 'Record a voice note',
-                  fill: 'transparent',
-                  message: isOnline ? ComposerMessage.PressedRecord() : undefined,
-                },
-                soundWave(h, palette.ink2),
-              ),
-              roundButton(
-                h,
-                { id: 'mic', label: 'Speak your message', fill: 'transparent', message: ComposerMessage.PressedMic() },
-                microphone(h, palette.ink2),
-              ),
-            ]
+        : [
+            // Nothing to send yet: a voice note can be recorded.
+            hasSomething
+              ? null
+              : roundButton(
+                  h,
+                  {
+                    id: 'record',
+                    label: 'Record a voice note',
+                    fill: 'transparent',
+                    message: isOnline ? ComposerMessage.PressedRecord() : undefined,
+                  },
+                  soundWave(h, palette.ink2),
+                ),
+            roundButton(
+              h,
+              { id: 'mic', label: 'Speak your message', fill: 'transparent', message: ComposerMessage.PressedMic() },
+              microphone(h, palette.ink2),
+            ),
+            hasSomething
+              ? roundButton(
+                  h,
+                  {
+                    id: 'send',
+                    label: 'Send',
+                    fill: canSend ? palette.accent : palette.surface2,
+                    message: canSend ? ComposerMessage.PressedSend() : undefined,
+                  },
+                  arrowUp(h, canSend ? palette.onAccent : palette.ink3),
+                )
+              : null,
+          ]
 
     const recording = model.recording
     const note = model.note

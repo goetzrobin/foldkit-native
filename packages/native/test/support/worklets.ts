@@ -20,7 +20,7 @@
  *
  * See `src/worklets/host.ts` for the real things.
  */
-import type { WorkletsOptions, WorkletsPackage } from '../../src/worklets/index.js'
+import type { WorkletsOptions, WorkletsPackage } from '../../src/host/worklets/index.js'
 
 export type FakeWorkletsOptions = Readonly<{
   /** Whether the build has Reanimated's native code. Default true. */

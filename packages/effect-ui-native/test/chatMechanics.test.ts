@@ -957,6 +957,39 @@ describe('10. following stops under a finger and after a drag away, and starts a
     ))
 })
 
+describe('9b. the round button fades', () => {
+  it('in as the end goes out of view, and out again when the list is taken to the end, without leaving the bar', () =>
+    run(
+      Effect.gen(function* () {
+        const started = yield* chatWithHistory()
+        const { app } = started
+        const motion = () => app.byTestId('scroll-to-end-motion').props
+        // Away: see-through, small, and out of a finger's reach.
+        expect(motion()['opacity']).toBe(0)
+        expect(motion()['pointerEvents']).toBe('none')
+        expect(app.has('scroll-to-end')).toBe(false)
+        yield* send(app, RUNNING)
+        yield* untilRunsOff(started)
+        const seen: Array<number> = []
+        for (let step = 0; step < 14; step++) {
+          seen.push(motion()['opacity'] as number)
+          yield* app.wait(12)
+        }
+        // It did not pop in: it was partly there on the way.
+        expect(seen.some(opacity => opacity > 0 && opacity < 1), JSON.stringify(seen)).toBe(true)
+        yield* app.wait(200)
+        expect(motion()['opacity']).toBe(1)
+        expect(motion()['transform']).toEqual([{ scale: 1 }])
+        expect(motion()['pointerEvents']).toBe('box-none')
+        yield* app.press('scroll-to-end')
+        yield* app.wait(400)
+        expect(app.has('scroll-to-end')).toBe(false)
+        expect(motion()['opacity']).toBe(0)
+        expect(motion()['pointerEvents']).toBe('none')
+      }),
+    ))
+})
+
 describe('11. a finger held on a message while a reply streams is a hold', () => {
   const holds = (app: TestApp): string => app.text('numbers-holds')
 
