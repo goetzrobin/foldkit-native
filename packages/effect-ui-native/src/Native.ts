@@ -184,9 +184,10 @@ export interface ScreenProps extends ViewProps {
   readonly sheetAllowedDetents?: ReadonlyArray<number> | undefined
   readonly sheetGrabberVisible?: boolean | undefined
   readonly sheetCornerRadius?: number | undefined
-  readonly sheetLargestUndimmedDetentIndex?: number | undefined
+  readonly sheetLargestUndimmedDetent?: number | undefined
   readonly sheetExpandsWhenScrolledToEdge?: boolean | undefined
-  readonly sheetInitialDetentIndex?: number | undefined
+  readonly sheetInitialDetent?: number | undefined
+  readonly sheetElevation?: number | undefined
 }
 
 export interface HeaderProps extends ViewProps {
