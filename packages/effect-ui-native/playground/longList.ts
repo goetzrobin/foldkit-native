@@ -67,17 +67,23 @@ export const Row = Native.component({
   view: h => {
     viewRuns.rows++
     const { title, body, bullets, code } = h.props
+    // The same elements for every row, with the parts a row lacks hidden: a
+    // recycled row then changes text and styles, and no native view is made.
     return h.view.style({ gap: 4 }).children(
       h.text.style({ fontSize: 17, fontWeight: '700', color: Look.INK }).children(title),
       h.text.style({ fontSize: 15, lineHeight: 21, color: Look.INK }).children(body),
-      bullets !== '' && h.text.style({ fontSize: 15, lineHeight: 21, color: Look.DIM }).children(bullets),
-      code !== '' &&
-        h.view
-          .style({ backgroundColor: Look.WASH, borderRadius: 6, padding: 8 })
-          .children(h.text.style({ fontSize: 13, fontFamily: 'Menlo', color: Look.INK }).children(code)),
+      h.text.style(bullets === '' ? HIDDEN_TEXT : BULLETS).children(bullets),
+      h.view
+        .style(code === '' ? HIDDEN_BOX : CODE_BOX)
+        .children(h.text.style({ fontSize: 13, fontFamily: 'Menlo', color: Look.INK }).children(code)),
     )
   },
 })
+
+const BULLETS: Native.TextStyle = { fontSize: 15, lineHeight: 21, color: Look.DIM }
+const HIDDEN_TEXT: Native.TextStyle = { ...BULLETS, display: 'none' }
+const CODE_BOX: Native.ViewStyle = { backgroundColor: Look.WASH, borderRadius: 6, padding: 8 }
+const HIDDEN_BOX: Native.ViewStyle = { ...CODE_BOX, display: 'none' }
 
 const Readout = Schema.Struct({
   /** JavaScript frames in the last half second: the average and the longest, in ms. */

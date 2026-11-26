@@ -96,7 +96,9 @@ const windowed = (model: Model, offset: number, count: number): Model => {
   const drawn: Range = { first: model.first, end: Math.min(model.end, count) }
   const next = chooseWindow(heightsOf(model, count), offset, model.viewport, model.margin, drawn)
   if (next.first === model.first && next.end === model.end) return model
-  return { ...model, first: next.first, end: next.end, pool: Math.max(model.pool, next.end - next.first) }
+  // The pool only grows, and in steps of 8, so slots are seldom renumbered.
+  const pool = Math.max(model.pool, Math.ceil((next.end - next.first) / 8) * 8)
+  return { ...model, first: next.first, end: next.end, pool }
 }
 
 /**
@@ -154,7 +156,10 @@ export const view = <Msg, R = never>(
 ): View.ElementBuilder<Msg, R, any, any> => {
   const { model, count } = options
   const heights = heightsOf(model, count)
-  const end = Math.min(model.end, count)
+  // Recycling draws a full pool of rows every time, a few more than the
+  // window asks for, so every slot is always in use and no view is made or
+  // thrown away as the window moves.
+  const end = Math.min(count, options.recycle === true ? Math.max(model.end, model.first + model.pool) : model.end)
   const rows: Array<Native.NoTextContent<Msg, R>> = []
   for (let index = model.first; index < end; index++) {
     const key = keyOf(options, index)

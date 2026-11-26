@@ -29,6 +29,7 @@ import * as View from '@effect/ui/View'
 import type { Engine, EngineNode } from '@ng-native/fabric'
 import * as Context from 'effect/Context'
 import type * as Effect from 'effect/Effect'
+import type * as Scope from 'effect/Scope'
 
 import type { LayoutStyle, LookStyle, NativeStyle, TextStyle as HostTextStyle } from '../../native/src/host/style.js'
 import { PRESSED_STYLE } from '../../native/src/host/style.js'
@@ -77,6 +78,20 @@ export class Host extends Context.Service<
     readonly tagOf: (node: Node) => number | null
     /** Counters: commits, elements, listeners, presses. */
     readonly stats: Readonly<Record<string, number>>
+    /**
+     * EXPERIMENT (way B, see `experimental/SlotList.ts`). Mounts a second,
+     * separate component tree inside a node of this host.
+     */
+    readonly mountRoot: (
+      component: Component.Any,
+      props: unknown,
+      container: Node,
+    ) => Effect.Effect<Renderer.Root<unknown, unknown>, never, Scope.Scope>
+    /**
+     * EXPERIMENT. Holds engine commits back until the returned function is
+     * called, which then commits once. For several trees that draw in one turn.
+     */
+    readonly holdCommits: () => () => void
   }
 >()('effect-ui-native/Native/Host') {}
 

@@ -18,8 +18,8 @@ export type PlaygroundOptions = NativeHost.SurfaceOptions &
     fabric: FabricUIManager
     rootTag: number
     platform: string
-    /** The phone's services: `Phone.Device.live(modules)`, or a test's fakes. */
-    device: Layer.Layer<Phone.Device.Services>
+    /** The phone's services: `Phone.live(modules)`, or a test's fakes. */
+    device: Layer.Layer<Phone.Services>
     hasReadout?: boolean
     onSurface?: (surface: NativeHost.NativeSurface) => void
   }>

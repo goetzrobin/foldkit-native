@@ -470,11 +470,20 @@ export const makeHost = (
       }
       detached.clear()
       flushHooks()
+      if (held > 0) {
+        isCommitOwed = true
+        return
+      }
       stats.commits++
       surface.commit()
       if (step !== undefined) endStep(now() - step.startedAt, true)
     },
   }
+
+  // EXPERIMENT (way B): several trees on one host each end their flush with a
+  // commit. Whoever makes them draw together can hold the commits back.
+  let held = 0
+  let isCommitOwed = false
 
   const service: Context.Service.Shape<typeof Native.Host> = {
     engine,
@@ -504,6 +513,29 @@ export const makeHost = (
     scrollToEnd: (node, animated = false) => engine.dispatchCommand(node, 'scrollToEnd', [animated]),
     tagOf: node => engine.tagOf(node),
     stats,
+    mountRoot: (component, props, node) =>
+      Effect.provideContext(
+        Renderer.mount(component as any, props as any, node, { head: false }) as Effect.Effect<
+          Renderer.Root<unknown, unknown>,
+          never,
+          Scope.Scope | Renderer.Renderer | Native.Host
+        >,
+        Context.make(Renderer.Renderer, { host }).pipe(Context.add(Native.Host, service)),
+      ),
+    holdCommits: () => {
+      held++
+      let isReleased = false
+      return () => {
+        if (isReleased) return
+        isReleased = true
+        held--
+        if (held > 0 || !isCommitOwed) return
+        isCommitOwed = false
+        stats.commits++
+        surface.commit()
+        if (step !== undefined) endStep(now() - step.startedAt, true)
+      }
+    },
   }
 
   const dispose = (): void => {

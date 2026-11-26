@@ -148,6 +148,47 @@ export const layer: Layer.Layer<
   Device.Haptics.Haptics | Device.Clipboard.Clipboard | Device.Keyboard.Keyboard
 > = Layer.mergeAll(Impact.layer, Selection.layer, Notify.layer, Copy.layer, Paste.layer, DismissKeyboard.layer)
 
+/** The real modules behind the five services here, as the app imports them. */
+export type LiveModules = Readonly<{
+  /** `import * as ReactNative from 'react-native'` */
+  reactNative: Readonly<{
+    Platform: Readonly<{ OS: string }>
+    Keyboard: Device.Keyboard.KeyboardModule
+    AppState: Device.AppState.AppStateModule
+    Appearance: Device.ColorScheme.AppearanceModule
+  }>
+  /** `import * as ExpoHaptics from 'expo-haptics'` */
+  haptics: Device.Haptics.HapticsModule
+  /** `import * as ExpoClipboard from 'expo-clipboard'` */
+  clipboard: Device.Clipboard.ClipboardModule
+  /** `() => engine.blurFocused()`, so `DismissKeyboard` works. */
+  blurFocused?: () => void
+}>
+
+/** The services the Commands and Subscriptions here read. */
+export type Services =
+  | Device.Haptics.Haptics
+  | Device.Clipboard.Clipboard
+  | Device.Keyboard.Keyboard
+  | Device.AppState.AppState
+  | Device.ColorScheme.ColorScheme
+
+/**
+ * The five services over the real modules. An app that wants the rest
+ * (storage, share, network, the recorder) uses `Phone.Device.live` instead.
+ */
+export const live = (modules: LiveModules): Layer.Layer<Services> =>
+  Layer.mergeAll(
+    Haptics.live(modules.haptics),
+    Clipboard.live(modules.clipboard),
+    Keyboard.live(modules.reactNative.Keyboard, {
+      platform: modules.reactNative.Platform.OS,
+      ...(modules.blurFocused !== undefined && { blurFocused: modules.blurFocused }),
+    }),
+    AppState.live(modules.reactNative.AppState),
+    ColorScheme.live(modules.reactNative.Appearance),
+  )
+
 /** The keyboard as it is now, then every change. Height 0 is hidden. */
 export const keyboard = <Msg>(
   toMessage: (frame: Device.Keyboard.KeyboardFrame) => Msg,
