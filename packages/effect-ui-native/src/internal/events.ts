@@ -96,8 +96,8 @@ export const sourcesOf = (name: string): ReadonlyArray<Source> =>
   TABLE[name] ?? [{ on: name, payload: copyOf }]
 
 /** Handled by the press recogniser (`touch.ts`), not by a native event of their own. */
-export const isTouchEvent = (name: string): name is 'press' | 'longPress' =>
-  name === 'press' || name === 'longPress'
+export const isTouchEvent = (name: string): name is 'press' | 'longPress' | 'pressIn' | 'pressOut' =>
+  name === 'press' || name === 'longPress' || name === 'pressIn' || name === 'pressOut'
 
 /** A text field's text changed. Handled with the field's echo (`nodes.ts`). */
 export const CHANGE_TEXT = 'changeText'

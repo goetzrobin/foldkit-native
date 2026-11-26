@@ -105,6 +105,8 @@ export const LongListMessage = UiSchema.TaggedEnum({
   MeasuredRow: { index: Schema.Number, height: Schema.Number },
   PressedRow: { index: Schema.Number },
   HeldRow: { index: Schema.Number },
+  TouchedRow: { isDown: Schema.Boolean },
+  DraggedList: { isDragging: Schema.Boolean, isAtEnd: Schema.Boolean },
   PressedScrollToEnd: {},
   PressedScrollToTop: {},
   PressedStream: {},
@@ -119,6 +121,11 @@ const LongListModel = Schema.Struct({
   held: Schema.Number,
   lastRow: Schema.String,
   isStreaming: Schema.Boolean,
+  /** A finger rests on a row. The list does not move under it. */
+  isTouching: Schema.Boolean,
+  isDragging: Schema.Boolean,
+  /** The reader is at the end, or asked for it. Off once they drag away from it. */
+  isFollowing: Schema.Boolean,
   streamed: Schema.String,
   isRecycling: Schema.Boolean,
   readout: Readout,
@@ -197,6 +204,9 @@ export const LongList = Native.component({
     held: 0,
     lastRow: 'none',
     isStreaming: false,
+    isTouching: false,
+    isDragging: false,
+    isFollowing: true,
     streamed: 'The last row. Press Stream and it grows.',
     isRecycling: false,
     readout: EMPTY_READOUT,
@@ -213,7 +223,9 @@ export const LongList = Native.component({
     },
     PressedRow: ($, { index }) => $.evolve({ pressed: n => n + 1, lastRow: `pressed ${index + 1}` }),
     HeldRow: ($, { index }) => $.evolve({ held: n => n + 1, lastRow: `held ${index + 1}` }),
-    PressedScrollToEnd: $ => $.run(NativeCommand.scrollToEnd(ListRef, true).pipe(Command.asNoop)),
+    TouchedRow: ($, { isDown }) => $.evolve({ isTouching: isDown }),
+    DraggedList: ($, { isDragging, isAtEnd }) => $.evolve({ isDragging, isFollowing: isDragging ? false : isAtEnd }),
+    PressedScrollToEnd: $ => $.evolve({ isFollowing: true }).run(NativeCommand.scrollToEnd(ListRef, true).pipe(Command.asNoop)),
     PressedScrollToTop: $ => $.run(NativeCommand.scrollTo(ListRef, { y: 0, animated: true }).pipe(Command.asNoop)),
     PressedStream: $ => $.evolve({ isStreaming: on => !on }),
     PressedRecycle: $ => $.evolve({ isRecycling: on => !on }),
@@ -221,9 +233,11 @@ export const LongList = Native.component({
       const text = $.model.streamed.length > STREAM_LIMIT ? 'Again.' : $.model.streamed
       const word = WORDS[text.length % WORDS.length] ?? 'word'
       // The list follows its end as the row grows: a scroll the program makes.
-      return $.evolve({ streamed: `${text} ${word}` }).run(
-        NativeCommand.scrollToEnd(ListRef, false).pipe(Command.asNoop),
-      )
+      const grown = $.evolve({ streamed: `${text} ${word}` })
+      // While a finger rests on a row or drags the list, and after the reader
+      // dragged away from the end, the row grows below and the list stays put.
+      const follows = $.model.isFollowing && !$.model.isTouching && !$.model.isDragging
+      return follows ? grown.run(NativeCommand.scrollToEnd(ListRef, false).pipe(Command.asNoop)) : grown
     },
     UpdatedReadout: ($, { readout }) => $.evolve({ readout }),
   },
@@ -243,7 +257,7 @@ export const LongList = Native.component({
           `Views run: list ${readout.listRuns}, rows ${readout.rowRuns}. Native views alive: ${readout.liveViews}`,
         ),
         h.text.testId('list-window').style(Look.small).children(
-          `Rows drawn: ${model.list.first + 1} to ${model.list.end} of ${ROW_COUNT}. Presses ${model.pressed}, holds ${model.held}, last: ${model.lastRow}`,
+          `Rows drawn: ${model.list.first + 1} to ${model.list.end} of ${ROW_COUNT}. Presses ${model.pressed}, holds ${model.held}, last: ${model.lastRow}. ${!model.isStreaming ? 'Not streaming' : model.isTouching ? 'Paused: finger down' : model.isDragging ? 'Paused: dragging' : model.isFollowing ? 'Following' : 'Paused: away from the end'}`,
         ),
         h.view.style({ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }).children(
           Look.plainButton(h, 'list-to-end', 'Scroll to end', LongListMessage.PressedScrollToEnd()),
@@ -259,6 +273,7 @@ export const LongList = Native.component({
         ref: ListRef,
         testId: 'long-list',
         onScroll: at => LongListMessage.ScrolledList({ at }),
+        onDrag: (isDragging, isAtEnd) => LongListMessage.DraggedList({ isDragging, isAtEnd }),
         onRowLayout: (index, height) => LongListMessage.MeasuredRow({ index, height }),
         row: (index, key) =>
           h.pressable
@@ -267,10 +282,14 @@ export const LongList = Native.component({
             .pressedStyle(Look.rowPressed)
             .on('press', LongListMessage.PressedRow({ index }))
             .on('longPress', LongListMessage.HeldRow({ index }))
+            .on('pressIn', LongListMessage.TouchedRow({ isDown: true }))
+            .on('pressOut', LongListMessage.TouchedRow({ isDown: false }))
             .children(Row(h, { key, props: rowData(index) })),
-        footer: h.view
+        footer: h.pressable
           .key('streamed')
           .testId('row-streamed')
+          .on('pressIn', LongListMessage.TouchedRow({ isDown: true }))
+          .on('pressOut', LongListMessage.TouchedRow({ isDown: false }))
           .style({ ...Look.row, backgroundColor: Look.WASH })
           .children(
             h.text.style({ fontSize: 17, fontWeight: '700', color: Look.INK }).children('Streamed row'),

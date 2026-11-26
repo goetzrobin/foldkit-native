@@ -238,6 +238,10 @@ export interface Events {
   readonly press: PressPayload
   /** A finger rested on the view for half a second. The lift after it is not a press. */
   readonly longPress: PressPayload
+  /** A finger came down on the view. */
+  readonly pressIn: PressPayload
+  /** That touch is over for the view: lifted, drifted away, or taken by a scroll. */
+  readonly pressOut: PressPayload
   /** The phone laid the view out, or its size or place changed. */
   readonly layout: LayoutPayload
 }

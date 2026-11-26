@@ -13,6 +13,9 @@
  * - The finger rests for half a second on a view that listens for
  *   `longPress`: that event is sent, and the lift after it sends nothing.
  * - The finger lifts while the press is still on: `press` is sent.
+ * - `pressIn` is sent when the finger goes down and `pressOut` when the
+ *   touch is over for this view, however it ended (a lift, a drift, a scroll
+ *   taking over). A program uses the pair to know a finger is resting on it.
  *
  * The workaround for ng-native 0.25.0 (`docs/upstream/ng-native-scroll-ignore.md`):
  * its engine ends the touch of a responder inside a scroll view on every
@@ -34,7 +37,9 @@ import { PRESSED_STYLE } from '../../../native/src/host/style.js'
 /** The marker the host puts in an element's data: which of the two it listens for. */
 export const TOUCH = 'euiTouch'
 
-export type TouchSpec = Readonly<{ press: boolean; longPress: boolean }>
+export type TouchSpec = Readonly<{ press: boolean; longPress: boolean; pressIn?: boolean; pressOut?: boolean }>
+
+export type TouchEventName = 'press' | 'longPress' | 'pressIn' | 'pressOut'
 
 /** Where the finger was, in the window. */
 export type PressPayload = Readonly<{ x: number; y: number }>
@@ -93,7 +98,7 @@ export type TouchStats = {
 
 export type TouchOptions = Readonly<{
   /** Hands a finished event to the renderer. */
-  fire: (node: EngineNode, name: 'press' | 'longPress', payload: PressPayload) => void
+  fire: (node: EngineNode, name: TouchEventName, payload: PressPayload) => void
   /** The newest props drawn on a node, for `pressedStyle` and the style to return to. */
   propsOf: (node: EngineNode) => Readonly<Record<string, unknown>>
   stats: TouchStats
@@ -135,6 +140,7 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
       if (wired.phase === 'idle') return
       wired.phase = 'idle'
       showPressed(node, false)
+      if (wired.spec.pressOut === true) options.fire(node, 'pressOut', wired.last ?? wired.start ?? { x: 0, y: 0 })
     }
     const cancel = (): void => {
       if (wired.phase === 'idle') return
@@ -166,6 +172,7 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
         wired.held = false
         wired.phase = 'waiting'
         showPressed(node, true)
+        if (wired.spec.pressIn === true) options.fire(node, 'pressIn', wired.start ?? { x: 0, y: 0 })
         if (wired.spec.longPress) {
           wired.timer = setTimeout(() => {
             wired.timer = undefined

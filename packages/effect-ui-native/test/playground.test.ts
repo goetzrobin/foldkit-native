@@ -113,6 +113,51 @@ describe('playground app', () => {
       }),
     ))
 
+  it('long list: the stream does not move the list while a finger rests on a row, and follows again after', () =>
+    run(
+      Effect.gen(function* () {
+        const { app } = yield* start()
+        yield* app.press('menu-LongList')
+        const scrolls = () => app.commands().filter(command => command.name === 'scrollToEnd').length
+        yield* app.press('list-stream')
+        yield* app.wait(150)
+        const following = scrolls()
+        expect(following).toBeGreaterThan(0)
+
+        // A finger comes down on a row and stays: the row grows, the list stays put.
+        yield* app.touchStart('row-0')
+        const atTouch = scrolls()
+        const lengthAtTouch = app.text('streamed-text').length
+        yield* app.wait(200)
+        expect(app.text('streamed-text').length).toBeGreaterThan(lengthAtTouch)
+        expect(scrolls()).toBe(atTouch)
+
+        // The finger lifts: the list follows the end again.
+        yield* app.touchEnd('row-0')
+        yield* app.wait(150)
+        expect(scrolls()).toBeGreaterThan(atTouch)
+
+        // A drag away from the end stops it until the reader is back at the end.
+        yield* app.emit('long-list', 'topScrollBeginDrag', {
+          contentOffset: { x: 0, y: 5000 },
+          contentSize: { width: 390, height: 90000 },
+          layoutMeasurement: { width: 390, height: 600 },
+        })
+        const atDrag = scrolls()
+        yield* app.emit('long-list', 'topMomentumScrollEnd', {
+          contentOffset: { x: 0, y: 3000 },
+          contentSize: { width: 390, height: 90000 },
+          layoutMeasurement: { width: 390, height: 600 },
+        })
+        yield* app.wait(150)
+        expect(scrolls()).toBe(atDrag)
+        yield* app.press('list-to-end')
+        yield* app.wait(150)
+        expect(scrolls()).toBeGreaterThan(atDrag + 1)
+        yield* app.press('list-stream')
+      }),
+    ))
+
   it('phone: haptics, clipboard, keyboard, colour scheme and app state', () =>
     run(
       Effect.gen(function* () {

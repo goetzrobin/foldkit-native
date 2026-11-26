@@ -443,10 +443,19 @@ export const makeHost = (
       entry.dispatch = dispatch
       const names = Object.keys(handlers)
       const touch: TouchSpec | undefined =
-        'press' in handlers || 'longPress' in handlers
-          ? { press: 'press' in handlers, longPress: 'longPress' in handlers }
+        'press' in handlers || 'longPress' in handlers || 'pressIn' in handlers || 'pressOut' in handlers
+          ? {
+              press: 'press' in handlers,
+              longPress: 'longPress' in handlers,
+              pressIn: 'pressIn' in handlers,
+              pressOut: 'pressOut' in handlers,
+            }
           : undefined
-      const isSameTouch = touch?.press === entry.touch?.press && touch?.longPress === entry.touch?.longPress
+      const isSameTouch =
+        touch?.press === entry.touch?.press &&
+        touch?.longPress === entry.touch?.longPress &&
+        touch?.pressIn === entry.touch?.pressIn &&
+        touch?.pressOut === entry.touch?.pressOut
       const key = names.join(' ')
       if (key === namesOf.get(node) && isSameTouch) return
       stats.listeners -= countListeners(entry)

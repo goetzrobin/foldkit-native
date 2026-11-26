@@ -134,6 +134,13 @@ export type ViewOptions<Msg, R> = Readonly<{
   idOf?: (index: number) => string
   onScroll: (at: ScrollAt) => Msg
   onRowLayout?: (index: number, height: number) => Msg
+  /**
+   * A finger started to drag the list (`true`), or the list came to rest after
+   * one (`false`). `isAtEnd`: within 40 points of the end at that moment. A
+   * list that follows a growing last row uses it to stop while the reader
+   * drags, and to follow again only when they came back to the end.
+   */
+  onDrag?: (isDragging: boolean, isAtEnd: boolean) => Msg
   /** Rows reuse instances and native views by slot. See the top of this file. */
   recycle?: boolean
   ref?: Renderer.Ref<Native.Node>
@@ -142,6 +149,9 @@ export type ViewOptions<Msg, R> = Readonly<{
   /** Drawn after the last row, inside the scroll view. */
   footer?: Native.NoTextContent<Msg, R>
 }>
+
+/** How near the end, in points, still counts as being at it. */
+export const END_SLOP = 40
 
 /** The key a row is drawn under. */
 export const keyOf = <Msg, R>(options: ViewOptions<Msg, R>, index: number): string =>
@@ -178,6 +188,14 @@ export const view = <Msg, R = never>(
     .style({ flex: 1, ...options.style })
     .set({ scrollEventThrottle: 16 })
     .on('scroll', at => options.onScroll({ y: at.y, height: at.height }))
+  const onDrag = options.onDrag
+  if (onDrag !== undefined) {
+    const isAtEnd = (at: { y: number; height: number; contentHeight: number }): boolean =>
+      at.contentHeight - at.y - at.height < END_SLOP
+    list = list
+      .on('scrollBeginDrag', at => onDrag(true, isAtEnd(at)))
+      .on('scrollEnd', at => onDrag(false, isAtEnd(at))) as typeof list
+  }
   if (options.ref !== undefined) list = list.ref(options.ref)
   if (options.testId !== undefined) list = list.testId(options.testId)
   return list.children(
