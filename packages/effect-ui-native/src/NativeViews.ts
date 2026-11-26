@@ -9,11 +9,15 @@
  *
  * Also here: what goes inside a sheet (`sheetParts`), the title bar's
  * buttons and their menus (`barButtons`), the search field under a large
- * title (`searchBar`) and the phone's own spinner (`spinner`).
+ * title (`searchBar`), the phone's own spinner (`spinner`) and a row that
+ * swipes sideways to show actions (`swipeRow`).
  *
- * Not wrapped yet: Expo UI controls and swipe rows. See the plan in
+ * Not wrapped yet: Expo UI controls. See the plan in
  * docs/EFFECT_UI_NATIVE.md.
  */
+import * as Command from '@effect/ui/Command'
+import * as Renderer from '@effect/ui/Renderer'
+import * as Option from 'effect/Option'
 import * as Mount from '@effect/ui/Mount'
 import type * as View from '@effect/ui/View'
 import { type EngineNode, registerViewName } from '@ng-native/fabric'
@@ -49,15 +53,27 @@ import { platformName } from '../../native/src/host/platform.js'
 import { type Painter, type Pen, type Size, makeSkiaPainter, makeViewPainter } from '../../native/src/host/skia/draw.js'
 import { isSkiaAvailable, skiaHost, skiaUnavailableReason } from '../../native/src/host/skia/host.js'
 import { SKIA_TAG, registerSkia } from '../../native/src/host/skia/views.js'
+import {
+  SWIPE_MODULE,
+  SWIPE_VIEW,
+  isNativeSwipeAvailable,
+  nativeSwipeUnavailableReason,
+  noteNativeSwipeRegistered,
+  resetNativeSwipeDetection,
+  swipeExpoGlobal,
+  swipeModule,
+} from '../../native/src/host/swipeNative/detect.js'
 import * as Native from './Native.js'
 
 export { configureGlass } from '../../native/src/host/glass/detect.js'
 export { configureMarkdown } from '../../native/src/host/markdown/detect.js'
 export { configureSkia } from '../../native/src/host/skia/host.js'
+export { configureNativeSwipe as configureSwipe } from '../../native/src/host/swipeNative/detect.js'
 export { registerNavigation, registerSearchBar } from '../../native/src/host/navigation/views.js'
 export { isLiquidGlassAvailable } from '../../native/src/host/glass/detect.js'
 export { isNativeMarkdownAvailable } from '../../native/src/host/markdown/detect.js'
 export { isSkiaAvailable } from '../../native/src/host/skia/host.js'
+export { isNativeSwipeAvailable as isSwipeAvailable } from '../../native/src/host/swipeNative/detect.js'
 export type { Pen, Size }
 
 // SHEETS
@@ -274,6 +290,234 @@ export const spinner = <Msg>(
   // Android's progress bar stops the app without these two.
   return platform === 'android' ? made.prop('styleAttr', 'Normal').prop('indeterminate', true) : made
 }
+
+// SWIPE ROWS
+
+const SWIPE_TAG = 'swipe-row'
+
+let swipeName: { name: string; undo: unknown } | undefined
+
+/** The name the phone knows the swipe row by. Expo Go adds the running project's name. */
+const swipeViewName = (): string => {
+  let identifier = ''
+  try {
+    identifier = swipeExpoGlobal()?.__expo_app_identifier__ ?? ''
+  } catch {
+    identifier = ''
+  }
+  return `ViewManagerAdapter_${SWIPE_MODULE}_${SWIPE_VIEW}${identifier === '' ? '' : `_${identifier}`}`
+}
+
+/**
+ * Names the native swipe row (`modules/foldkit-swipe`). `swipeRow` calls it
+ * by itself the first time a row is drawn, so an app does not have to. It
+ * does not need the native view to exist: a build without it draws plain
+ * rows.
+ */
+export const registerSwipe = (): void => {
+  try {
+    const wanted = swipeViewName()
+    if (swipeName?.name === wanted) return
+    if (typeof swipeName?.undo === 'function') swipeName.undo()
+    swipeName = { name: wanted, undo: registerViewName(SWIPE_TAG, { ios: wanted, android: wanted }) }
+    noteNativeSwipeRegistered()
+  } catch {
+    // Not registered means every row is drawn plainly.
+  }
+}
+
+/** Forgets the name and what `configureSwipe` was told. For tests. */
+export const resetSwipe = (): void => {
+  if (typeof swipeName?.undo === 'function') swipeName.undo()
+  swipeName = undefined
+  resetNativeSwipeDetection()
+}
+
+/** Whether this build has the native swipe row, and why not, as one line. */
+export const swipeStatus = (): string => {
+  registerSwipe()
+  return isNativeSwipeAvailable() ? 'native swipe row' : `no swipe (${nativeSwipeUnavailableReason()})`
+}
+
+/** One action behind a row. */
+export type SwipeAction = Readonly<{
+  /** Names the action in `onAction`. Unique within one row. */
+  key: string
+  /** The word on the tile, and what a screen reader says. */
+  label: string
+  /** iOS: the name of an SF Symbol, such as `trash`. Android shows the word only. */
+  symbol?: string
+  /** Drawn in red. When it is triggered the row slides away, and comes back after a moment if it is still there. */
+  isDestructive?: boolean
+  /** The tile's colour, as `#rrggbb`. Left out, blue, or red for a destructive action. */
+  color?: string
+}>
+
+/** Which side of a row opened. Leading is the left, in a language read from left to right. */
+export type SwipeSide = 'leading' | 'trailing'
+
+export type SwipeRowOptions<Msg> = Readonly<{
+  /** Shown when the row is dragged away from its leading edge (to the right, in English). */
+  leading?: ReadonlyArray<SwipeAction>
+  /** Shown when the row is dragged away from its trailing edge (to the left, in English). */
+  trailing?: ReadonlyArray<SwipeAction>
+  /**
+   * Whether swiping all the way triggers an action. The native view decides
+   * this for the whole row, and the action it triggers is always the first
+   * one of that side, the one at the screen's edge. Default true.
+   */
+  fullSwipe?: boolean
+  /** Rows with the same group close each other: opening or dragging one closes the rest. */
+  group?: string
+  /** `tiles`: rounded tiles with gaps. `strip`: square blocks, edge to edge. Default `tiles`. */
+  look?: 'tiles' | 'strip'
+  /** Rounds the row's and the tiles' corners, in points. */
+  cornerRadius?: number
+  /** `false` stops the row from swiping, and closes it. Default true. */
+  isEnabled?: boolean
+  /** A tile was pressed (`isFullSwipe: false`), or the row was swiped all the way. */
+  onAction: (event: Readonly<{ key: string; isFullSwipe: boolean }>) => Msg
+  /** The row came to rest open. */
+  onOpened?: (side: SwipeSide) => Msg
+  /** The row came to rest closed, after being open. */
+  onClosed?: () => Msg
+  /** The row's own style. Give its content a background colour, or the tiles show through. */
+  style?: Native.ViewStyle
+  testId?: string
+}>
+
+/** What `swipeRow` gives: a box for the row's content, which takes a `key` and a `ref`. */
+export type SwipeRow<Msg> = View.ContainerBuilder<Msg, never, Record<string, unknown>, Native.Node>
+
+type NativeSwipeAction = Readonly<{ key: string; label: string; role: string; symbol?: string; tint?: string }>
+
+const swipeActions = (actions: ReadonlyArray<SwipeAction> | undefined): ReadonlyArray<NativeSwipeAction> =>
+  (actions ?? []).map(action => ({
+    key: action.key,
+    label: action.label,
+    role: action.isDestructive === true ? 'destructive' : 'normal',
+    // Left out, not null: the native code then uses its own "nothing".
+    ...(action.symbol === undefined ? {} : { symbol: action.symbol }),
+    ...(action.color === undefined ? {} : { tint: action.color }),
+  }))
+
+/**
+ * A row that slides sideways under the finger to show actions, drawn and
+ * moved by the phone (`modules/foldkit-swipe`: UIKit on iOS, Android's own
+ * views on Android). The row's content is its children:
+ *
+ *   NativeViews.swipeRow(h, {
+ *     trailing: [
+ *       { key: 'delete', label: 'Delete', symbol: 'trash', isDestructive: true },
+ *       { key: 'rename', label: 'Rename', symbol: 'pencil' },
+ *     ],
+ *     group: 'chats',
+ *     onAction: ({ key, isFullSwipe }) => Message.ChoseSwipeAction({ id, key, isFullSwipe }),
+ *     onOpened: () => Message.OpenedRow({ id }),
+ *     onClosed: () => Message.ClosedRow({ id }),
+ *   }).children(h.view.style({ backgroundColor: '#FFFFFF', padding: 16 }).children(h.text('Bread recipe')))
+ *
+ * The finger never reaches JavaScript while it drags. The program hears
+ * three things: an action was triggered, the row opened, the row closed.
+ *
+ * One row open at a time. The native view closes the other rows of a group
+ * when one is opened or dragged, and a tap on an open row closes it. It does
+ * not know about the list around it. So a program closes the rows itself
+ * when the list is scrolled or something else is tapped, with
+ * `NativeViews.closeSwipeRows(group)`.
+ *
+ * Where the native view is not in the build (Expo Go, or an app built
+ * before the module was added) the row is a plain view with the same
+ * children. Nothing swipes and nothing crashes. `NativeViews.swipeStatus()`
+ * says which.
+ */
+export const swipeRow = <Msg>(h: Native.H<Msg>, options: SwipeRowOptions<Msg>): SwipeRow<Msg> => {
+  registerSwipe()
+  if (!isNativeSwipeAvailable()) {
+    return h.el('view').prop('style', options.style).prop('testID', options.testId) as SwipeRow<Msg>
+  }
+  const { onOpened, onClosed } = options
+  let row = h
+    .el(SWIPE_TAG)
+    .prop('testID', options.testId)
+    // Every prop is sent every time, so one that is left out later goes back to its usual value.
+    .prop('actionsLeading', swipeActions(options.leading))
+    .prop('actionsTrailing', swipeActions(options.trailing))
+    .prop('allowsFullSwipe', options.fullSwipe ?? true)
+    .prop('mode', options.look ?? 'tiles')
+    .prop('group', options.group ?? '')
+    .prop('cornerRadius', options.cornerRadius ?? 0)
+    .prop('isEnabled', options.isEnabled ?? true)
+    // Never folded into its parent: the native code is this view.
+    .prop('collapsable', false)
+    // The content slides out past the row's edge, and is cut off there.
+    .prop('style', { overflow: 'hidden', ...options.style })
+    // The row's own events. They are not in the vocabulary, so the names are cast here, once.
+    .on(
+      'actionTriggered' as never,
+      ((event: { key?: unknown; viaFullSwipe?: unknown }) =>
+        options.onAction({ key: typeof event.key === 'string' ? event.key : '', isFullSwipe: event.viaFullSwipe === true })) as never,
+    )
+  if (onOpened !== undefined) {
+    row = row.on(
+      'swipeOpened' as never,
+      ((event: { side?: unknown }) => onOpened(event.side === 'leading' ? 'leading' : 'trailing')) as never,
+    )
+  }
+  if (onClosed !== undefined) row = row.on('swipeClosed' as never, (() => onClosed()) as never)
+  return row as SwipeRow<Msg>
+}
+
+/** How many rows a close reached. 0 where the native view is not in the build. */
+export interface ClosedSwipes {
+  readonly closed: number
+}
+
+const closeCounts = new WeakMap<Native.Node, number>()
+
+export const CloseSwipeRows = Command.make('NativeViews.closeSwipeRows', { args: { group: Schema.String } }, ({ group }) =>
+  Effect.sync((): ClosedSwipes => {
+    try {
+      const module = swipeModule()
+      if (module?.closeAll === undefined) return { closed: 0 }
+      const answer = module.closeAll(group)
+      // The native function answers with a promise. A failure there leaves the rows as they are.
+      if (answer !== null && typeof answer === 'object' && 'catch' in answer) (answer as Promise<unknown>).catch(() => {})
+      return { closed: 1 }
+    } catch {
+      return { closed: 0 }
+    }
+  }),
+)
+
+export const CloseSwipeRow = Command.make('NativeViews.closeSwipeRow', { args: { ref: Renderer.Ref } }, ({ ref }) =>
+  Renderer.Refs.use(refs =>
+    Effect.flatMap(refs.lookup(ref as Renderer.Ref<Native.Node>), found =>
+      Option.isNone(found) || !isNativeSwipeAvailable()
+        ? Effect.succeed<ClosedSwipes>({ closed: 0 })
+        : Native.Host.use(host =>
+            Effect.sync((): ClosedSwipes => {
+              // The native row closes when this number changes.
+              const count = (closeCounts.get(found.value) ?? 0) + 1
+              closeCounts.set(found.value, count)
+              host.engine.setProp(found.value, 'closeSignal', count)
+              host.engine.commit()
+              return { closed: 1 }
+            }),
+          ),
+    ),
+  ),
+)
+
+/**
+ * Closes every open row of a group:
+ *
+ *   ScrolledList: $ => $.run(NativeViews.closeSwipeRows('chats').pipe(Command.asNoop))
+ */
+export const closeSwipeRows = (group: string) => CloseSwipeRows.make({ group })
+
+/** Closes one row, named by a ref on the `swipeRow`. */
+export const closeSwipeRow = (ref: Renderer.Ref<Native.Node>) => CloseSwipeRow.make({ ref })
 
 // GLASS
 
