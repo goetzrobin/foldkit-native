@@ -18,7 +18,7 @@ import * as Data from '../chat/data.js'
 import { SWIPE_GROUP } from '../chat/parts/conversationList.js'
 import { Native, NativeViews } from '../src/index.js'
 import { NativeTest } from '../src/testing/index.js'
-import { REQUEST, type TestApp, hold, listed, nodes, seeded, start } from './chatSupport.js'
+import { REQUEST, type TestApp, hold, listed, nodes, pressBarButton, seeded, start } from './chatSupport.js'
 import { run } from './support.js'
 
 const SWIPE_VIEW = 'ViewManagerAdapter_FoldkitSwipe_SwipeRowView'
@@ -356,6 +356,28 @@ describe('Effect Chat: swiping a chat in the list', () => {
         expect(listed(app)).toEqual(['c4', 'c1'])
         yield* app.wait(REQUEST * 4)
         expect(server.log()).toContain('DeleteConversation c7')
+      }),
+    ))
+
+  const stripSays = (app: TestApp) =>
+    Effect.gen(function* () {
+      yield* pressBarButton(app, 'bar-chats', 'settings')
+      yield* app.press('numbers-switch')
+      yield* app.press('settings-done')
+      yield* app.press('chat-row-c4')
+      yield* app.wait(REQUEST)
+      return app.text('numbers-swipe')
+    })
+
+  it('the numbers strip says whether the build has the native view, and why not', () =>
+    run(
+      Effect.gen(function* () {
+        const without = yield* start({ disk: seeded() })
+        expect(yield* stripSays(without.app)).toBe('swipe: no swipe (needs the prebuilt app, see docs/NATIVE_VIEWS.md)')
+        NativeViews.resetSwipe()
+        useNativeSwipe()
+        const withView = yield* start({ disk: seeded() })
+        expect(yield* stripSays(withView.app)).toBe('swipe: native swipe row')
       }),
     ))
 

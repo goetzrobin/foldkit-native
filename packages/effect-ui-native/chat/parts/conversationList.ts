@@ -310,19 +310,19 @@ export const ConversationList = Native.component({
               .style({ position: 'absolute', left: SPACE.l, right: SPACE.l, bottom: SPACE.xxxl, alignItems: 'center' }),
             { from: { opacity: 0 }, to: { opacity: 1 }, exit: { opacity: 0 }, ms: MOTION.notice },
           ).children(
-              h.text
-                .testId('list-notice')
-                .style({
-                  ...TYPE.caption,
-                  color: notice.tone === 'error' ? palette.danger : palette.ink,
-                  backgroundColor: palette.surface,
-                  paddingHorizontal: SPACE.m,
-                  paddingVertical: SPACE.s,
-                  borderRadius: RADIUS.chip,
-                  overflow: 'hidden',
-                })
-                .children(notice.text),
-            ),
+            h.text
+              .testId('list-notice')
+              .style({
+                ...TYPE.caption,
+                color: notice.tone === 'error' ? palette.danger : palette.ink,
+                backgroundColor: palette.surface,
+                paddingHorizontal: SPACE.m,
+                paddingVertical: SPACE.s,
+                borderRadius: RADIUS.chip,
+                overflow: 'hidden',
+              })
+              .children(notice.text),
+          ),
     )
 
     return h.screen

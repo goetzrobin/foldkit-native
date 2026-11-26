@@ -302,6 +302,8 @@ export const Transcript = Native.component({
                 .testId('numbers-motion')
                 .style(STRIP_TEXT)
                 .children(`motion: ${Motion.status()} | ${Motion.stats().onUiThread} run there, ${Motion.stats().atOnce} set at once`),
+              // Whether this build has the native view the list of chats swipes with.
+              h.text.testId('numbers-swipe').style(STRIP_TEXT).children(`swipe: ${NativeViews.swipeStatus()}`),
             )
         : null,
     )

@@ -7,6 +7,8 @@
  *   h.view.onMount(NativeMount.TrackHold({ ms: 500 }).pipe(Mount.map(change => Message.ChangedHold({ change }))))
  *   h.view.onMount(NativeMount.Fade({ isShown: model.isOpen, ms: 150 }))
  *
+ * For animations, see `Motion`: it moves views on the phone's own thread.
+ *
  * A Mount's body gets the engine node. Write your own with `Mount.make` and
  * `Mount.makeStream`, annotating the node as `Native.Node` and reading
  * `Native.Host` for the engine: that is how a gesture or a drawing library
@@ -139,7 +141,9 @@ export const FADE_SCALE = 0.8
  * it. A view that is wanted when it is first drawn fades in. One that is
  * not starts away, with nothing to see.
  *
- * The steps are written from JavaScript, one a frame, for `ms` milliseconds.
+ * The steps are written from JavaScript, one a frame, for `ms` milliseconds,
+ * so it stands still while JavaScript is busy. `Motion.animate` does the
+ * same on the phone's own thread, and lets the view leave the tree.
  */
 export const Fade = Mount.makeStream(
   'Fade',
