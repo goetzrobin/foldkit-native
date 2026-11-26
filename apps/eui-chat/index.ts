@@ -14,7 +14,7 @@ import { type NativeAnimated, getFabricUIManager, registerPlatformComponents } f
 import remend from 'remend'
 
 import { configureWorklets } from './native/native/src/host/worklets'
-import { KeyboardBar, NativeViews, Phone } from './native/effect-ui-native/src'
+import { KeyboardBar, Menus, NativeViews, Phone } from './native/effect-ui-native/src'
 import { phoneDisk, startChat } from './native/effect-ui-native/chat/start'
 
 registerPlatformComponents(Platform.OS)
@@ -47,8 +47,20 @@ const nativeAnimated = (): NativeAnimated | null => {
 // view where the build has it (iPhone).
 KeyboardBar.configure({ nativeAnimated: nativeAnimated() })
 
-// Nothing uses worklets yet. They are set up as in the playground, so that
-// step 3 can attach the phone's own long press with no new build.
+// The composer's Liquid Glass (iOS 26 and later). expo-glass-effect's native
+// views are found by name. Elsewhere the composer is a plain pale pill. This
+// must run after `import 'expo'`.
+NativeViews.registerGlass()
+
+// The "Thinking" shimmer. Only Skia's native code is used, found by name.
+NativeViews.configureSkia({ nativeModule: name => TurboModuleRegistry.get(name) })
+
+// The list of choices a held message opens: React Native's own native modules.
+Menus.configure({ nativeModule: name => TurboModuleRegistry.get(name) })
+
+// The phone's own long press on a message (gesture-handler), with the host's
+// timer as its backup. react-native-worklets is loaded on first use, inside a
+// try: where its native code is missing, the timer alone reads a hold.
 configureWorklets({
   load: () => require('react-native-worklets'),
   nativeModule: name => TurboModuleRegistry.get(name),
@@ -97,8 +109,13 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
       secureStore: SecureStore,
       network: ExpoNetwork,
       blurFocused: () => blurFocused(),
+      // Voice notes: expo-audio's and expo-file-system's native modules, by name.
       audio: Phone.Device.Native.audioModuleFromGlobal(),
       fileSystem: Phone.Device.Native.fileSystemFromGlobal(),
+      // Speech recognition: expo-speech-recognition's native module, by name.
+      // A build made before it was added has none, and the app says so when
+      // the microphone button is pressed.
+      speech: Phone.Device.Speech.moduleFromGlobal(),
     }),
   })
   setTimeout(hideSplash, 50)

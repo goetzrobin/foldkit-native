@@ -253,6 +253,10 @@ describe("the phone's own long press recogniser on a row", () => {
         expect(menus.open()).toBeUndefined()
         yield* app.wait(GRACE + 40)
         expect(menus.titles()).toEqual(['Copy so far', 'Stop'])
+        // The recogniser's word comes after all, late. It is the same finger: no second menu.
+        nativeSays(app, reply, 4, 2)
+        yield* app.settle
+        expect(menus.shown).toHaveLength(1)
         yield* app.touchEnd(reply)
         expect(NativeHost.holdReport()).toContain('recognised by JS')
         expect(NativeHost.holdReport()).toContain('native said nothing')
