@@ -20,7 +20,7 @@ What exists now:
 - **A playground app** (`apps/eui-playground`) with five screens: a counter,
   notes, a 1,000 row list, touch tests, and phone features. It is there to
   answer two questions on a real phone.
-- **50 tests** on a simulated phone, all passing.
+- **52 tests** on a simulated phone, all passing.
 
 Effect UI itself needed no change. It runs on the phone's JavaScript engine
 as it is.
@@ -87,11 +87,14 @@ New in `packages/effect-ui-native/src/internal`:
 - `touch.ts`: the press recogniser (see "Touch" below).
 - `events.ts`: which native event a vocabulary event is, and its payload.
 
-**Scheduling.** Effect UI queues a flush with a microtask, and mounts
-synchronously. So the first screen needs no animation frame and no timer.
-Effect's own fibers do start with a timer, so `NativeHost.run` gives the
-app a Scheduler that runs its first rounds of work as microtasks and then
-goes over to timers.
+**Scheduling.** Effect UI mounts synchronously and queues each later flush
+with a microtask. So the first screen needs no animation frame and no
+timer. One case did need care: when one of the app's Layers gives its turn
+away before the mount (reading settings, say), Effect resumes it with a
+timer. `NativeHost.run` gives the app a Scheduler that runs its first
+rounds of work as microtasks and then goes over to timers.
+`test/start.test.ts` starts the app the way the phone does and lets only
+microtasks through.
 
 **The text field echo.** The phone owns the text while the user types. Each
 change carries a count. When the Model's text differs from what the phone
