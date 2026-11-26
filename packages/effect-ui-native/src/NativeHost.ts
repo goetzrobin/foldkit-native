@@ -105,6 +105,16 @@ export type HostStats = TouchStats & {
   listeners: number
   /** Finished events handed to the renderer. */
   dispatched: number
+  /**
+   * JavaScript time per event, from the event arriving to its draw being
+   * committed (or to its Message being handled, when nothing was drawn).
+   */
+  steps: number
+  /** Events that drew something. */
+  drawnSteps: number
+  lastStepMs: number
+  maxStepMs: number
+  totalStepMs: number
 }
 
 export type MakeHostOptions = Readonly<{
@@ -115,6 +125,8 @@ export type MakeHostOptions = Readonly<{
 }>
 
 export type NativeHostHandle = Readonly<{
+  /** Hands a finished event to the renderer, timed. The press recogniser calls it. */
+  fire: (node: EngineNode, name: string, payload: unknown) => boolean
   host: Renderer.Host<NativeNode>
   service: Context.Service.Shape<typeof Native.Host>
   stats: HostStats
@@ -167,12 +179,32 @@ export const makeHost = (
     dirty.push(node)
   }
 
+  /** The event being timed: when it arrived, until its draw is committed. */
+  let step: { startedAt: number } | undefined
+  const endStep = (ms: number, isDrawn: boolean): void => {
+    step = undefined
+    stats.steps++
+    if (isDrawn) stats.drawnSteps++
+    stats.lastStepMs = ms
+    stats.totalStepMs += ms
+    if (ms > stats.maxStepMs) stats.maxStepMs = ms
+  }
+
   const fire = (node: EngineNode, name: string, payload: unknown): boolean => {
     const entry = entries.get(node)
     const handler = entry?.handlers[name]
     if (entry === undefined || entry.dispatch === undefined || handler === undefined) return false
     stats.dispatched++
-    return entry.dispatch(name, handler, payload)
+    const startedAt = now()
+    const mine = (step ??= { startedAt })
+    const isHandled = entry.dispatch(name, handler, payload)
+    const handledMs = now() - startedAt
+    // The renderer draws in a microtask queued before this one. If the step is
+    // still open then, the Message changed nothing on screen.
+    queueMicrotask(() => {
+      if (step === mine) endStep(handledMs, false)
+    })
+    return isHandled
   }
 
   /** Scroll Messages: the first at once, then at most one per frame, the last never lost. */
@@ -440,6 +472,7 @@ export const makeHost = (
       flushHooks()
       stats.commits++
       surface.commit()
+      if (step !== undefined) endStep(now() - step.startedAt, true)
     },
   }
 
@@ -479,7 +512,7 @@ export const makeHost = (
     dirty.length = 0
   }
 
-  return { host, service, stats, container, dispose }
+  return { fire, host, service, stats, container, dispose }
 }
 
 /** The names `setEvents` last wired for a node, to skip a draw that changes none. */
@@ -505,6 +538,11 @@ const newStats = (): HostStats => ({
   live: 0,
   listeners: 0,
   dispatched: 0,
+  steps: 0,
+  drawnSteps: 0,
+  lastStepMs: 0,
+  maxStepMs: 0,
+  totalStepMs: 0,
   keptThroughScroll: 0,
   cancelled: 0,
   wired: 0,
@@ -529,13 +567,7 @@ export const makeSurface = (
       // Props, styles, events, the text field echo, screens.
       ...makeNodeHooks(engine, afterCommit),
       makeTouchHooks(engine, {
-        fire: (node, name, payload) => {
-          const entry = entries.get(node)
-          const handler = entry?.handlers[name]
-          if (entry === undefined || entry.dispatch === undefined || handler === undefined) return
-          stats.dispatched++
-          entry.dispatch(name, handler, payload)
-        },
+        fire: (node, name, payload) => void handle?.fire(node, name, payload),
         propsOf: node => entries.get(node)?.props ?? {},
         stats,
         ...(longPressMs === undefined ? {} : { longPressMs }),
