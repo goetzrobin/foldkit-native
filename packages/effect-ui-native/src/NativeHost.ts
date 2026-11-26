@@ -478,7 +478,11 @@ export const makeHost = (
 
   const service: Context.Service.Shape<typeof Native.Host> = {
     engine,
-    afterCommit: surface.afterCommit,
+    // The job runs after the next draw. If none is on its way, one is made.
+    afterCommit: job => {
+      surface.afterCommit(job)
+      queueMicrotask(() => surface.commit())
+    },
     measure: node =>
       Effect.callback<Native.Rect | undefined>(resume => {
         let isDone = false
@@ -510,6 +514,8 @@ export const makeHost = (
     for (const node of detached) destroy(node)
     detached.clear()
     dirty.length = 0
+    // The phone is told the screen is empty now.
+    surface.commit()
   }
 
   return { fire, host, service, stats, container, dispose }

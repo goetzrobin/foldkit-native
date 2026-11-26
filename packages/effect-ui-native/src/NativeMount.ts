@@ -29,7 +29,6 @@ export const Measure = Mount.make('Measure', { args: {} }, (node: Native.Node) =
       // The first draw must have reached the phone before a view can be measured.
       Effect.callback<void>(resume => {
         host.afterCommit(() => resume(Effect.void))
-        host.engine.commit()
       }),
       () => Effect.map(host.measure(node), rect => rect ?? EMPTY),
     ),
@@ -111,7 +110,6 @@ export const TrackHold = Mount.makeStream(
                   if (hold.ok) detach = hold.detach
                   else Queue.offerUnsafe(queue, { state: 'unavailable', reason: hold.reason })
                 })
-                host.engine.commit()
                 return () => {
                   isGone = true
                   detach()

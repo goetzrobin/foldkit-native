@@ -12,3 +12,5 @@ declare const console: {
   warn(...values: ReadonlyArray<unknown>): void
   error(...values: ReadonlyArray<unknown>): void
 }
+// Tests read two environment variables.
+declare const process: { env: Record<string, string | undefined> }
