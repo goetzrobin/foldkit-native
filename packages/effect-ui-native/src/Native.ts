@@ -115,6 +115,7 @@ export interface ViewProps {
   /** What a screen reader says for the view. */
   readonly accessibilityLabel?: string | undefined
   readonly accessibilityRole?: string | undefined
+  readonly accessibilityState?: Readonly<{ disabled?: boolean; selected?: boolean; busy?: boolean }> | undefined
   readonly accessible?: boolean | undefined
   /** `none`: touches pass through. `box-none`: only its children take touches. */
   readonly pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only' | undefined
@@ -144,6 +145,8 @@ export interface ScrollViewProps extends ViewProps {
   readonly contentInset?: Readonly<{ top?: number; right?: number; bottom?: number; left?: number }> | undefined
   readonly contentInsetAdjustmentBehavior?: 'automatic' | 'scrollableAxes' | 'never' | 'always' | undefined
   readonly automaticallyAdjustKeyboardInsets?: boolean | undefined
+  /** iOS: the scroll bar's colour. */
+  readonly indicatorStyle?: 'default' | 'black' | 'white' | undefined
   /** Styles for the content view the scroll view scrolls. */
   readonly contentStyle?: ViewStyle | undefined
 }
@@ -161,6 +164,8 @@ export interface TextInputProps extends ViewProps {
   readonly secureTextEntry?: boolean | undefined
   readonly submitBehavior?: 'submit' | 'blurAndSubmit' | 'newline' | undefined
   readonly selectionColor?: string | undefined
+  /** iOS: the keyboard's own look. */
+  readonly keyboardAppearance?: 'default' | 'light' | 'dark' | undefined
 }
 
 export interface ImageProps extends ViewProps {

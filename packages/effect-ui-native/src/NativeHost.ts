@@ -71,6 +71,21 @@ const SCROLL_VIEW = 'scroll-view'
 const TEXT_INPUT = 'text-input'
 /** A scroll view's prop that styles its content view. */
 const CONTENT_STYLE = 'contentStyle'
+/**
+ * A prop for the host layer, not for the phone. Its keys are added to what
+ * the node hooks get for the element, next to `props` and `on`. A host
+ * feature that finds its elements by a key (the list controller looks for
+ * `foldkitList`) is switched on for an element this way:
+ *
+ *   h.scrollView.prop(NODE_DATA, { [LIST_DATA]: spec })
+ */
+export const NODE_DATA = 'nodeData'
+/**
+ * The same for a scroll view's content view, which the host makes itself.
+ * It is read once, when the scroll view is first drawn: the hooks' `create`
+ * runs for the content view right after the scroll view's own.
+ */
+export const CONTENT_NODE_DATA = 'contentNodeData'
 
 type Entry = {
   /** Properties as the view last gave them. */
@@ -87,6 +102,9 @@ type Entry = {
   /** A scroll view's content view. */
   content: EngineNode | undefined
   contentStyle: unknown
+  /** See `NODE_DATA` and `CONTENT_NODE_DATA`. */
+  extra: Bag | undefined
+  contentExtra: Bag | undefined
   /** The last scroll Message's time, and one held back for the end of the frame. */
   scrolledAt: number
   heldScroll: ReturnType<typeof setTimeout> | undefined
@@ -283,6 +301,7 @@ export const makeHost = (
     attrs: { ...entry.attrs },
     on: entry.on,
     ...(entry.touch === undefined ? {} : { [TOUCH]: entry.touch }),
+    ...entry.extra,
   })
 
   const flushHooks = (): void => {
@@ -295,8 +314,13 @@ export const makeHost = (
       const data = dataOf(entry)
       const before = entry.applied
       entry.applied = data
-      if (before === undefined) for (const each of hooks) each.create?.(node, data)
-      else for (const each of hooks) each.update?.(node, before, data)
+      if (before === undefined) {
+        for (const each of hooks) each.create?.(node, data)
+        // The content view has no element of its own, so it is announced here.
+        if (entry.content !== undefined && entry.contentExtra !== undefined) {
+          for (const each of hooks) each.create?.(entry.content, entry.contentExtra)
+        }
+      } else for (const each of hooks) each.update?.(node, before, data)
     }
     for (const each of hooks) each.post?.()
   }
@@ -342,6 +366,8 @@ export const makeHost = (
         isDirty: false,
         content: undefined,
         contentStyle: undefined,
+        extra: undefined,
+        contentExtra: undefined,
         scrolledAt: -Infinity,
         heldScroll: undefined,
       }
@@ -385,6 +411,16 @@ export const makeHost = (
           entry.contentStyle = value
           engine.setProp(entry.content, 'style', value)
         }
+        return
+      }
+      if (name === NODE_DATA) {
+        if (isShallowEqual(entry.extra, value)) return
+        entry.extra = value as Bag | undefined
+        markDirty(node, entry)
+        return
+      }
+      if (name === CONTENT_NODE_DATA) {
+        entry.contentExtra = value as Bag | undefined
         return
       }
       // A view builds a new style object on every draw. Equal contents are no change.
@@ -515,7 +551,10 @@ export const makeHost = (
         const timer = setTimeout(() => done(undefined), 250)
         return Effect.sync(() => clearTimeout(timer))
       }),
-    focus: node => engine.focus(node),
+    // A field that has the caret already is left alone: asking again made the keyboard go and come back.
+    focus: node => {
+      if ((engine as { focused?: unknown }).focused !== node) engine.focus(node)
+    },
     blur: () => (engine as { blurFocused?: () => void }).blurFocused?.(),
     scrollTo: (node, to) =>
       engine.dispatchCommand(node, 'scrollTo', [to.x ?? 0, to.y ?? 0, to.animated ?? false]),

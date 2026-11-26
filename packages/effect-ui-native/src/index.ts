@@ -9,7 +9,11 @@
  *   NativeViews     registering and configuring the other native views
  *   Phone           haptics, clipboard, keyboard, app state, colour scheme
  *   VirtualList     a long list as an Effect UI component
+ *   AnchoredList    a chat's list: the host's list controller, with Effect UI rows
+ *   KeyboardBar     a bar the phone moves with the keyboard
  */
+export * as AnchoredList from './AnchoredList.js'
+export * as KeyboardBar from './KeyboardBar.js'
 export * as Native from './Native.js'
 export * as NativeCommand from './NativeCommand.js'
 export * as NativeHost from './NativeHost.js'

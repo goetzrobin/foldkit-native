@@ -209,6 +209,10 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
       engine.setEventListener(node, 'topTouchMove', following(moved)),
       engine.setEventListener(node, 'topTouchEnd', following(lifted)),
       engine.setEventListener(node, 'topTouchCancel', following(cancel)),
+      // On a scroll view: it started to scroll under the finger. The engine
+      // takes a touch away from a view inside a list that scrolls, but not
+      // from the list itself, so the list's own press is called off here.
+      engine.setEventListener(node, 'topScrollBeginDrag', cancel),
     ]
     wired.stop = () => {
       clearTimer()
