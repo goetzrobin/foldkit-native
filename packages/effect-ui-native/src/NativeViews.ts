@@ -7,8 +7,12 @@
  * `packages/native/src/host`. Where a build lacks the native view, each
  * falls back to plain views and says so through its `...Status()` function.
  *
- * Not wrapped yet: the keyboard dock, menus and Expo UI controls. See the
- * plan in docs/EFFECT_UI_NATIVE.md.
+ * Also here: what goes inside a sheet (`sheetParts`), the title bar's
+ * buttons and their menus (`barButtons`), the search field under a large
+ * title (`searchBar`) and the phone's own spinner (`spinner`).
+ *
+ * Not wrapped yet: Expo UI controls and swipe rows. See the plan in
+ * docs/EFFECT_UI_NATIVE.md.
  */
 import * as Mount from '@effect/ui/Mount'
 import type * as View from '@effect/ui/View'
@@ -37,6 +41,10 @@ import {
 } from '../../native/src/host/markdown/nativeStyle.js'
 import { type MarkdownColorScheme, markdownTheme } from '../../native/src/host/markdown/theme.js'
 import { NATIVE_MARKDOWN_TAG } from '../../native/src/host/markdown/views.js'
+import { type MenuItem, barMenuData } from '../../native/src/host/menus/items.js'
+import { onNextFrame } from '../../native/src/host/motion/clock.js'
+import { SHEET_FOOTER } from '../../native/src/host/navigation/tags.js'
+import { SEARCH_BAR } from '../../native/src/host/navigation/views.js'
 import { platformName } from '../../native/src/host/platform.js'
 import { type Painter, type Pen, type Size, makeSkiaPainter, makeViewPainter } from '../../native/src/host/skia/draw.js'
 import { isSkiaAvailable, skiaHost, skiaUnavailableReason } from '../../native/src/host/skia/host.js'
@@ -46,7 +54,10 @@ import * as Native from './Native.js'
 export { configureGlass } from '../../native/src/host/glass/detect.js'
 export { configureMarkdown } from '../../native/src/host/markdown/detect.js'
 export { configureSkia } from '../../native/src/host/skia/host.js'
-export { registerNavigation } from '../../native/src/host/navigation/views.js'
+export { registerNavigation, registerSearchBar } from '../../native/src/host/navigation/views.js'
+export { isLiquidGlassAvailable } from '../../native/src/host/glass/detect.js'
+export { isNativeMarkdownAvailable } from '../../native/src/host/markdown/detect.js'
+export { isSkiaAvailable } from '../../native/src/host/skia/host.js'
 export type { Pen, Size }
 
 // SHEETS
@@ -78,8 +89,190 @@ export const sheet = (options: SheetOptions = {}): Native.ScreenProps => {
     sheetLargestUndimmedDetent: options.undimmedUpTo ?? -1,
     sheetGrabberVisible: options.hasGrabber ?? false,
     sheetCornerRadius: options.cornerRadius ?? -1,
+    sheetExpandsWhenScrolledToEdge: true,
     ...(options.isDismissable === undefined ? {} : { gestureEnabled: options.isDismissable }),
   }
+}
+
+const BOTTOM_EDGE = { top: false, right: false, bottom: true, left: false } as const
+const FILL: Native.ViewStyle = { flex: 1 }
+/** A sheet that fits its content: the phone reads this view's own height. */
+const FIT: Native.ViewStyle = { position: 'absolute', top: 0, left: 0, right: 0 }
+
+export type SheetPartsOptions<Msg, R> = Readonly<{
+  /** `ios` or `android`. */
+  platform: string
+  /** The sheet's main content. In a sheet with heights, give it one child with `flex: 1` (a scroll view). */
+  body: Native.NoTextInput<Msg, R>
+  /** A bar that stays at the sheet's bottom edge, clear of the home indicator. */
+  footer?: Native.NoTextInput<Msg, R>
+  /** The sheet is as tall as its content (`NativeViews.sheet()` with no `detents`). */
+  fit?: boolean
+  testId?: string
+  style?: Native.ViewStyle
+  /** Android: the colour of the small "drag me" bar. iOS draws its own (`hasGrabber`). */
+  handleColor?: string
+}>
+
+/**
+ * What goes inside a sheet, as the children of its `modalScreen`:
+ *
+ *   h.modalScreen.set(NativeViews.sheet({ detents: [0.5, 1], hasGrabber: true })).children(
+ *     ...NativeViews.sheetParts(h, { platform, body: h.scrollView.style({ flex: 1 }).children(...), footer: doneButton }),
+ *   )
+ *
+ * The phone looks for one content view inside a sheet. That view must fill
+ * the sheet (`flex: 1`), and the style has to be on the view itself: with
+ * none, the content had no height on an iPhone and a footer under it was
+ * drawn at the top of the sheet. A fitted sheet's content is the other way
+ * round: placed at the top with its own height, which the phone reads.
+ *
+ * The footer is the last thing in the sheet. iOS: inside the content view,
+ * after the body, with the home indicator's strip kept clear. Android: the
+ * sheet's own footer view, after the content view.
+ */
+export const sheetParts = <Msg, R = never>(
+  h: Native.H<Msg>,
+  options: SheetPartsOptions<Msg, R>,
+): ReadonlyArray<Native.NoTextContent<Msg, R>> => {
+  const isAndroid = options.platform === 'android'
+  const footer = options.footer
+  const content = (children: ReadonlyArray<Native.NoTextInput<Msg, R>>) => {
+    const made = h.sheetContent
+      .key('sheet-content')
+      // Never left out of the native tree: the phone looks for this very view.
+      .set({ collapsable: false })
+      .style({ ...(options.fit === true ? FIT : FILL), ...options.style })
+    return (options.testId === undefined ? made : made.testId(options.testId)).children(...(children as never[]))
+  }
+  if (isAndroid) {
+    const handle = h.view
+      .key('sheet-handle')
+      .style({ alignItems: 'center', paddingTop: 8, paddingBottom: 4 })
+      .children(h.view.style({ width: 36, height: 5, borderRadius: 3, backgroundColor: options.handleColor ?? '#C4C4C4' }))
+    return [
+      content([handle, options.body]) as Native.NoTextContent<Msg, R>,
+      ...(footer === undefined
+        ? []
+        : [h.el(SHEET_FOOTER).key('sheet-footer').prop('collapsable', false).children(footer as never) as Native.NoTextContent<Msg, R>]),
+    ]
+  }
+  return [
+    content([
+      options.body,
+      footer === undefined
+        ? null
+        : h.view
+            .key('sheet-footer')
+            .set({ collapsable: false })
+            .children(h.safeArea.set({ edges: BOTTOM_EDGE }).style({ flex: 0 }).children(footer as never)),
+    ]) as Native.NoTextContent<Msg, R>,
+  ]
+}
+
+// THE TITLE BAR
+
+/** One button in the title bar. */
+export type BarButton = Readonly<{
+  id: string
+  /** What a screen reader says, and the word Android shows. */
+  label: string
+  /** iOS: the name of an SF Symbol, the phone's own icon set. */
+  symbol?: string
+  /** A press opens this menu, and the button's own press is not reported. */
+  menu?: ReadonlyArray<MenuItem>
+}>
+
+const barData = (buttons: ReadonlyArray<BarButton>): ReadonlyArray<Record<string, unknown>> =>
+  buttons.map((button, index) => ({
+    // A button with a menu gets no id: with both, the menu would open only on a hold.
+    ...(button.menu === undefined ? { buttonId: button.id, index } : { index, menu: barMenuData({ items: button.menu }) }),
+    title: button.label,
+    ...(button.symbol === undefined ? {} : { sfSymbolName: button.symbol }),
+  }))
+
+export type BarButtonsOptions<Msg> = Readonly<{
+  left?: ReadonlyArray<BarButton>
+  right?: ReadonlyArray<BarButton>
+  /** A button was pressed. */
+  onPress: (id: string) => Msg
+  /** An entry of a button's menu was chosen. */
+  onMenu?: (key: string) => Msg
+}>
+
+/**
+ * The iPhone's own bar buttons on a `header`, made from data, with SF
+ * Symbols and the phone's own menus:
+ *
+ *   NativeViews.barButtons(h.header.set({ title: 'Chats' }), {
+ *     right: [{ id: 'new', label: 'New', symbol: 'square.and.pencil' }],
+ *     onPress: id => Message.PressedBarButton({ id }),
+ *   })
+ *
+ * iOS only. Android has no such buttons: put a `headerItem` in the bar.
+ */
+export const barButtons = <Msg, B extends { prop: (name: string, value: unknown) => B; on: (name: never, handler: never) => B }>(
+  header: B,
+  options: BarButtonsOptions<Msg>,
+): B => {
+  let bar = header
+  if (options.left !== undefined) bar = bar.prop('headerLeftBarButtonItems', barData(options.left))
+  if (options.right !== undefined) bar = bar.prop('headerRightBarButtonItems', barData(options.right))
+  // The bar's own events. They are not in the vocabulary, so the names are cast here, once.
+  bar = bar.on(
+    'pressHeaderBarButtonItem' as never,
+    ((event: { buttonId?: unknown }) => options.onPress(typeof event.buttonId === 'string' ? event.buttonId : '')) as never,
+  )
+  const onMenu = options.onMenu
+  if (onMenu !== undefined) {
+    bar = bar.on(
+      'pressHeaderBarButtonMenuItem' as never,
+      ((event: { menuId?: unknown }) => onMenu(typeof event.menuId === 'string' ? event.menuId : '')) as never,
+    )
+  }
+  return bar
+}
+
+/**
+ * The phone's own search field under a large title (iOS), as a child of a
+ * `header`. Every change of the text is a Message, typed or cleared. Call
+ * `NativeViews.registerSearchBar()` once at startup.
+ */
+export const searchBar = <Msg>(
+  h: Native.H<Msg>,
+  options: Readonly<{ placeholder?: string; onChange: (text: string) => Msg; testId?: string }>,
+) =>
+  h.headerItem
+    .key('search')
+    .set({ type: 'searchBar' })
+    .children(
+      h
+        .el(SEARCH_BAR)
+        .prop('testID', options.testId)
+        .prop('placeholder', options.placeholder)
+        .prop('hideWhenScrolling', true)
+        // Under the large title. `automatic` lets iOS 26 move the field into a toolbar, which a stack screen has not.
+        .prop('placement', 'stacked')
+        .prop('allowToolbarIntegration', false)
+        .prop('autoCapitalize', 'none')
+        .on('changeText' as never, ((event: { text?: unknown }) => options.onChange(typeof event.text === 'string' ? event.text : '')) as never) as never,
+    )
+
+/** The phone's own spinner. It has no size of its own, so it is given one. */
+export const spinner = <Msg>(
+  h: Native.H<Msg>,
+  platform: string,
+  color: string,
+  size = 20,
+): View.ElementBuilder<Msg, never, any, any> => {
+  const made = h
+    .el('activity-indicator')
+    .prop('size', 'small')
+    .prop('animating', true)
+    .prop('color', color)
+    .prop('style', { width: size, height: size })
+  // Android's progress bar stops the app without these two.
+  return platform === 'android' ? made.prop('styleAttr', 'Normal').prop('indeterminate', true) : made
 }
 
 // GLASS
@@ -246,7 +439,15 @@ let nextCanvasId = 9_100
 export const makeCanvas = <const Name extends string, Fields extends Schema.Struct.Fields>(
   name: Name,
   args: Fields,
-  paint: (pen: Pen, size: Size, args: Schema.Struct<Fields>['Type']) => void,
+  paint: (pen: Pen, size: Size, args: Schema.Struct<Fields>['Type'], nowMs: number) => void,
+  options: Readonly<{
+    /**
+     * Paint again on every frame, for something that moves by itself.
+     * `paint` gets the time as its fourth argument. Only where the build has
+     * Skia: with plain views it is painted once per change, as without this.
+     */
+    everyFrame?: boolean
+  }> = {},
 ) =>
   Mount.makeStream(name, { args }, (node: Native.Node, _args, changes) =>
     Stream.unwrap(
@@ -270,11 +471,23 @@ export const makeCanvas = <const Name extends string, Fields extends Schema.Stru
           }
           let size: Size = { width: 0, height: 0 }
           let latest: Schema.Struct<Fields>['Type'] | undefined
+          let isStopped = false
+          let isLooping = false
+          const clock = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+          const loop = (): void => {
+            if (isStopped) return
+            draw()
+            onNextFrame(engine, loop)
+          }
           const draw = (): void => {
             const current = latest
             if (current === undefined) return
-            painter.draw(size, (pen, given) => paint(pen, given, current))
+            painter.draw(size, (pen, given) => paint(pen, given, current, clock()))
             engine.commit()
+            if (options.everyFrame === true && skia !== null && !isLooping && size.width > 0) {
+              isLooping = true
+              onNextFrame(engine, loop)
+            }
           }
           const stopLayout = engine.setEventListener(node, 'topLayout', event => {
             const layout = (event as { nativeEvent?: { layout?: Partial<Size> } })?.nativeEvent?.layout
@@ -292,6 +505,7 @@ export const makeCanvas = <const Name extends string, Fields extends Schema.Stru
             Stream.map((): never => undefined as never),
             Stream.ensuring(
               Effect.sync(() => {
+                isStopped = true
                 stopLayout()
                 painter.stop()
               }),

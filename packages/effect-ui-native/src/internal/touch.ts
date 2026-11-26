@@ -26,16 +26,54 @@
  * the raw touch events, which still reach the view. A newer engine never
  * takes the touch away for those scrolls, and this path is simply not used.
  *
+ * The phone's own long press (`NATIVE_HOLD`). The raw touch path above passed
+ * every simulated test in Fold Chat and still failed on a real iPhone while
+ * a reply streamed. So a view can ask for the phone's own recogniser as
+ * well: gesture-handler's long press, attached to the native view
+ * (`packages/native/src/host/worklets/hold.ts`). It sees only the finger and
+ * lasts as long as the view does, whatever JavaScript draws meanwhile. Where
+ * it is on, the timer here is the backup: it waits a little longer
+ * (`NATIVE_GRACE_MS`) and sends the long press itself if the recogniser said
+ * nothing. gesture-handler cancels the JavaScript touch the moment its own
+ * hold starts; if its word then never comes, the long press is sent from
+ * here too. One hold, heard by both, is one `longPress`. This is the same
+ * arrangement as Fold Chat's `flagship/longPress.ts`. Off on Android, where
+ * gesture-handler needs a root view this host does not have, and in a build
+ * without gesture-handler: `holdReport()` says which and why.
+ *
  * Nothing here knows Effect UI. The host passes `fire`, which hands the
  * finished event to the renderer.
  */
 import type { Engine, EngineNode } from '@ng-native/fabric'
 
 import type { NodeData, NodeHooks } from '../../../native/src/host/fabric/nodes.js'
+import { platformName } from '../../../native/src/host/platform.js'
 import { PRESSED_STYLE } from '../../../native/src/host/style.js'
+import {
+  HOLD_ACTIVE,
+  HOLD_BEGAN,
+  HOLD_CANCELLED,
+  HOLD_FAILED,
+  type NativeHoldChange,
+  attachNativeHold,
+  nativeHoldCheck,
+} from '../../../native/src/host/worklets/hold.js'
 
 /** The marker the host puts in an element's data: which of the two it listens for. */
 export const TOUCH = 'euiTouch'
+
+/**
+ * In an element's data (`NODE_DATA`): also read this view's long press with
+ * the phone's own recogniser. For a view that listens for `longPress`.
+ */
+export const NATIVE_HOLD = 'nativeHold'
+
+/**
+ * Where the phone's recogniser is on, how much longer the timer here waits
+ * before it sends the long press itself. The recogniser's word comes through
+ * the UI thread and may arrive a frame or two after half a second.
+ */
+export const NATIVE_GRACE_MS = 150
 
 export type TouchSpec = Readonly<{ press: boolean; longPress: boolean; pressIn?: boolean; pressOut?: boolean }>
 
@@ -73,7 +111,26 @@ const isPlain = (value: unknown): value is Record<string, unknown> =>
  * waiting: the view holds the responder. following: the engine took the
  * responder away for a scroll the program made, and the raw touch is followed.
  */
-type Phase = 'idle' | 'waiting' | 'following'
+type Phase = 'idle' | 'waiting' | 'following' | 'awaitingNative'
+
+type NativeRoute =
+  | Readonly<{ kind: 'off'; reason: string }>
+  | Readonly<{ kind: 'on'; tag: number; detach: () => void }>
+
+const report = { route: 'no hold on screen yet', last: 'none yet' }
+
+/**
+ * Which way holds are read (the phone's recogniser with JavaScript as the
+ * backup, or JavaScript alone and why), and how the last one went. One line
+ * for a numbers strip, so a phone test can say what happened.
+ */
+export const holdReport = (): string => `hold: ${report.route} | last: ${report.last}`
+
+/** Back to the start. For tests. */
+export const resetHoldReport = (): void => {
+  report.route = 'no hold on screen yet'
+  report.last = 'none yet'
+}
 
 type Wired = {
   spec: TouchSpec
@@ -83,6 +140,14 @@ type Wired = {
   timer: ReturnType<typeof setTimeout> | undefined
   /** The long press was sent for this touch: the lift sends nothing. */
   held: boolean
+  /** When this finger came down, as the responder heard it. */
+  startedAt: number
+  /** The view asked for the phone's own recogniser. */
+  wantsNative: boolean
+  native: NativeRoute
+  nativeBeganAt: number | undefined
+  /** When a long press was last sent, by either route. */
+  firedAt: number
   stop: () => void
 }
 
@@ -103,6 +168,8 @@ export type TouchOptions = Readonly<{
   propsOf: (node: EngineNode) => Readonly<Record<string, unknown>>
   stats: TouchStats
   longPressMs?: number
+  /** Queues work for after the next draw has reached the phone: a view has no number before. */
+  afterCommit?: (job: () => void) => void
 }>
 
 export const specOf = (data: NodeData): TouchSpec | undefined => data[TOUCH] as TouchSpec | undefined
@@ -129,7 +196,30 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
       last: undefined,
       timer: undefined,
       held: false,
+      startedAt: 0,
+      wantsNative: false,
+      native: { kind: 'off', reason: 'not asked for' },
+      nativeBeganAt: undefined,
+      firedAt: -Infinity,
       stop: () => {},
+    }
+    const routeOf = (): string =>
+      wired.native.kind === 'on' ? 'native recogniser on, JS as backup' : `JS route (native off: ${wired.native.reason})`
+    /** Sends the long press once for a finger, whichever route heard it first. */
+    const fireHold = (route: 'native' | 'JS', note = ''): void => {
+      if (!wired.spec.longPress) return
+      const now = Date.now()
+      const began = Math.max(wired.phase === 'idle' ? -Infinity : wired.startedAt, wired.nativeBeganAt ?? -Infinity)
+      const startedAt = Number.isFinite(began) ? began : now
+      if (wired.firedAt >= startedAt) return
+      wired.firedAt = now
+      clearTimer()
+      wired.held = true
+      if (wired.wantsNative) {
+        report.route = routeOf()
+        report.last = `recognised by ${route} after ${now - startedAt} ms${note}`
+      }
+      options.fire(node, 'longPress', wired.last ?? wired.start ?? { x: 0, y: 0 })
     }
     const clearTimer = (): void => {
       if (wired.timer !== undefined) clearTimeout(wired.timer)
@@ -146,6 +236,27 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
       if (wired.phase === 'idle') return
       options.stats.cancelled++
       end()
+    }
+    /**
+     * The phone cancelled the touch with no scroll and no other view taking
+     * it. gesture-handler does that the moment its own hold starts. If its
+     * word does not follow, the long press is sent from here.
+     */
+    const cancelledByPhone = (): void => {
+      if (wired.phase === 'idle') return
+      const elapsed = Date.now() - wired.startedAt
+      if (wired.native.kind === 'on' && wired.spec.longPress && !wired.held && elapsed >= longPressMs - 50) {
+        clearTimer()
+        wired.phase = 'awaitingNative'
+        wired.timer = setTimeout(() => {
+          wired.timer = undefined
+          if (wired.phase !== 'awaitingNative') return
+          fireHold('JS', ' (the phone cancelled the touch as its own hold would start, and its word never came)')
+          end()
+        }, NATIVE_GRACE_MS)
+        return
+      }
+      cancel()
     }
     const moved = (event: unknown): void => {
       const now = pointOf(event)
@@ -171,15 +282,20 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
         wired.last = wired.start
         wired.held = false
         wired.phase = 'waiting'
+        wired.startedAt = Date.now()
         showPressed(node, true)
         if (wired.spec.pressIn === true) options.fire(node, 'pressIn', wired.start ?? { x: 0, y: 0 })
         if (wired.spec.longPress) {
-          wired.timer = setTimeout(() => {
-            wired.timer = undefined
-            if (wired.phase === 'idle' || !wired.spec.longPress) return
-            wired.held = true
-            options.fire(node, 'longPress', wired.last ?? wired.start ?? { x: 0, y: 0 })
-          }, longPressMs)
+          const isNativeOn = wired.native.kind === 'on'
+          wired.timer = setTimeout(
+            () => {
+              wired.timer = undefined
+              if (wired.phase === 'idle' || !wired.spec.longPress) return
+              fireHold('JS', isNativeOn ? ' (native said nothing)' : '')
+            },
+            // The phone's recogniser goes first where it is on.
+            isNativeOn ? longPressMs + NATIVE_GRACE_MS : longPressMs,
+          )
         }
       },
       onResponderMove: event => {
@@ -194,7 +310,9 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
           options.stats.keptThroughScroll++
           return
         }
-        cancel()
+        // A drag of the list, or another view taking the touch: off. Anything else is the phone's own doing.
+        if (scroll !== undefined || (engine as { responder?: unknown }).responder === node) cancel()
+        else cancelledByPhone()
       },
       onResponderRelease: event => {
         if (wired.phase === 'waiting') lifted(event)
@@ -208,7 +326,7 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
     const stopListening = [
       engine.setEventListener(node, 'topTouchMove', following(moved)),
       engine.setEventListener(node, 'topTouchEnd', following(lifted)),
-      engine.setEventListener(node, 'topTouchCancel', following(cancel)),
+      engine.setEventListener(node, 'topTouchCancel', following(cancelledByPhone)),
       // On a scroll view: it started to scroll under the finger. The engine
       // takes a touch away from a view inside a list that scrolls, but not
       // from the list itself, so the list's own press is called off here.
@@ -219,9 +337,55 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
       wired.phase = 'idle'
       stopResponder()
       for (const stop of stopListening) stop()
+      if (wired.native.kind === 'on') wired.native.detach()
+      wired.native = { kind: 'off', reason: 'the view is gone' }
     }
+    onNative.set(wired, (change: NativeHoldChange): void => {
+      if (change.state === HOLD_BEGAN) {
+        wired.nativeBeganAt = Date.now()
+        return
+      }
+      if (change.state === HOLD_ACTIVE) {
+        const wasAwaiting = wired.phase === 'awaitingNative'
+        fireHold('native')
+        if (wasAwaiting) end()
+        return
+      }
+      if ((change.state === HOLD_FAILED || change.state === HOLD_CANCELLED) && wired.phase === 'awaitingNative') {
+        // Its hold did not happen after all: nothing is sent.
+        report.last = `not a hold: native said ${change.state === HOLD_FAILED ? 'failed' : 'cancelled'}`
+        end()
+      }
+    })
     wiredByNode.set(node, wired)
     options.stats.wired = wiredByNode.size
+  }
+
+  const onNative = new WeakMap<Wired, (change: NativeHoldChange) => void>()
+
+  /** Attaches the phone's recogniser to the view, again if the phone made the view afresh. */
+  const syncNative = (node: EngineNode, wired: Wired): void => {
+    if (!wired.wantsNative) {
+      if (wired.native.kind === 'on') wired.native.detach()
+      wired.native = { kind: 'off', reason: 'not asked for' }
+      return
+    }
+    const tag = engine.tagOf(node)
+    if (tag === null) return
+    if (wired.native.kind === 'on' && wired.native.tag === tag) return
+    if (wired.native.kind === 'on') wired.native.detach()
+    const off = (reason: string): void => {
+      wired.native = { kind: 'off', reason }
+      if (report.last === 'none yet') report.route = `JS route (native off: ${reason})`
+    }
+    // gesture-handler needs its root view around the view on Android. This host has none.
+    if (platformName() === 'android') return off('Android')
+    const check = nativeHoldCheck()
+    if (!check.ok) return off(check.reason)
+    const hold = attachNativeHold(tag, { minDurationMs: longPressMs, maxDist: PRESS_SLOP }, change => onNative.get(wired)?.(change))
+    if (!hold.ok) return off(hold.reason)
+    wired.native = { kind: 'on', tag, detach: hold.detach }
+    if (report.last === 'none yet') report.route = 'native recogniser on, JS as backup'
   }
 
   const unwire = (node: EngineNode): void => {
@@ -240,11 +404,31 @@ export const makeTouchHooks = (engine: Engine, options: TouchOptions): NodeHooks
     }
     if (wired === undefined) wire(node, spec)
     else wired.spec = spec
+    const now = wiredByNode.get(node)
+    if (now !== undefined) now.wantsNative = data[NATIVE_HOLD] === true && spec.longPress
   }
 
   return {
     create: sync,
     update: (node, _before, after) => sync(node, after),
     destroy: node => unwire(node),
+    // A view has no number until a draw has reached the phone.
+    post: () => {
+      const afterCommit = options.afterCommit
+      if (afterCommit === undefined) return
+      let wants = false
+      for (const wired of wiredByNode.values()) {
+        if (wired.wantsNative || wired.native.kind === 'on') {
+          wants = true
+          break
+        }
+      }
+      if (!wants) return
+      afterCommit(() => {
+        for (const [node, wired] of [...wiredByNode]) {
+          if (wiredByNode.get(node) === wired) syncNative(node, wired)
+        }
+      })
+    },
   }
 }

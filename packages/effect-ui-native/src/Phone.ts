@@ -12,6 +12,14 @@
  *     Phone.colorScheme(scheme => Message.ChangedScheme({ scheme })),
  *   ]
  *
+ * The same for the rest of the phone: saved settings (`StorageGet`,
+ * `StorageSet`), the share sheet (`Share`), links (`OpenUrl`), the app's own
+ * light or dark (`SetAppearance`), the recorder (`RequestMicrophone`,
+ * `StartRecording`, `StopRecording`, `CancelRecording`, and `recorder`), the
+ * player (`PlaySound`, `StopSound`, and `player`), speech recognition
+ * (`RequestSpeech`, `StartListening`, `StopListening`, `AbortListening`, and
+ * `speech`) and the network (`network`). `Phone.layerAll` provides them all.
+ *
  * The services themselves are the host layer's (`packages/native/src/host/device`):
  * `Phone.Device.live(modules)` over the real native modules, `Phone.Device.makeTest()`
  * as fakes a test can read and drive. `Phone.layer` turns them into the
@@ -30,6 +38,7 @@ import * as Device from '../../native/src/host/device/index.js'
 export { Device }
 
 const { AppState, Clipboard, ColorScheme, Haptics, Keyboard } = Device
+const { Appearance, Linking, Network, Player, Recorder, Speech, Storage } = Device
 
 /** What a Command that can fail answers: it worked, or why not. */
 export const Outcome = Schema.Union([
@@ -228,6 +237,380 @@ export const colorScheme = <Msg>(
     Stream.unwrap(
       ColorScheme.ColorScheme.use(service =>
         Effect.succeed(Stream.map(Device.streamOf('colorScheme', service.schemes), toMessage)),
+      ),
+    ),
+  )
+
+// THE REST OF THE PHONE
+//
+// These need more of the phone than the five services above, so they have a
+// Layer of their own: `layerAll`, over `Phone.Device.live(modules)`.
+
+/** What a read of the phone's small store answers: the text, or nothing saved (or the store failed). */
+export const Stored = Schema.Struct({ value: Schema.NullOr(Schema.String) })
+export type Stored = typeof Stored.Type
+
+/** Reads one saved value. A store that fails reads as nothing saved. */
+export class StorageGet extends Command.Service<StorageGet>()('Phone/StorageGet', {
+  args: { key: Schema.String },
+  success: Stored,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const storage = yield* Storage.Storage
+      return ({ key }) =>
+        Effect.match(storage.get(key), {
+          onSuccess: (value): Stored => ({ value: value._tag === 'Some' ? value.value : null }),
+          onFailure: (): Stored => ({ value: null }),
+        })
+    }),
+  )
+}
+
+/** Saves one value. It is still there the next time the app opens. */
+export class StorageSet extends Command.Service<StorageSet>()('Phone/StorageSet', {
+  args: { key: Schema.String, value: Schema.String },
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const storage = yield* Storage.Storage
+      return ({ key, value }) => Effect.match(storage.set(key, value), { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** Opens the phone's share sheet with a piece of text. */
+export class Share extends Command.Service<Share>()('Phone/Share', {
+  args: { message: Schema.String },
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const share = yield* Device.Share.Share
+      return ({ message }) => Effect.match(share.share({ message }), { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** Opens a link in the app the phone picks for it. */
+export class OpenUrl extends Command.Service<OpenUrl>()('Phone/OpenUrl', {
+  args: { url: Schema.String },
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const linking = yield* Linking.Linking
+      return ({ url }) => Effect.match(linking.open(url), { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** `system` follows the phone. */
+export const Theme = Schema.Literals(['system', 'light', 'dark'])
+export type Theme = typeof Theme.Type
+
+/**
+ * Sets the app's own light or dark on the phone, so the phone's views (the
+ * title bar, sheets, the keyboard) agree with the program's. Answers with
+ * what the phone shows now.
+ */
+export class SetAppearance extends Command.Service<SetAppearance>()('Phone/SetAppearance', {
+  args: { theme: Theme },
+  success: Schema.Struct({ scheme: ColorScheme.Scheme }),
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const appearance = yield* Appearance.Appearance
+      return ({ theme }) => Effect.map(appearance.set(theme), scheme => ({ scheme }))
+    }),
+  )
+}
+
+// The recorder
+
+/** `granted`, or why not. `blocked`: the phone will not ask again. `failed`: the build cannot record. */
+export const Access = Schema.Struct({
+  access: Schema.Literals(['granted', 'denied', 'blocked', 'failed']),
+  reason: Schema.String,
+})
+export type Access = typeof Access.Type
+
+/** Asks for the microphone, if the phone may still ask. */
+export class RequestMicrophone extends Command.Service<RequestMicrophone>()('Phone/RequestMicrophone', {
+  args: {},
+  success: Access,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const recorder = yield* Recorder.Recorder
+      return () =>
+        Effect.match(recorder.requestPermission, {
+          onSuccess: (permission): Access => ({ access: permission === 'granted' ? 'granted' : permission === 'blocked' ? 'blocked' : 'denied', reason: '' }),
+          onFailure: (error): Access => ({ access: 'failed', reason: error.reason }),
+        })
+    }),
+  )
+}
+
+/** Starts a recording. It stops by itself at `maxSeconds`. */
+export class StartRecording extends Command.Service<StartRecording>()('Phone/StartRecording', {
+  args: { maxSeconds: Schema.Number, warnSeconds: Schema.Number },
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const recorder = yield* Recorder.Recorder
+      return options => Effect.match(recorder.start(options), { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** What stopping a recording answers: the file, or why there is none. */
+export const Recorded = Schema.Union([
+  Schema.TaggedStruct('Recorded', { recording: Recorder.Recording }),
+  Schema.TaggedStruct('Failed', { reason: Schema.String }),
+])
+export type Recorded = typeof Recorded.Type
+
+/** Stops the recording and keeps the file. */
+export class StopRecording extends Command.Service<StopRecording>()('Phone/StopRecording', {
+  args: {},
+  success: Recorded,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const recorder = yield* Recorder.Recorder
+      return () =>
+        Effect.match(recorder.stop, {
+          onSuccess: (recording): Recorded => ({ _tag: 'Recorded', recording }),
+          onFailure: (error): Recorded => ({ _tag: 'Failed', reason: error.reason }),
+        })
+    }),
+  )
+}
+
+/** Stops the recording and deletes the file. */
+export class CancelRecording extends Command.Service<CancelRecording>()('Phone/CancelRecording', {
+  args: {},
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const recorder = yield* Recorder.Recorder
+      return () => Effect.match(recorder.cancel, { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+// The player
+
+/** Plays a sound file from where it was left. */
+export class PlaySound extends Command.Service<PlaySound>()('Phone/PlaySound', {
+  args: { uri: Schema.String },
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const player = yield* Player.Player
+      return ({ uri }) => Effect.match(player.play(uri, 1), { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** Stops the sound and frees the player. */
+export class StopSound extends Command.Service<StopSound>()('Phone/StopSound', {
+  args: {},
+  success: Component.Noop,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const player = yield* Player.Player
+      return () => Effect.as(player.stop, Component.noop)
+    }),
+  )
+}
+
+// Speech recognition
+
+/** Asks for the microphone and for speech recognition, if the phone may still ask. */
+export class RequestSpeech extends Command.Service<RequestSpeech>()('Phone/RequestSpeech', {
+  args: {},
+  success: Access,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const speech = yield* Speech.Speech
+      return () =>
+        Effect.match(speech.requestPermission, {
+          onSuccess: (access): Access => ({ access, reason: '' }),
+          onFailure: (error): Access => ({ access: 'failed', reason: error.reason }),
+        })
+    }),
+  )
+}
+
+/**
+ * Starts listening. The words arrive through the `speech` Subscription.
+ * `audioUri` reads a sound file in place of the microphone. An empty `lang`
+ * is the phone's own language.
+ */
+export class StartListening extends Command.Service<StartListening>()('Phone/StartListening', {
+  args: { lang: Schema.String, audioUri: Schema.NullOr(Schema.String) },
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const speech = yield* Speech.Speech
+      return ({ lang, audioUri }) =>
+        Effect.match(
+          speech.start({ ...(lang === '' ? {} : { lang }), ...(audioUri === null ? {} : { audioUri }) }),
+          { onSuccess: () => done, onFailure: failed },
+        )
+    }),
+  )
+}
+
+/** Stops listening. The phone may send one last result first. */
+export class StopListening extends Command.Service<StopListening>()('Phone/StopListening', {
+  args: {},
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const speech = yield* Speech.Speech
+      return () => Effect.match(speech.stop, { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** Stops listening at once, with no last result. */
+export class AbortListening extends Command.Service<AbortListening>()('Phone/AbortListening', {
+  args: {},
+  success: Outcome,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const speech = yield* Speech.Speech
+      return () => Effect.match(speech.abort, { onSuccess: () => done, onFailure: failed })
+    }),
+  )
+}
+
+/** Every Command service in this file. */
+export type AllCommands =
+  | Commands
+  | StorageGet
+  | StorageSet
+  | Share
+  | OpenUrl
+  | SetAppearance
+  | RequestMicrophone
+  | StartRecording
+  | StopRecording
+  | CancelRecording
+  | PlaySound
+  | StopSound
+  | RequestSpeech
+  | StartListening
+  | StopListening
+  | AbortListening
+
+/** Every Command service in this file, over the whole of `Phone.Device.live(modules)`. */
+export const layerAll: Layer.Layer<AllCommands, never, Device.Services> = Layer.mergeAll(
+  layer,
+  StorageGet.layer,
+  StorageSet.layer,
+  Share.layer,
+  OpenUrl.layer,
+  SetAppearance.layer,
+  RequestMicrophone.layer,
+  StartRecording.layer,
+  StopRecording.layer,
+  CancelRecording.layer,
+  PlaySound.layer,
+  StopSound.layer,
+  RequestSpeech.layer,
+  StartListening.layer,
+  StopListening.layer,
+  AbortListening.layer,
+)
+
+/** What the recorder says while it records: its clock, a recording that ended at its limit, a failure. */
+export const RecorderEvent = Schema.Union([
+  Schema.TaggedStruct('Status', { status: Recorder.RecorderStatus }),
+  Schema.TaggedStruct('Finished', { recording: Recorder.Recording }),
+  Schema.TaggedStruct('Failed', { reason: Schema.String }),
+])
+export type RecorderEvent = typeof RecorderEvent.Type
+
+/** The recorder's clock, about once a second. Subscribe only while recording. */
+export const recorder = <Msg>(
+  toMessage: (event: RecorderEvent) => Msg,
+): Subscription.Subscription<Msg, Device.Recorder.Recorder> =>
+  Subscription.make(
+    'Phone/recorder',
+    Stream.unwrap(
+      Recorder.Recorder.use(service =>
+        Effect.succeed(Stream.map(Device.streamOf(Recorder.CAPABILITY, service.events), toMessage)),
+      ),
+    ),
+  )
+
+/** What the player says: where it is in the sound, and that it reached the end. */
+export const PlayerEvent = Schema.Union([
+  Schema.TaggedStruct('Changed', { playback: Player.Playback }),
+  Schema.TaggedStruct('Finished', { uri: Schema.String }),
+])
+export type PlayerEvent = typeof PlayerEvent.Type
+
+/** The player's changes. Subscribe only while a sound may be playing. */
+export const player = <Msg>(
+  toMessage: (event: PlayerEvent) => Msg,
+): Subscription.Subscription<Msg, Device.Player.Player> =>
+  Subscription.make(
+    'Phone/player',
+    Stream.unwrap(
+      Player.Player.use(service =>
+        Effect.succeed(Stream.map(Device.streamOf(Player.CAPABILITY, service.events), toMessage)),
+      ),
+    ),
+  )
+
+/**
+ * What the phone hears. `Result` holds everything heard so far in this
+ * session, so show the newest and forget the one before.
+ */
+export const SpeechEvent = Schema.Union([
+  Schema.TaggedStruct('Started', {}),
+  Schema.TaggedStruct('Result', { text: Schema.String, isFinal: Schema.Boolean }),
+  Schema.TaggedStruct('Ended', {}),
+  Schema.TaggedStruct('Failed', { code: Schema.String, reason: Schema.String }),
+])
+export type SpeechEvent = typeof SpeechEvent.Type
+
+/** Speech recognition's events. Subscribe before `StartListening` and for as long as the phone listens. */
+export const speech = <Msg>(
+  toMessage: (event: SpeechEvent) => Msg,
+): Subscription.Subscription<Msg, Device.Speech.Speech> =>
+  Subscription.make(
+    'Phone/speech',
+    Stream.unwrap(
+      Speech.Speech.use(service =>
+        Effect.succeed(Stream.map(Device.streamOf(Speech.CAPABILITY, service.events), toMessage)),
+      ),
+    ),
+  )
+
+/** Whether the phone is online, then every change. */
+export const network = <Msg>(
+  toMessage: (isOnline: boolean) => Msg,
+): Subscription.Subscription<Msg, Device.Network.Network> =>
+  Subscription.make(
+    'Phone/network',
+    Stream.unwrap(
+      Network.Network.use(service =>
+        Effect.succeed(Stream.map(Device.streamOf('network', service.states), state => toMessage(state.status === 'online'))),
       ),
     ),
   )

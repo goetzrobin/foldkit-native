@@ -42,6 +42,8 @@ import { registered } from '../../native/src/host/fabric/registry.js'
 import { type HostSurface, type HostSurfaceOptions, createHostSurface } from '../../native/src/host/fabric/surface.js'
 import { CHANGE_TEXT, type Source, isTouchEvent, nativeOf, sourcesOf } from './internal/events.js'
 import { TOUCH, type TouchSpec, type TouchStats, makeTouchHooks } from './internal/touch.js'
+
+export { NATIVE_GRACE_MS, NATIVE_HOLD, holdReport, resetHoldReport } from './internal/touch.js'
 import * as Native from './Native.js'
 
 /** What the renderer holds for an element, a piece of text, or a kept child's shelf. */
@@ -656,6 +658,7 @@ export const makeSurface = (
         fire: (node, name, payload) => void handle?.fire(node, name, payload),
         propsOf: node => entries.get(node)?.props ?? {},
         stats,
+        afterCommit,
         ...(longPressMs === undefined ? {} : { longPressMs }),
       }),
       // What other host features registered at import (modal screens, the app window).

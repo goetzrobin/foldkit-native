@@ -11,9 +11,11 @@
  *   VirtualList     a long list as an Effect UI component
  *   AnchoredList    a chat's list: the host's list controller, with Effect UI rows
  *   KeyboardBar     a bar the phone moves with the keyboard
+ *   Menus           the phone's own list of choices, and what a bar button's menu holds
  */
 export * as AnchoredList from './AnchoredList.js'
 export * as KeyboardBar from './KeyboardBar.js'
+export * as Menus from './Menus.js'
 export * as Native from './Native.js'
 export * as NativeCommand from './NativeCommand.js'
 export * as NativeHost from './NativeHost.js'

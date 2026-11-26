@@ -122,15 +122,15 @@ const barHooks: NodeHooksFactory = (engine, afterCommit) => {
 
 registerNodeHooks(barHooks)
 
-export type ViewOptions<Msg, R> = Readonly<{
+export type ViewOptions<Msg, R, RAbove = R, ROver = R> = Readonly<{
   /** The keyboard's height from the Model, 0 while it is down. Read only where the phone cannot move the bar. */
   keyboardHeight: number
   /** The bar: the composer. */
   bar: Native.NoTextInput<Msg, R>
   /** What the bar lies over: the list, filling the area. */
-  above: Native.NoTextContent<Msg, R>
+  above: Native.NoTextContent<Msg, RAbove>
   /** Views on the bar's top edge that move with it. They take no room. */
-  overBar?: Native.NoTextInput<Msg, R>
+  overBar?: Native.NoTextInput<Msg, ROver>
   /** The `AnchoredList` above, which makes room with a bottom inset. */
   listId: string
   /** The `nativeID` of the text field in the bar. */
@@ -139,7 +139,11 @@ export type ViewOptions<Msg, R> = Readonly<{
 }>
 
 /** Draws the bar over (or under) what is above it. See the top of this file. */
-export const view = <Msg, R = never>(h: Native.H<Msg>, options: ViewOptions<Msg, R>): View.ElementBuilder<Msg, R, any, any> => {
+export const view = <Msg, R = never, RAbove = never, ROver = never>(
+  h: Native.H<Msg>,
+  // Each of the three may need different services. What the bar's view needs is all of them.
+  options: ViewOptions<Msg, R, RAbove, ROver>,
+): View.ElementBuilder<Msg, R | RAbove | ROver, any, any> => {
   const isNative = keyboardDockMode() === 'native'
   const insets = isNative && chatInsetAvailable()
   // Measured to learn how high the bar's content already stands.
@@ -187,7 +191,7 @@ export const view = <Msg, R = never>(h: Native.H<Msg>, options: ViewOptions<Msg,
       .children(
         h.view.key('above').style({ flex: 1 }).children(options.above),
         h.view.key('over').style({ position: 'absolute', left: 0, right: 0, bottom: 0 }).children(seat),
-      ) as View.ElementBuilder<Msg, R, any, any>
+      ) as View.ElementBuilder<Msg, R | RAbove | ROver, any, any>
   }
   return h.view
     .key(isNative ? 'keyboard-bar-native' : 'keyboard-bar-fallback')
@@ -201,7 +205,7 @@ export const view = <Msg, R = never>(h: Native.H<Msg>, options: ViewOptions<Msg,
         // The host writes this view's style. Nothing else may.
         .children(h.view.key('lift').set({ collapsable: false }).children(options.above)),
       h.view.key('host').children(seat),
-    ) as View.ElementBuilder<Msg, R, any, any>
+    ) as View.ElementBuilder<Msg, R | RAbove | ROver, any, any>
 }
 
 /**
