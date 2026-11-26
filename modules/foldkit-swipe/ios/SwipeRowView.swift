@@ -491,6 +491,9 @@ public final class SwipeRowView: ExpoView, UIGestureRecognizerDelegate {
       initialVelocity: CGVector(dx: velocity / distance, dy: 0)
     )
     let running = UIViewPropertyAnimator(duration: 0.4, timingParameters: timing)
+    // Set before the frames are written: `layoutActions` reads it to keep
+    // the tiles on screen while the row closes.
+    animator = running
     running.addAnimations {
       self.applyOffset()
     }
@@ -501,7 +504,6 @@ public final class SwipeRowView: ExpoView, UIGestureRecognizerDelegate {
       self.animator = nil
       self.applyOffset()
     }
-    animator = running
     running.startAnimation()
   }
 
@@ -591,7 +593,12 @@ public final class SwipeRowView: ExpoView, UIGestureRecognizerDelegate {
   }
 
   private func layoutActions() {
-    guard let side = revealedSide(at: offset) else {
+    // While the row closes, `offset` is already zero but the content is
+    // still sliding back. The tiles stay until that animation has ended, and
+    // move back under the row's edge with it. Hiding them here at once left
+    // an empty gap behind the content for the length of the animation.
+    let closingSide: Side? = animator != nil ? tilesSide : nil
+    guard let side = revealedSide(at: offset) ?? closingSide else {
       actionsLayer.isHidden = true
       return
     }

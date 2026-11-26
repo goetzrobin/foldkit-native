@@ -46,5 +46,10 @@
     "enableCodeHighlight": true,
     "enableMath": true,
     "enableVideo": false
+  },
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "../../modules"
+    }
   }
 }

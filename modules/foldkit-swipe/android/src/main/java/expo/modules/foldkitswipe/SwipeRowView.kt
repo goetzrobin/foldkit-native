@@ -24,6 +24,7 @@ import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -580,7 +581,10 @@ class SwipeRowView(context: Context, appContext: AppContext) : ExpoView(context,
   // one movement.
   private fun animateTo(target: Float, velocity: Float) {
     stopAnimation()
-    if (abs(target - offset) < 0.5f) {
+    // With animations switched off in the phone's settings ("Remove
+    // animations"), the row goes to its place at once, as it does on iOS
+    // with Reduce Motion.
+    if (isMotionReduced || abs(target - offset) < 0.5f) {
       offset = target
       applyOffset()
       return
@@ -605,6 +609,10 @@ class SwipeRowView(context: Context, appContext: AppContext) : ExpoView(context,
     spring = running
     running.start()
   }
+
+  /** Whether the phone's own animations are switched off in its settings. */
+  private val isMotionReduced: Boolean
+    get() = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
   /** Stops a running animation where it is, so a new finger can take over. */
   private fun stopAnimation() {
