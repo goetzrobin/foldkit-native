@@ -38,7 +38,15 @@
  */
 import type { FakeFabric, FakeFabricNode } from '@ng-native/testing/fake'
 
-import { byTestId, flatten } from './phone.js'
+// Kept free of the Foldkit test phone, so the Effect UI suite uses this same file.
+const flatten = (nodes: ReadonlyArray<FakeFabricNode>): Array<FakeFabricNode> =>
+  nodes.flatMap(node => [node, ...flatten(node.children)])
+
+const byTestId = (fabric: FakeFabric, id: string): FakeFabricNode => {
+  const found = flatten(fabric.committed).find(node => node.props['testID'] === id)
+  if (found === undefined) throw new Error(`No view with testID ${id}`)
+  return found
+}
 
 export type ScrollPhoneOptions = Readonly<{
   /** The testID of the list's scroll view. */

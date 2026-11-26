@@ -358,8 +358,12 @@ type ListState = {
   isFollowing: boolean
   /** A finger is on the list, or a fling it started is still running. */
   isUserScrolling: boolean
+  /** A finger rests on a row without dragging, as the program said (`touchList`). */
+  isTouched: boolean
   /** Waits, after a finger lets go, for the phone to say a fling started. */
   flingTimer: ReturnType<typeof setTimeout> | undefined
+  /** The finger let go with the end on screen, and no fling has followed. */
+  releasedAtEnd: boolean
   /** The bottom of the scroll view in the window, measured while numbers are shown. */
   frameBottom: number | undefined
   /** Where the anchored row was at the last draw, for `ListNumbers.anchor`. */
@@ -807,12 +811,14 @@ const followsEnd = (state: ListState, isResize: boolean): boolean =>
  * - Off: the user's own scroll leaving the end (a drag up), a new anchored
  *   row (the question after Send, which is held at the top while its reply
  *   runs on below it: the list does not chase that reply), `scrollToRow`.
- * - While a finger is on the list it is never moved, following or not.
+ * - While a finger is on the list it is never moved, following or not. A
+ *   finger that drags says so itself. One that only rests on a row does
+ *   not: the program says it (`touchList`).
  * - A glide on its way to the end is not started over as the end moves:
  *   the list catches up when it arrives.
  */
 const isFollowingNow = (state: ListState): boolean =>
-  state.spec.maintainScrollAtEndFollowOnReturn && state.isFollowing && !state.isUserScrolling
+  state.spec.maintainScrollAtEndFollowOnReturn && state.isFollowing && !state.isUserScrolling && !state.isTouched
 
 /** A list following the end goes to where the end is now, at once. */
 const catchUp = (state: ListState): void => {
@@ -1160,6 +1166,9 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
   const dragBegan = (state: ListState): void => {
     letGo(state)
     state.isUserScrolling = true
+    state.releasedAtEnd = false
+    // A finger that drags is no longer one that rests.
+    state.isTouched = false
     clearTimeout(state.flingTimer)
     state.flingTimer = undefined
     restartDrift(state)
@@ -1172,6 +1181,10 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
   const dragEnded = (state: ListState): void => {
     showNumbers(state)
     if (!state.isUserScrolling) return
+    // Where the finger left the list. A reply that grows in the moment the
+    // list then waits for a fling must not make "at the end" a "no".
+    refreshAtEnd(state)
+    state.releasedAtEnd = state.isAtEnd === true
     clearTimeout(state.flingTimer)
     state.flingTimer = setTimeout(() => userScrollEnded(state), FLING_WAIT_MS)
   }
@@ -1179,6 +1192,8 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
   const flingBegan = (state: ListState): void => {
     clearTimeout(state.flingTimer)
     state.flingTimer = undefined
+    // The fling decides where the scroll ends, not where the finger let go.
+    state.releasedAtEnd = false
   }
 
   /**
@@ -1191,7 +1206,8 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
     if (!state.isAlive || !state.isUserScrolling) return
     state.isUserScrolling = false
     refreshAtEnd(state)
-    if (state.spec.maintainScrollAtEndFollowOnReturn) state.isFollowing = state.isAtEnd === true
+    if (state.spec.maintainScrollAtEndFollowOnReturn) state.isFollowing = state.isAtEnd === true || state.releasedAtEnd
+    state.releasedAtEnd = false
     catchUp(state)
     refreshAtEnd(state)
     state.draw('own')
@@ -1311,7 +1327,9 @@ const listHooks: NodeHooksFactory = (engine, afterCommit) => {
       // A list that opens at its end follows it (see `Following`).
       isFollowing: spec.initialScrollAtEnd,
       isUserScrolling: false,
+      isTouched: false,
       flingTimer: undefined,
+      releasedAtEnd: false,
       frameBottom: undefined,
       anchorSeen: undefined,
       glide: undefined,
@@ -1520,6 +1538,25 @@ export const scrollToEnd = (id: string, options: Readonly<{ animated?: boolean }
     beginHold(state)
     resettle(state, options.animated ?? false)
     chooseRows(state)
+    state.draw('own')
+    tellAtEnd(state)
+  }
+}
+
+/**
+ * A finger came to rest on a row of the list (`true`) or left it (`false`).
+ * The phone reports a drag by itself, but not a finger that only rests. A
+ * list that follows its end stays where it is under a resting finger, so
+ * the row being read or held does not move away, and catches up when the
+ * finger lifts. Following itself is not switched off.
+ */
+export const touchList = (id: string, isTouched: boolean): void => {
+  for (const state of listsById.get(id) ?? []) {
+    if (!state.isAlive || state.isTouched === isTouched) continue
+    state.isTouched = isTouched
+    if (isTouched) continue
+    catchUp(state)
+    refreshAtEnd(state)
     state.draw('own')
     tellAtEnd(state)
   }
