@@ -1,4 +1,9 @@
 {
   "extends": "expo/tsconfig.base",
-  "compilerOptions": { "strict": true, "skipLibCheck": true }
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    // The Snake rules are copied from Effect UI as they are, and import with ".ts".
+    "allowImportingTsExtensions": true
+  }
 }

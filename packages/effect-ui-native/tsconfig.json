@@ -7,6 +7,8 @@
     "types": [],
     "strict": true,
     "noEmit": true,
+    // The Snake rules in playground/snake are copied from Effect UI as they are, and import with ".ts".
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "paths": {
       // The host layer in packages/native must see this package's Effect, not its own.
