@@ -19,10 +19,13 @@ import { makeInProcessLink } from '../../native/src/host/aiChat/transport.js'
 import type { ChatMessage } from '../../native/src/host/aiChat/wire.js'
 import { resetMarkdownSetup } from '../../native/src/host/markdown/detect.js'
 import { registerNavigation } from '../../native/src/host/navigation/views.js'
+import { configureWorklets, resetWorklets } from '../../native/src/host/worklets/host.js'
+import { requireCompiledWorklets } from '../../native/src/host/worklets/run.js'
+import { makeWorklets } from '../../native/test/support/worklets.js'
 import { App } from '../chat/app.js'
 import { PUSH_WAIT_MS } from '../chat/parts/chatScreen.js'
 import { chatServices } from '../chat/start.js'
-import { AnchoredList, Phone } from '../src/index.js'
+import { AnchoredList, Motion, NativeHost, Phone } from '../src/index.js'
 import { ChatPhone, NativeTest } from '../src/testing/index.js'
 import { provideForTest, run } from './support.js'
 
@@ -957,35 +960,84 @@ describe('10. following stops under a finger and after a drag away, and starts a
     ))
 })
 
-describe('9b. the round button fades', () => {
-  it('in as the end goes out of view, and out again when the list is taken to the end, without leaving the bar', () =>
+describe('9b. the round button comes and goes', () => {
+  it('in a build with no worklets: it is only there while the end is out of view, at its full size, and gone at once', () =>
     run(
       Effect.gen(function* () {
         const started = yield* chatWithHistory()
         const { app } = started
-        const motion = () => app.byTestId('scroll-to-end-motion').props
-        // Away: see-through, small, and out of a finger's reach.
-        expect(motion()['opacity']).toBe(0)
-        expect(motion()['pointerEvents']).toBe('none')
+        expect(Motion.route()).toBe('at-once')
+        // Not wanted: not on screen at all, so it cannot take a touch.
+        expect(app.has('scroll-to-end-motion')).toBe(false)
         expect(app.has('scroll-to-end')).toBe(false)
         yield* send(app, RUNNING)
         yield* untilRunsOff(started)
-        const seen: Array<number> = []
-        for (let step = 0; step < 14; step++) {
-          seen.push(motion()['opacity'] as number)
-          yield* app.wait(12)
-        }
-        // It did not pop in: it was partly there on the way.
-        expect(seen.some(opacity => opacity > 0 && opacity < 1), JSON.stringify(seen)).toBe(true)
-        yield* app.wait(200)
+        const motion = () => app.byTestId('scroll-to-end-motion').props
         expect(motion()['opacity']).toBe(1)
-        expect(motion()['transform']).toEqual([{ scale: 1 }])
-        expect(motion()['pointerEvents']).toBe('box-none')
+        expect(motion()['transform']).toEqual([{ translateX: 0 }, { translateY: 0 }, { scale: 1 }])
         yield* app.press('scroll-to-end')
         yield* app.wait(400)
-        expect(app.has('scroll-to-end')).toBe(false)
-        expect(motion()['opacity']).toBe(0)
-        expect(motion()['pointerEvents']).toBe('none')
+        expect(app.has('scroll-to-end-motion')).toBe(false)
+      }),
+    ))
+
+  it('in a build with worklets: the phone fades and grows it in, and fades and shrinks it out before it is taken away', () =>
+    run(
+      Effect.gen(function* () {
+        const worklets = makeWorklets()
+        stops.push(() => {
+          worklets.uninstall()
+          resetWorklets()
+          requireCompiledWorklets(true)
+          Motion.reset()
+          NativeHost.resetHoldReport()
+        })
+        requireCompiledWorklets(false)
+        configureWorklets(worklets.config)
+        const started = yield* chatWithHistory()
+        const { app } = started
+        // The history showed the button once. This phone's UI thread has not run yet,
+        // so that button leaves a moment after its time, by JavaScript's own timer.
+        yield* until(app, () => !app.has('scroll-to-end-motion'), 2000, 'the first button to go')
+        yield* send(app, RUNNING)
+        yield* untilRunsOff(started)
+        yield* until(app, () => app.has('scroll-to-end-motion'), 2000, 'the round button')
+        const tag = app.byTestId('scroll-to-end-motion').reactTag
+        const sent = () =>
+          worklets.updates
+            .filter(update => update.tag === tag)
+            .map(update => ({
+              opacity: update.style['opacity'] as number,
+              scale: (update.style['transform'] as Array<{ scale?: number }>).find(each => 'scale' in each)?.scale as number,
+            }))
+        // Drawn away, by JavaScript. The phone takes it from there.
+        expect(app.byTestId('scroll-to-end-motion').props['opacity']).toBe(0)
+        worklets.flushUi()
+        expect(sent()[0]).toEqual({ opacity: 0, scale: 0.8 })
+        worklets.frame(0)
+        worklets.frame(75)
+        const half = sent().at(-1) as { opacity: number; scale: number }
+        expect(half.opacity).toBeGreaterThan(0)
+        expect(half.opacity).toBeLessThan(1)
+        expect(half.scale).toBeGreaterThan(0.8)
+        expect(half.scale).toBeLessThan(1)
+        worklets.frame(75)
+        expect(sent().at(-1)).toEqual({ opacity: 1, scale: 1 })
+        yield* app.settle
+        // Still inside the bar the phone moves with the keyboard.
+        expect(flatten([started.phone.bar()]).includes(app.byTestId('scroll-to-end'))).toBe(true)
+        yield* app.press('scroll-to-end')
+        yield* until(app, () => Motion.stats().leaving === 1, 2000, 'the button to start leaving')
+        // On its way out: still drawn, and no longer pressable.
+        expect(app.has('scroll-to-end-motion')).toBe(true)
+        expect(app.byTestId('scroll-to-end-motion').props['pointerEvents']).toBe('none')
+        worklets.flushUi()
+        worklets.frame(0)
+        worklets.frame(150)
+        expect(sent().at(-1)).toEqual({ opacity: 0, scale: 0.8 })
+        yield* app.settle
+        expect(app.has('scroll-to-end-motion')).toBe(false)
+        expect(Motion.stats().leaving).toBe(0)
       }),
     ))
 })

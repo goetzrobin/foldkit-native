@@ -16,10 +16,12 @@ What exists now:
   edited.
 - **Native building blocks.** Boxes, text, buttons, scrolling, text fields,
   pictures, screens with the phone's own title bar and swipe back, sheets,
-  glass, Markdown and a drawing canvas.
-- **A playground app** (`apps/eui-playground`) with six screens: a counter,
-  notes, a 1,000 row list, touch tests, phone features, and a list loaded
-  from a pretend server. It is there to answer questions on a real phone.
+  glass, Markdown, a drawing canvas, rows that swipe, and animations that
+  run on the phone's own thread.
+- **A playground app** (`apps/eui-playground`) with seven screens: a counter,
+  notes, a 1,000 row list, touch tests, phone features, a list loaded
+  from a pretend server, and boxes that keep moving while JavaScript is
+  blocked. It is there to answer questions on a real phone.
 - **188 tests** on a simulated phone, all passing. 135 of them came with
   Effect Chat, the port of Fold Chat, which is now done in three steps. See
   `docs/EFFECT_UI_CHAT.md`.
@@ -117,7 +119,7 @@ the last position is always delivered.
 ## The vocabulary
 
 ```ts
-import { Native, NativeCommand, NativeHost, NativeMount, NativeViews, Phone, VirtualList } from 'effect-ui-native'
+import { Motion, Native, NativeCommand, NativeHost, NativeMount, NativeViews, Phone, VirtualList } from 'effect-ui-native'
 
 const Counter = Native.component({ name: 'Counter', model, message }).make({
   init: () => ({ count: 0 }),
@@ -148,9 +150,10 @@ the code is checked and when it runs.
 |---|---|
 | `NativeHost` | `mount(Component, props, { fabric, rootTag })` returns a Layer. `run(layer)` starts it. `makeSurface`, `layerFromSurface` for tests and embedding. |
 | `NativeCommand` | `focus(ref)`, `blur()`, `scrollTo(ref, { y })`, `scrollToEnd(ref)`, `measure(ref)` |
-| `NativeMount` | `Measure`, `TrackLayout`, `TrackHold` (the phone's own long press, attached to the native view), `Fade` (a view that fades in and out and stays in the tree). Write your own with `Mount.make` and `Native.Host`. |
+| `NativeMount` | `Measure`, `TrackLayout`, `TrackHold` (the phone's own long press, attached to the native view), `Fade` (a view that fades in and out and stays in the tree, moved from JavaScript: `Motion` is the better choice). Write your own with `Mount.make` and `Native.Host`. |
+| `Motion` | Animations on the phone's own thread. `animate(element, { to, from, exit, ms, delayMs, easing, spring })`, the Command `animateTo(ref, ...)`, `status()`, `route()`, `stats()`, `configure({ accessibilityInfo })`. See "Motion" below |
 | `NativeQuery` | `layer`, `visibility`, `connectivity`: tells Effect UI's query cache when the app is in front and when the phone is online. See `docs/EFFECT_UI_CHAT.md`. |
-| `NativeViews` | `sheet(options)` and `sheetParts(h, { body, footer })` for what goes inside one, `barButtons(header, options)`, `searchBar(h, options)`, `spinner(h, ...)`, `glass(h, options)`, `markdown(h, options)`, `makeCanvas(name, args, paint)`, and the register and status functions |
+| `NativeViews` | `sheet(options)` and `sheetParts(h, { body, footer })` for what goes inside one, `barButtons(header, options)`, `searchBar(h, options)`, `spinner(h, ...)`, `glass(h, options)`, `markdown(h, options)`, `makeCanvas(name, args, paint)`, `swipeRow(h, options)` with the Commands `closeSwipeRows(group)` and `closeSwipeRow(ref)` (see "Swipe rows" below), and the register and status functions |
 | `Menus` | The phone's own list of choices as a Command: `Menus.Show`. `Menus.live`, `Menus.makeTest()`. `MenuItem` is what a bar button's menu holds |
 | `Phone` | Commands `Impact`, `Selection`, `Notify`, `Copy`, `Paste`, `DismissKeyboard`, with `Phone.live(modules)` and `Phone.layer`. Over the whole of `Phone.Device.live(modules)`, `Phone.layerAll` adds `StorageGet`, `StorageSet`, `Share`, `OpenUrl`, `SetAppearance`, the recorder (`RequestMicrophone`, `StartRecording`, `StopRecording`, `CancelRecording`), the player (`PlaySound`, `StopSound`) and speech recognition (`RequestSpeech`, `StartListening`, `StopListening`, `AbortListening`). Subscriptions `keyboard`, `appState`, `colorScheme`, `network`, `recorder`, `player`, `speech` |
 | `VirtualList` | `Model`, `init`, `scrolled`, `measured`, `view` |
@@ -169,11 +172,107 @@ press recogniser, with the host's timer as its backup:
 `NativeHost.holdReport()` says which way read the last hold. See "How the
 hold works" in `docs/EFFECT_UI_CHAT.md`.
 
-Not wrapped yet: the phone's context menu, Expo UI controls, swipe rows and
-tabs. Their native halves are in the host layer. A host feature that finds
+Not wrapped yet: the phone's context menu, Expo UI controls and tabs. Their
+native halves are in the host layer. A host feature that finds
 its elements by a key in the node's data can be switched on for an element
 with the `nodeData` prop (`NativeHost.NODE_DATA`): the list and the keyboard
 bar work that way.
+
+## Swipe rows
+
+`NativeViews.swipeRow` is a row that slides sideways under the finger to
+show actions. The phone draws and moves it: the native view is this
+project's own, in `modules/foldkit-swipe` (Swift and Kotlin, not compiled
+yet, see `docs/NATIVE_VIEWS.md`). An app gets it by naming that folder in
+its `package.json` and building again.
+
+```ts
+NativeViews.swipeRow(h, {
+  trailing: [
+    { key: 'delete', label: 'Delete', symbol: 'trash', isDestructive: true },
+    { key: 'rename', label: 'Rename', symbol: 'pencil', color: '#5C5C63' },
+  ],
+  group: 'chats',
+  onAction: ({ key, isFullSwipe }) => Message.ChoseSwipeAction({ id, key, isFullSwipe }),
+  onOpened: side => Message.OpenedRow({ id }),
+  onClosed: () => Message.ClosedRow({ id }),
+}).children(h.view.style({ backgroundColor: '#FFFFFF', padding: 16 }).children(h.text('Bread recipe')))
+```
+
+| Option | What it does |
+|---|---|
+| `leading`, `trailing` | The actions on each side: `key`, `label`, `symbol` (an SF Symbol, iPhone only), `isDestructive`, `color` |
+| `fullSwipe` | Whether swiping all the way triggers the first action of that side. For the whole row. On unless said |
+| `group` | Rows with the same group close each other |
+| `look` | `tiles` (rounded, with gaps) or `strip` (square blocks) |
+| `cornerRadius`, `isEnabled`, `style`, `testId` | As they read |
+| `onAction` | A tile was pressed, or the row was swiped all the way |
+| `onOpened`, `onClosed` | The row came to rest open, or closed |
+
+- `NativeViews.closeSwipeRows(group)` is a Command that closes every open
+  row of a group. `NativeViews.closeSwipeRow(ref)` closes one.
+- The native view closes the other rows of a group when one is dragged, and
+  a tap on an open row closes it. A program closes rows itself when its list
+  scrolls or something else is tapped. Effect Chat's list shows how.
+- Where the native view is not in the build, the row is a plain view with
+  the same children, and `NativeViews.swipeStatus()` says why.
+  `NativeViews.isSwipeAvailable()` answers yes or no.
+  `NativeViews.configureSwipe` is for tests.
+
+## Motion
+
+`Motion` animates a view's opacity, place and size on the phone's UI
+thread. The component says where the view should be. The host takes it
+there, and JavaScript does nothing per frame.
+
+```ts
+// Comes in from below, and fades out before it is taken away.
+model.isShown
+  ? Motion.animate(h.view.key('note').style({ padding: 12 }), {
+      from: { opacity: 0, translateY: 12 },
+      to: { opacity: 1, translateY: 0 },
+      exit: { opacity: 0 },
+      ms: 200,
+    }).children(h.text('Saved'))
+  : null
+
+// Follows the Model, with a spring.
+Motion.animate(h.view, { to: { translateX: model.isRight ? 120 : 0 }, spring: { damping: 12 } })
+
+// By a Command.
+PressedShake: $ => $.run(Motion.animateTo(Box, { from: { translateX: 12 }, to: { translateX: 0 }, spring: true }).pipe(Command.asNoop))
+```
+
+| In a spec | What it does |
+|---|---|
+| `to` | Where the view should be: `opacity`, `translateX`, `translateY`, `scale`. Whenever it changes, the view is animated to it from wherever it is |
+| `from` | Where the view starts when it is first drawn. Left out, nothing moves at the start |
+| `exit`, `exitMs` | Where the view goes before it is taken away. It stays on screen, out of reach, until it is there |
+| `ms`, `delayMs`, `easing` | 200 ms and `easeOut` unless said. `linear`, `easeOut`, `easeInOut`, `easeOutExpo`, or the four numbers of a curve |
+| `spring` | A spring in place of a time and a curve: `stiffness`, `damping`, `mass`, or `true` |
+
+- **Two routes.** With react-native-worklets and Reanimated's native code
+  in the build (`configureWorklets` at startup), a worklet writes the view
+  a step per frame through `_updateProps`. Without them, and in tests, the
+  end values are set at once and nothing moves. `Motion.status()` is one
+  line that says which, and why. `Motion.stats()` counts both.
+- **Reduce Motion.** `Motion.configure({ accessibilityInfo:
+  ReactNative.AccessibilityInfo })` at startup. With the setting on, a view
+  goes to its place at once and only a fade of at most 120 ms is left.
+- **The element keeps its own style.** Leave `opacity` and `transform` out
+  of it. Do not give an animated view a `pressedStyle`: put the pressable
+  inside it.
+- **`from` counts once**, when the view is first drawn. A row that scrolls
+  out of a long list and back is drawn again.
+- **A way out** runs for the element that is taken away, not for the
+  elements inside one that is.
+- Not there: colours, rotation, and one animation after another.
+
+How it sits in the host: an element asks for motion with a key in its node
+data. The host's motion hooks run after the element's own, merge the
+animation's values into the style, and start the worklet once the view has
+reached the phone. A view with a way out is kept by the host after the
+renderer has let go of it.
 
 ## Question 1: lists
 

@@ -114,6 +114,8 @@ inset 102, blank 0, bar covers 102, gap 34, keyboard 0
 question y 16.0, drift +0.0
 holds 0, last held none, keyboard moved by the phone
 hold: native recogniser on, JS as backup | last: none yet
+motion: on the phone's own thread | 4 run there, 0 set at once
+swipe: native swipe row
 ```
 
 | Words | What they mean |
@@ -132,6 +134,9 @@ hold: native recogniser on, JS as backup | last: none yet
 | `keyboard moved by the phone` | The phone moves the composer. `keyboard padded` means the app does, which is the Android way |
 | `hold: native recogniser on, JS as backup` | The phone itself reads a finger held on a message, and the app's own timer stands by. `JS route (native off: ...)` means only the timer does, and says why |
 | `last: recognised by native after 512 ms` | How the last hold went, and which of the two read it |
+| `motion: on the phone's own thread` | The phone moves animated views itself, so they keep moving while the app is busy. `set at once, no movement (...)` means this build cannot, and says why. `Reduce Motion on` is added when that setting is on |
+| `4 run there, 0 set at once` | How many animations went each way since the app opened |
+| `swipe: native swipe row` | The list of chats can be swiped. `no swipe (...)` means the build has no native swipe row, and says why |
 
 All numbers are in points. Your numbers will differ from the example. Only
 the ones named in the checks below matter.
@@ -288,13 +293,91 @@ drive to the coast? Think it through." That one thinks before it answers.
 If a check fails, a photo of the screen with the numbers strip on is the
 most useful thing to send.
 
-Not built, so do not look for them: swiping a chat sideways in the list,
-links in a reply opening in the browser, a new message rising into place,
-and a crash screen. `docs/EFFECT_UI_CHAT.md` says why for each.
+Not built, so do not look for them: links in a reply opening in the
+browser, and a crash screen. `docs/EFFECT_UI_CHAT.md` says why for each.
+Swiping a chat and the animations came after step 3. Their checks are in
+the next section.
 
 On Android the phone cannot move the composer itself. The app pads it up by
 the keyboard's height, and the list gets shorter. Checks 1, 4 and 5 are for
 iPhone only.
+
+## Sixteen checks for swiping and for animations
+
+**Swiping needs a new build.** The row that swipes is native code (Swift on
+iPhone, Kotlin on Android), and native code only gets onto the phone with a
+build. Run all four commands from "Build it on your iPhone" again,
+`npx expo prebuild --clean` included. This native code has never been
+compiled, so the build may stop on an error in `SwipeRowView.swift`. If it
+does, `docs/NATIVE_VIEWS.md` ("If the build fails") says what to send back.
+
+The animations need no new build. They use packages the app already had.
+
+If you skip the rebuild, the app still works. The chats do not swipe, and
+holding a chat still opens Rename and Delete. The numbers strip has a line
+for it: `swipe: native swipe row`, or `swipe: no swipe` and the reason.
+
+Do these on an iPhone. Answer yes or no. You need three or four chats in
+the list.
+
+**Swiping a chat**
+
+1. **The row follows your finger.** In the list, put a finger on a chat and
+   drag it slowly to the left. Does the row slide with your finger? Do two
+   tiles come out from under its right edge: a grey one that says Rename
+   and a red one that says Delete?
+2. **It stays open.** Let go while both tiles show. Does the row stay open?
+3. **Rename.** Tap the Rename tile. Does the row close, and does the small
+   sheet come up with the chat's title in it?
+4. **Delete.** Swipe another chat open and tap the Delete tile. Does the
+   row slide away and stay gone? Do you feel a tap?
+5. **A full swipe.** Drag a chat a long way to the left in one go. Past the
+   middle of the screen, does the red tile grow to fill the row, with a
+   tick in your hand as it does? Let go. Is the chat gone, and does it stay
+   gone? (No is: it goes, comes back for a moment, and goes again.)
+6. **One at a time.** Swipe one chat open. Now start to swipe another. Does
+   the first one close?
+7. **A scroll closes it.** Swipe a chat open, then scroll the list a
+   little. Does the row close?
+8. **A tap elsewhere closes it.** Swipe a chat open, then tap a different
+   chat. Does the open row close, with no chat opening? Tap that chat
+   again: does it open now?
+9. **Closing looks right.** Swipe a chat open and tap the row itself. As it
+   closes, do the tiles go back under the row together with it? (No is:
+   the tiles are gone at once and an empty gap shows while the row
+   closes.)
+10. **Scrolling still works.** Put a finger on a chat and drag up or down.
+    Does the list scroll, with no row sliding sideways? Hold a chat for one
+    second: does the list with Rename and Delete still come up?
+
+**Animations**
+
+Turn the numbers strip on first (hold a chat's title).
+
+11. **Which way they run.** Read the line of the strip that starts with
+    `motion:`. Does it say `on the phone's own thread`? (If it says `set at
+    once`, nothing below will move. Send a photo of the strip.)
+12. **A new message rises.** Send a message. Does it come up from a little
+    below and fade in, fast at first and then gently? (No is: it is simply
+    there.)
+13. **"Thinking" fades in.** Right after, does the word "Thinking" fade in
+    under your message? (No is: it pops in.)
+14. **Send and Stop.** Watch the round button as the reply starts. Does the
+    dark Stop button fade in quickly? When the reply has ended, type a
+    letter. Does the blue Send button fade in?
+15. **The round button and the notice.** Let a long reply run off the
+    bottom of the screen. Does the round button with the down arrow fade in
+    and grow a little as it comes? Tap it: does it fade out and shrink, and
+    not just vanish? Then tap the Copy icon under a reply. Does "Copied"
+    fade in above the text field, and fade out after two seconds?
+16. **Reduce Motion.** In the phone's Settings, open Accessibility, then
+    Motion, and turn Reduce Motion on. Come back to the app. Does the
+    `motion:` line now end with `Reduce Motion on`? Send a message. Is it
+    in its place at once, with only a short fade and no rise? Turn Reduce
+    Motion off again.
+
+If a check fails, a photo of the screen with the numbers strip on is the
+most useful thing to send.
 
 ## What is in it
 

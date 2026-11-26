@@ -80,6 +80,8 @@ export const AppMessage = UiSchema.TaggedEnum({
   /** `rename`, `delete` or `settings`, from the list or from a chat's own menu. */
   ChoseAction: { id: Schema.String, key: Schema.String, title: Schema.String },
   SavedRename: { title: Schema.String },
+  /** The server answered a delete, either way. */
+  EndedDelete: { id: Schema.String, reason: Schema.NullOr(Schema.String) },
   FailedWrite: { action: Schema.String, reason: Schema.String },
   PressedTheme: { theme: Phone.Theme },
   PressedSpeed: { speed: Speed },
@@ -108,6 +110,11 @@ const AppModel = Schema.Struct({
   /** The sheet over the stack, and a count that gives each one a key of its own. */
   sheet: Schema.NullOr(Sheet),
   sheetCount: Schema.Number,
+  /**
+   * Chats whose delete is on its way to the server. A second "delete" for
+   * one of them does nothing: a full swipe and a tap can both say it.
+   */
+  deleting: Schema.Array(Schema.String),
 })
 
 const done = Command.as(AppMessage.Done())
@@ -138,6 +145,7 @@ export const App = Native.component({
       isOnline: true,
       sheet: null,
       sheetCount: 0,
+      deleting: [],
     })
       .run(Phone.StorageGet.make({ key: SETTINGS_KEY }).pipe(Command.map(({ value }) => AppMessage.LoadedSettings({ value }))))
       .run(readClock()),
@@ -179,19 +187,28 @@ export const App = Native.component({
       if (key === 'rename') {
         return $.evolve({ sheet: { _tag: 'Rename' as const, id, title }, sheetCount: count => count + 1 })
       }
-      if (key !== 'delete') return $.model
+      if (key !== 'delete' || $.model.deleting.includes(id)) return $.model
       // Gone from the list at once: the Command says so to the cache. The chat's own screen closes.
       const isOpen = $.model.screens.some(screen => screen._tag === 'Chat' && screen.conversationId === id)
-      return $.evolve({ screens: isOpen ? $.model.screens.slice(0, 1) : $.model.screens })
+      return $.evolve({ screens: isOpen ? $.model.screens.slice(0, 1) : $.model.screens, deleting: [...$.model.deleting, id] })
         .run(
           DeleteConversation.make({ id }).pipe(
             Command.match({
-              onSuccess: () => AppMessage.Done(),
-              onFailure: error => AppMessage.FailedWrite({ action: 'delete the chat', reason: error.reason }),
+              onSuccess: () => AppMessage.EndedDelete({ id, reason: null }),
+              onFailure: error => AppMessage.EndedDelete({ id, reason: error.reason }),
             }),
           ),
         )
         .run(Phone.Notify.make({ type: 'warning' }).pipe(done))
+    },
+    // Whatever the answer, the chat can be deleted again: after a refusal its row is back.
+    EndedDelete: ($, { id, reason }) => {
+      const next = $.evolve({ deleting: $.model.deleting.filter(each => each !== id) })
+      return reason === null
+        ? next
+        : next
+            .run(Announce.make({ text: `Could not delete the chat. ${reason}`, tone: 'error' }).pipe(done))
+            .run(Phone.Notify.make({ type: 'error' }).pipe(done))
     },
     SavedRename: ($, { title }) => {
       const sheet = $.model.sheet

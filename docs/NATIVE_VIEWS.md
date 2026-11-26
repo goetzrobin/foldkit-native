@@ -31,10 +31,11 @@ the app, called a prebuilt app or development build.
 
 ## The folder
 
-Everything native about the swipe row is in one folder:
+Everything native about the swipe row is in one folder, at the top of the
+repository. Two apps use it: the showcase and Effect Chat.
 
 ```
-apps/showcase/modules/foldkit-swipe/
+modules/foldkit-swipe/
   expo-module.config.json
   index.ts
   ios/
@@ -59,9 +60,18 @@ apps/showcase/modules/foldkit-swipe/
 | `android/.../FoldkitSwipeModule.kt` | The same list as the Swift one, for Android. |
 | `android/.../SwipeRowView.kt` | The view itself, in Android's View system. |
 
-Expo finds the folder by itself. Any folder inside `apps/showcase/modules`
-that holds an `expo-module.config.json` is built into the app. There is
-nothing to register in `package.json` or `app.json`.
+Expo builds every folder inside `modules/` that holds an
+`expo-module.config.json` into an app, once the app says where `modules/`
+is. That is four lines at the end of the app's `package.json`:
+
+```json
+"expo": {
+  "autolinking": { "nativeModulesDir": "../../modules" }
+}
+```
+
+`apps/showcase` and `apps/eui-chat` both have them. Without those lines
+Expo only looks in a `modules` folder inside the app itself.
 
 ## What the Swift file does
 
@@ -174,6 +184,14 @@ Where the native view is missing, `nativeSwipeRow` draws a plain view with
 the same content. Nothing swipes and nothing crashes. `isNativeSwipeAvailable()`
 says which you have, and `nativeSwipeStatus()` gives the line the demo shows.
 
+## From Effect UI
+
+Effect Chat reaches the same native view through
+`NativeViews.swipeRow` (`packages/effect-ui-native/src/NativeViews.ts`).
+The props and events are the ones in the tables above. The row names
+itself the first time one is drawn, so there is no line to add at startup.
+`NativeViews.swipeStatus()` says whether the build has the view.
+
 ## Build and run the prebuilt app
 
 ### What to install (once)
@@ -285,7 +303,7 @@ to yet.
 
 ## Writing another one
 
-1. Copy `apps/showcase/modules/foldkit-swipe` to a new folder beside it.
+1. Copy `modules/foldkit-swipe` to a new folder beside it.
 2. Rename four things to your own names: the folder, the module name in
    `Name("...")` in both module files, the class names listed in
    `expo-module.config.json`, and the Kotlin `package` line with its
@@ -300,8 +318,9 @@ to yet.
 
 Checked on the engineer's Linux machine:
 
-- Expo finds the module for both platforms (`npx expo-modules-autolinking
-  resolve` lists `foldkit-swipe` with its Swift class and its Kotlin class).
+- Expo finds the module for both platforms, in the showcase and in Effect
+  Chat (`npx expo-modules-autolinking resolve` lists `foldkit-swipe` with
+  its Swift class and its Kotlin class, at `modules/foldkit-swipe`).
 - `npx expo prebuild` runs for iOS and Android in a scratch copy, with
   `--no-install`, which skips the CocoaPods step that needs a Mac.
 - The file Expo writes to load modules on iPhone names `FoldkitSwipeModule`.
@@ -313,6 +332,19 @@ Checked on the engineer's Linux machine:
   compiler was available, so nothing checked that the names and types fit.
 - The JavaScript side passes its tests on a simulated phone, with and
   without the native view. The app type-checks and bundles.
+
+Changed since then, and not compiled either:
+
+- Swift: when a row closed, its tiles were hidden at the first frame of
+  the closing animation, which left an empty gap behind the content until
+  the row was shut. The tiles now stay until the animation has ended and
+  move back under the row's edge with it (`layoutActions` and `animate`).
+- Kotlin: with animations switched off in the phone's settings ("Remove
+  animations") the row now goes to its place at once, as the Swift row does
+  with Reduce Motion (`animateTo`).
+- The folder moved from `apps/showcase/modules` to `modules`. Expo's
+  `resolve` finds it there for both apps and both apps bundle.
+  `npx expo prebuild` was not run again after the move.
 
 Not checked:
 

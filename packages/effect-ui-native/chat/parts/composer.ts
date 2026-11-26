@@ -41,10 +41,10 @@ import { Command, Subscription, UiSchema } from '@effect/ui'
 import { Schema, Stream } from 'effect'
 
 import { Attachment } from '../../../native/src/host/aiChat/wire.js'
-import { Native, NativeCommand, NativeViews, Phone } from '../../src/index.js'
+import { Motion, Native, NativeCommand, NativeViews, Phone } from '../../src/index.js'
 import { arrowUp, cross, microphone, playIcon, soundWave, stopSquare, tick } from '../icons.js'
 import { clockOf } from '../list.js'
-import { HAIRLINE, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
+import { HAIRLINE, MOTION, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { attachmentChip, roundButton } from '../ui.js'
 
 export const ComposerProps = Schema.Struct({
@@ -383,8 +383,21 @@ export const Composer = Native.component({
     const hasSomething = model.draft.trim() !== '' || model.note !== null
     const canSend = hasSomething && !isSending && !isReplying && isOnline
 
+    // Send and Stop take each other's place with a quick fade: the one that comes fades in.
+    const swapIn = (id: string, button: Native.NoTextContent<typeof ComposerMessage.Type>) =>
+      Motion.animate(h.view.key(`swap-${id}`).testId(`swap-${id}`), {
+        from: { opacity: 0 },
+        to: { opacity: 1 },
+        ms: MOTION.sendStop,
+      }).children(button)
+
     const buttons = isReplying
-      ? [roundButton(h, { id: 'stop', label: 'Stop the reply', fill: palette.ink, message: ComposerMessage.PressedStop() }, stopSquare(h, palette.bg))]
+      ? [
+          swapIn(
+            'stop',
+            roundButton(h, { id: 'stop', label: 'Stop the reply', fill: palette.ink, message: ComposerMessage.PressedStop() }, stopSquare(h, palette.bg)),
+          ),
+        ]
       : isListening
         ? [
             roundButton(
@@ -413,15 +426,18 @@ export const Composer = Native.component({
               microphone(h, palette.ink2),
             ),
             hasSomething
-              ? roundButton(
-                  h,
-                  {
-                    id: 'send',
-                    label: 'Send',
-                    fill: canSend ? palette.accent : palette.surface2,
-                    message: canSend ? ComposerMessage.PressedSend() : undefined,
-                  },
-                  arrowUp(h, canSend ? palette.onAccent : palette.ink3),
+              ? swapIn(
+                  'send',
+                  roundButton(
+                    h,
+                    {
+                      id: 'send',
+                      label: 'Send',
+                      fill: canSend ? palette.accent : palette.surface2,
+                      message: canSend ? ComposerMessage.PressedSend() : undefined,
+                    },
+                    arrowUp(h, canSend ? palette.onAccent : palette.ink3),
+                  ),
                 )
               : null,
           ]

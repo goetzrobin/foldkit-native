@@ -12,7 +12,7 @@ import { getFabricUIManager, registerPlatformComponents } from '@ng-native/fabri
 import type { Layer } from 'effect'
 
 import { configureWorklets } from './native/native/src/host/worklets'
-import { Phone } from './native/effect-ui-native/src'
+import { Motion, Phone } from './native/effect-ui-native/src'
 import { startPlayground } from './native/effect-ui-native/playground/start'
 
 registerPlatformComponents(Platform.OS)
@@ -43,6 +43,11 @@ if (__DEV__) {
     // No dev tools in this build. The app runs as it always does.
   }
 }
+
+// The Motion screen: animations run on the phone's own thread through the
+// worklets above. With the phone's Reduce Motion setting on, nothing moves
+// and only a short fade is left.
+Motion.configure({ accessibilityInfo: ReactNative.AccessibilityInfo })
 
 AppRegistry.registerRunnable('main', ({ rootTag }) => {
   let blurFocused = (): void => {}

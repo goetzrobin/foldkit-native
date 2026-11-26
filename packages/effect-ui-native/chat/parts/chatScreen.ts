@@ -49,7 +49,7 @@ import { AsyncResult } from 'effect/reactivity'
 
 import type { Conversation } from '../../../native/src/host/aiChat/wire.js'
 import { Attachment } from '../../../native/src/host/aiChat/wire.js'
-import { AnchoredList, KeyboardBar, Menus, Native, NativeMount, Phone } from '../../src/index.js'
+import { AnchoredList, KeyboardBar, Menus, Motion, Native, Phone } from '../../src/index.js'
 import { GetConversation, RegenerateReply, SendMessage, StopTurn } from '../data.js'
 import { After, NOTICE_MS, Toast, toasts } from '../events.js'
 import { arrowDown } from '../icons.js'
@@ -82,6 +82,8 @@ export const ChatScreenMessage = UiSchema.TaggedEnum({
   Submitted: { text: Schema.String, attachments: Schema.Array(Attachment) },
   StartedTurn: { turnId: Schema.String, messageId: Schema.String },
   FailedSend: { reason: Schema.String, text: Schema.String },
+  /** Long enough after Send for the new message to have risen into place. */
+  RoseMessage: { key: Schema.String },
   /** A finger rested on a message. */
   HeldRow: { key: Schema.String },
   /** A held message's menu waited for the keyboard to start going. */
@@ -152,6 +154,12 @@ const ChatScreenModel = Schema.Struct({
   keyboardCovers: Schema.Number,
   /** The question held near the top of the screen, by its row key. */
   anchorKey: Schema.NullOr(Schema.String),
+  /**
+   * The message sent a moment ago, by its row key: its row rises into
+   * place. Forgotten soon after, so the row does not rise again when it
+   * scrolls out of view and back.
+   */
+  risingKey: Schema.NullOr(Schema.String),
   /** Whether the end of the transcript is in view, and whether the list follows it. */
   isAtEnd: Schema.Boolean,
   isFollowing: Schema.Boolean,
@@ -209,6 +217,11 @@ export const menuOf = (row: Row, isLastReply: boolean, isReplying: boolean): Rea
 }
 /** The round button's size, and the gap between it and the composer's top. */
 export const SCROLL_BUTTON_SIZE = 36
+/** The round button when it is away: see-through and a little smaller. */
+const BUTTON_AWAY: Motion.Values = { opacity: 0, scale: 0.8 }
+const BUTTON_HERE: Motion.Values = { opacity: 1, scale: 1 }
+/** How long a new message's row is told to rise. Longer than the rise itself. */
+export const RISE_WINDOW_MS = 700
 
 const pushWait = Subscription.make(
   'chat/pushWait',
@@ -302,6 +315,7 @@ export const ChatScreen = Native.component({
     keyboardHeight: 0,
     keyboardCovers: 0,
     anchorKey: null,
+    risingKey: null,
     isAtEnd: true,
     isFollowing: true,
     focus: $.props.isNew ? ('pending' as const) : ('off' as const),
@@ -319,6 +333,7 @@ export const ChatScreen = Native.component({
           notice: null,
           // The list takes this question to the top of the screen by itself.
           anchorKey: clientMessageId,
+          risingKey: clientMessageId,
           focus: $.model.focus === 'pending' ? ('off' as const) : $.model.focus,
         })
           .run(
@@ -331,11 +346,17 @@ export const ChatScreen = Native.component({
             ),
           )
           .run(haptic.light())
+          .run(
+            After.make({ ms: RISE_WINDOW_MS, token: clientMessageId }).pipe(
+              Command.map(({ token }) => ChatScreenMessage.RoseMessage({ key: token })),
+            ),
+          )
           // Send puts the keyboard away, as in Fold Chat.
           .run(Phone.DismissKeyboard.make({}).pipe(Command.asNoop))
       )
     },
     StartedTurn: ($, { turnId, messageId }) => $.evolve({ isSending: false, started: { turnId, messageId } }),
+    RoseMessage: ($, { key }) => ($.model.risingKey === key ? $.evolve({ risingKey: null }) : $.model),
     // The cache has taken the message off the screen. What was written goes back into the field.
     FailedSend: ($, { reason, text }) => {
       const notice = { text: `Not sent. ${reason}`, tone: 'error' as const }
@@ -343,6 +364,7 @@ export const ChatScreen = Native.component({
         isSending: false,
         notice,
         anchorKey: null,
+        risingKey: null,
         restore: { id: ($.model.restore?.id ?? 0) + 1, text },
       })
         .run(clearLater(notice.text))
@@ -555,6 +577,7 @@ export const ChatScreen = Native.component({
                       scheme,
                       platform,
                       anchorKey: model.anchorKey,
+                      risingKey: model.risingKey,
                       showsNumbers,
                       copyRequest: model.copyRequest,
                     },
@@ -577,46 +600,55 @@ export const ChatScreen = Native.component({
                 .set({ pointerEvents: 'box-none' })
                 .style({ alignItems: 'center', paddingTop: SPACE.s, paddingBottom: SPACE.s })
                 .children(
-                  // Always there, and faded in and out by the Mount, which owns this view's style.
-                  h.view
-                    .key('scroll-to-end-motion')
-                    .testId('scroll-to-end-motion')
-                    .set({ collapsable: false })
-                    .onMount(NativeMount.Fade({ isShown: wantsScrollButton, ms: MOTION.scrollButton }))
-                    .children(
-                      h.pressable
-                        .key('scroll-to-end')
-                        // Named only while it is wanted. Away, it is see-through and takes no touch.
-                        .testId(wantsScrollButton ? 'scroll-to-end' : 'scroll-to-end-away')
-                        .set({ accessibilityRole: 'button', accessibilityLabel: 'Scroll to the newest message', hitSlop: 8 })
-                        .style({
-                          width: SCROLL_BUTTON_SIZE,
-                          height: SCROLL_BUTTON_SIZE,
-                          borderRadius: SCROLL_BUTTON_SIZE / 2,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: palette.bg,
-                          borderWidth: 1,
-                          borderColor: palette.line,
-                        })
-                        .pressedStyle({ opacity: 0.6 })
-                        .on('press', wantsScrollButton ? ChatScreenMessage.PressedScrollToEnd() : ChatScreenMessage.Done())
-                        .children(arrowDown(h, palette.ink)),
-                    ),
+                  // Only there while it is wanted. The phone fades and grows it in, and
+                  // fades and shrinks it out before it is taken away.
+                  wantsScrollButton
+                    ? Motion.animate(h.view.key('scroll-to-end-motion').testId('scroll-to-end-motion'), {
+                        from: BUTTON_AWAY,
+                        to: BUTTON_HERE,
+                        exit: BUTTON_AWAY,
+                        ms: MOTION.scrollButton,
+                      }).children(
+                        h.pressable
+                          .key('scroll-to-end')
+                          .testId('scroll-to-end')
+                          .set({ accessibilityRole: 'button', accessibilityLabel: 'Scroll to the newest message', hitSlop: 8 })
+                          .style({
+                            width: SCROLL_BUTTON_SIZE,
+                            height: SCROLL_BUTTON_SIZE,
+                            borderRadius: SCROLL_BUTTON_SIZE / 2,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: palette.bg,
+                            borderWidth: 1,
+                            borderColor: palette.line,
+                          })
+                          .pressedStyle({ opacity: 0.6 })
+                          .on('press', ChatScreenMessage.PressedScrollToEnd())
+                          .children(arrowDown(h, palette.ink)),
+                      )
+                    : null,
                 ),
               bar: [
+                // The line fades in, and out again before it is taken away.
                 model.notice === null
                   ? null
-                  : h.text
-                      .key('notice')
-                      .testId('chat-notice')
-                      .style({
-                        ...TYPE.caption,
-                        color: model.notice.tone === 'error' ? palette.danger : palette.ink2,
-                        paddingHorizontal: SPACE.xl,
-                        paddingTop: SPACE.xs,
-                      })
-                      .children(model.notice.text),
+                  : Motion.animate(h.view.key('notice').testId('chat-notice-motion'), {
+                      from: { opacity: 0 },
+                      to: { opacity: 1 },
+                      exit: { opacity: 0 },
+                      ms: MOTION.notice,
+                    }).children(
+                      h.text
+                        .testId('chat-notice')
+                        .style({
+                          ...TYPE.caption,
+                          color: model.notice.tone === 'error' ? palette.danger : palette.ink2,
+                          paddingHorizontal: SPACE.xl,
+                          paddingTop: SPACE.xs,
+                        })
+                        .children(model.notice.text),
+                    ),
                 Composer(h, {
                   key: 'composer',
                   props: {

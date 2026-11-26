@@ -130,8 +130,9 @@ Send back what that prints.
 - **Swipe on a chat** uses the swipe row written in TypeScript, moved on the
   UI thread. The native swipe view from the showcase is left out until your
   showcase build shows that its Swift compiles: a compile error there would
-  stop this app from building at all. To add it later, copy
-  `apps/showcase/modules/foldkit-swipe` to `apps/chat/modules/` and run
-  `npx expo prebuild --clean`. The app finds it by itself and uses it.
+  stop this app from building at all. To add it later, copy the `expo`
+  block at the end of `apps/showcase/package.json` into this app's
+  `package.json` and run `npx expo prebuild --clean`. The block names the
+  shared folder `modules/`, where the native code is.
 - **Holding a message** opens the phone's action sheet. Holding a chat in
   the list opens the phone's own menu with a lifted preview.

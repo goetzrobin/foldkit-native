@@ -2,7 +2,7 @@
  * The native swipe actions demo.
  *
  * An inbox. Each row is this project's own native view: Swift on iOS,
- * Kotlin on Android (`apps/showcase/modules/foldkit-swipe`). The line at the
+ * Kotlin on Android (`modules/foldkit-swipe`). The line at the
  * top says whether this build of the app has that native code. Expo Go does
  * not: there the rows are plain views, nothing swipes, and the line says so.
  *

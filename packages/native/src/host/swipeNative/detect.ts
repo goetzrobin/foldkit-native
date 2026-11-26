@@ -3,7 +3,7 @@
  * it does not.
  *
  * The swipe row is this project's own native view. Its Swift and Kotlin code
- * lives in `apps/showcase/modules/foldkit-swipe`. That code is only inside
+ * lives in `modules/foldkit-swipe`. That code is only inside
  * an app you build yourself (`npx expo run:ios`). Expo Go is a ready-made
  * app, so it cannot contain it.
  *
