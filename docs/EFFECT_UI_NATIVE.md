@@ -17,10 +17,12 @@ What exists now:
 - **Native building blocks.** Boxes, text, buttons, scrolling, text fields,
   pictures, screens with the phone's own title bar and swipe back, sheets,
   glass, Markdown and a drawing canvas.
-- **A playground app** (`apps/eui-playground`) with five screens: a counter,
-  notes, a 1,000 row list, touch tests, and phone features. It is there to
-  answer two questions on a real phone.
-- **52 tests** on a simulated phone, all passing.
+- **A playground app** (`apps/eui-playground`) with six screens: a counter,
+  notes, a 1,000 row list, touch tests, phone features, and a list loaded
+  from a pretend server. It is there to answer questions on a real phone.
+- **78 tests** on a simulated phone, all passing. 25 of them came with
+  Effect Chat, the first step of the Fold Chat port. See
+  `docs/EFFECT_UI_CHAT.md`.
 
 Effect UI itself needed no change. It runs on the phone's JavaScript engine
 as it is.
@@ -147,6 +149,7 @@ the code is checked and when it runs.
 | `NativeHost` | `mount(Component, props, { fabric, rootTag })` returns a Layer. `run(layer)` starts it. `makeSurface`, `layerFromSurface` for tests and embedding. |
 | `NativeCommand` | `focus(ref)`, `blur()`, `scrollTo(ref, { y })`, `scrollToEnd(ref)`, `measure(ref)` |
 | `NativeMount` | `Measure`, `TrackLayout`, `TrackHold` (the phone's own long press, attached to the native view). Write your own with `Mount.make` and `Native.Host`. |
+| `NativeQuery` | `layer`, `visibility`, `connectivity`: tells Effect UI's query cache when the app is in front and when the phone is online. See `docs/EFFECT_UI_CHAT.md`. |
 | `NativeViews` | `sheet(options)`, `glass(h, options)`, `markdown(h, options)`, `makeCanvas(name, args, paint)`, and the register and status functions |
 | `Phone` | Commands `Impact`, `Selection`, `Notify`, `Copy`, `Paste`, `DismissKeyboard`. Subscriptions `keyboard`, `appState`, `colorScheme`. `Phone.live(modules)`, `Phone.layer`. |
 | `VirtualList` | `Model`, `init`, `scrolled`, `measured`, `view` |
@@ -341,8 +344,9 @@ bytecode. No API that Hermes lacks was found in the core.
 12. **Not on npm.** We built from source and vendored a tarball. The
     snapshot site was not reachable from our build machine.
 
-Not looked at in phase 1: the Router on a phone (deep links, restoring a
-stack), `Query`, hot reload that keeps the Model, the devtools
+`Query` was looked at after phase 1 and works on the phone as documented:
+see `docs/EFFECT_UI_CHAT.md`. Not looked at yet: the Router on a phone (deep
+links, restoring a stack), hot reload that keeps the Model, the devtools
 (`@effect/ui-devtools` needs `@effect/ui-kit`), and the host-neutral test
 tools (`TestHost`, `Scene`, `Story`).
 

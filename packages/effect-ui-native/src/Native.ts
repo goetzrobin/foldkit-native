@@ -358,7 +358,7 @@ export type NoTextContent<Msg, R = never> =
   | View.Outlet
   | View.ElementBuilder<Msg, R, any, any>
 
-export type NoTextChildren<Msg, R = any> = ReadonlyArray<NoTextContent<Msg, R> | false | null | undefined>
+export type NoTextChildren<Msg, R = never> = ReadonlyArray<NoTextContent<Msg, R> | false | null | undefined>
 
 export type NoTextInput<Msg, R = never> = NoTextContent<Msg, R> | false | null | undefined | NoTextChildren<Msg, R>
 
