@@ -25,6 +25,11 @@ export type PlaygroundOptions = NativeHost.SurfaceOptions &
     /** How long the pretend server of the Server state screen takes to answer. */
     serverDelayMs?: number
     onSurface?: (surface: NativeHost.NativeSurface) => void
+    /**
+     * Development only: `NativeDevTools.layer(...)`, which sends the app's
+     * message log to the dev tools server. See docs/DEV_TOOLS.md.
+     */
+    devTools?: Layer.Layer<never>
   }>
 
 /**
@@ -50,11 +55,12 @@ export const playgroundCrash = NativeCrash.screen({ hint: 'Start again to go bac
 
 /** The whole app as one Layer: the mount, the Command services, the phone's services. */
 export const playgroundLayer = (options: PlaygroundOptions): Layer.Layer<never> => {
-  const { platform, device, hasReadout = true, serverDelayMs, ...mountOptions } = options
+  const { platform, device, hasReadout = true, serverDelayMs, devTools, ...mountOptions } = options
   registerNavigation()
   return NativeHost.mount(App, { platform, hasReadout }, { ...mountOptions, crash: playgroundCrash }).pipe(
     Layer.provide(playgroundServices(device, serverDelayMs === undefined ? {} : { serverDelayMs })),
     Layer.provide(device),
+    Layer.provide(devTools ?? Layer.empty),
   )
 }
 

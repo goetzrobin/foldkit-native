@@ -46,6 +46,11 @@ export type ChatOptions = NativeHost.SurfaceOptions &
     platform: string
     device: Layer.Layer<DeviceServices>
     onSurface?: (surface: NativeHost.NativeSurface) => void
+    /**
+     * Development only: `NativeDevTools.layer(...)`, which sends the app's
+     * message log to the dev tools server. See docs/DEV_TOOLS.md.
+     */
+    devTools?: Layer.Layer<never>
   }>
 
 /**
@@ -92,7 +97,7 @@ export const chatCrash = NativeCrash.screen({ hint: 'Your chats are saved. Start
 
 /** The whole app as one Layer: the mount, and everything it asks for. */
 export const chatLayer = (options: ChatOptions): Layer.Layer<never> => {
-  const { platform, device, server, disk, link, batchMs, menus, now, ...mountOptions } = options
+  const { platform, device, server, disk, link, batchMs, menus, now, devTools, ...mountOptions } = options
   registerNavigation()
   registerSearchBar()
   return NativeHost.mount(App, { platform }, { ...mountOptions, crash: chatCrash }).pipe(
@@ -107,6 +112,7 @@ export const chatLayer = (options: ChatOptions): Layer.Layer<never> => {
       }),
     ),
     Layer.provide(device),
+    Layer.provide(devTools ?? Layer.empty),
   )
 }
 
