@@ -41,14 +41,30 @@ describe('boundary', () => {
     expect(strays).toEqual([])
   })
 
-  it('Effect Chat has no sync bus: nothing in it imports the atoms server state, Foldkit or Fold Chat', () => {
-    const chat = filesIn('chat')
-    expect(chat.length).toBeGreaterThan(8)
-    const strays = chat.flatMap(file =>
-      importsOf(file)
-        .filter(name => /\/serverState\/|\/foldkit\/|\/flagship\/|\/aiChat\/client\.js$/.test(name))
-        .map(name => `${file}: ${name}`),
-    )
+  it('Effect Chat has no sync bus: nothing it loads, at any depth, is the atoms server state, Foldkit or Fold Chat', () => {
+    // Follows every relative import from the chat program's files, and theirs, to the end.
+    const seen = new Set<string>()
+    const queue = filesIn('chat')
+    expect(queue.length).toBeGreaterThan(8)
+    const normal = (path: string): string => {
+      const parts: Array<string> = []
+      for (const part of path.split('/')) {
+        if (part === '..' && parts.length > 0 && parts[parts.length - 1] !== '..') parts.pop()
+        else if (part !== '.') parts.push(part)
+      }
+      return parts.join('/')
+    }
+    while (queue.length > 0) {
+      const file = queue.pop() as string
+      if (seen.has(file)) continue
+      seen.add(file)
+      const folder = file.slice(0, file.lastIndexOf('/'))
+      for (const name of importsOf(file)) {
+        if (name.startsWith('.')) queue.push(normal(`${folder}/${name.replace(/\.js$/, '.ts')}`))
+      }
+    }
+    expect([...seen].some(file => file.includes('/host/aiChat/turns.ts'))).toBe(true)
+    const strays = [...seen].filter(file => /\/serverState\/|\/foldkit\/|\/flagship\/|\/aiChat\/client\.ts$/.test(file))
     expect(strays).toEqual([])
   })
 })

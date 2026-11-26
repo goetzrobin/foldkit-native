@@ -4,7 +4,9 @@
  * (Effect RPC, streamed replies as NDJSON), so the screens built on it work
  * the same against a real one.
  *
- *   wire.ts       the requests, the reply events, the sync topics
+ *   wire.ts       the requests and the reply events
+ *   topics.ts     the sync topics
+ *   turns.ts      the live turn: keeper, updates, Model pieces
  *   server.ts     the pretend server: conversations, scripted replies, chaos
  *   replies.ts    what the pretend model says
  *   transport.ts  the in-process cable, and where a real network goes
@@ -13,9 +15,9 @@
  * Start with `docs/AI_BACKEND.md`.
  */
 export * as AiWire from '../../host/aiChat/wire.js'
+export { AiChatSync } from '../../host/aiChat/topics.js'
 export {
   AiChatRpcs,
-  AiChatSync,
   Attachment,
   BadRequest,
   ChatMessage,
@@ -34,7 +36,7 @@ export {
   applyToParts,
   isLastEvent,
 } from '../../host/aiChat/wire.js'
-export type { AiChatTopic } from '../../host/aiChat/wire.js'
+export type { AiChatTopic } from '../../host/aiChat/topics.js'
 
 export {
   DiskError,

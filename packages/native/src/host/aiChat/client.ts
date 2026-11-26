@@ -51,8 +51,8 @@ import {
   toChatError,
   turnKeeperLayerWith,
 } from './turns.js'
+import { AiChatSync } from './topics.js'
 import {
-  AiChatSync,
   type Attachment,
   type Conversation,
   Conversation as ConversationSchema,

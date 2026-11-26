@@ -115,7 +115,9 @@ are still there.
 
 | File | What is in it |
 |---|---|
-| `src/aiChat/wire.ts` | Schemas, the `TurnEvent` union, errors, `AiChatRpcs`, `AiChatSync`, `applyToParts` |
+| `src/host/aiChat/wire.ts` | Schemas, the `TurnEvent` union, errors, `AiChatRpcs`, `applyToParts` |
+| `src/host/aiChat/topics.ts` | `AiChatSync`, the sync topics of the atoms client |
+| `src/host/aiChat/turns.ts` | `TurnKeeper`, `turnKeeperLayerWith`, `followUpdates`, `TurnUpdate`, `LiveTurn`, `Pending`, `transcript`: the live turn, with no server-state code |
 | `src/aiChat/server.ts` | `makeAiServer`, `Disk` and its three makers, `SPEEDS`, `Chaos` |
 | `src/aiChat/replies.ts` | `pickReply`, `tokenize`, `titleFrom`, the reply texts |
 | `src/aiChat/transport.ts` | `AiChatRpcClient`, `makeInProcessLink`, `layerInProcess`, and the replacement note |

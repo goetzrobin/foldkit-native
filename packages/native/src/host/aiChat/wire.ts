@@ -14,15 +14,13 @@
  *
  * For engineers. `AiChatRpcs` is an Effect `RpcGroup`. Streaming requests are
  * declared with `stream: true`: the client gets a `Stream` of `TurnEvent`,
- * and the server's handler returns one. The sync topics at the bottom are
- * client-side only: a write the client makes announces one, and the reads
- * that listen load again (see `src/serverState/sync.ts`).
+ * and the server's handler returns one. The sync topics the atoms client
+ * announces are in `topics.ts`.
  */
 import { Schema } from 'effect'
 import * as Rpc from 'effect/rpc/Rpc'
 import * as RpcGroup from 'effect/rpc/RpcGroup'
 
-import { makeSync } from '../serverState/sync.js'
 
 // IDS
 
@@ -353,18 +351,3 @@ export class AiChatRpcs extends RpcGroup.make(
   RegenerateTurn,
   WatchTurn,
 ) {}
-
-// SYNC TOPICS
-
-/**
- * Announced by the client after its own writes. `conversation-list-changed`:
- * a conversation was made, renamed, deleted, or got a new message (its
- * preview and time changed). `conversation-changed`: the messages of a
- * conversation changed. One topic for every conversation: only the open one
- * is being watched, so only it loads again.
- */
-export const AiChatSync = makeSync([
-  'chat:conversation-list-changed',
-  'chat:conversation-changed',
-])
-export type AiChatTopic = (typeof AiChatSync.topics)[number]
