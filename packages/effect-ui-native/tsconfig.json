@@ -16,5 +16,5 @@
       "@ng-native/testing/fake": ["../../../../repos/ngn/src/packages/testing/src/test-utils.ts"]
     }
   },
-  "include": ["src", "playground", "test", "types"]
+  "include": ["src", "playground", "chat", "test", "types"]
 }

@@ -19,3 +19,8 @@ declare module 'node:fs' {
   export function readFileSync(path: string, encoding: 'utf8'): string
   export function readdirSync(path: string, options: { recursive: true }): Array<string>
 }
+// The pretend chat server's cable (host/aiChat/transport.ts) names it for a
+// case NDJSON never takes: a message encoded as bytes.
+declare class TextDecoder {
+  decode(bytes: unknown): string
+}

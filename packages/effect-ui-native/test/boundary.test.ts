@@ -20,7 +20,7 @@ const importsOf = (file: string): Array<string> =>
 const ALLOWED = [/^effect(\/|$)/, /^@effect\/ui(\/|$)/, /^@ng-native\/fabric$/, /^\.{1,2}\//]
 
 describe('boundary', () => {
-  const files = [...filesIn('src'), ...filesIn('playground')].filter(file => !file.includes('/testing/'))
+  const files = [...filesIn('src'), ...filesIn('playground'), ...filesIn('chat')].filter(file => !file.includes('/testing/'))
 
   it('imports only effect, @effect/ui, the engine and its own files', () => {
     expect(files.length).toBeGreaterThan(15)
@@ -36,6 +36,17 @@ describe('boundary', () => {
     const strays = files.flatMap(file =>
       importsOf(file)
         .filter(name => name.includes('/native/src/') && !name.includes('/native/src/host/'))
+        .map(name => `${file}: ${name}`),
+    )
+    expect(strays).toEqual([])
+  })
+
+  it('Effect Chat has no sync bus: nothing in it imports the atoms server state, Foldkit or Fold Chat', () => {
+    const chat = filesIn('chat')
+    expect(chat.length).toBeGreaterThan(8)
+    const strays = chat.flatMap(file =>
+      importsOf(file)
+        .filter(name => /\/serverState\/|\/foldkit\/|\/flagship\/|\/aiChat\/client\.js$/.test(name))
         .map(name => `${file}: ${name}`),
     )
     expect(strays).toEqual([])
