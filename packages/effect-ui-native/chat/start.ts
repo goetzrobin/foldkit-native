@@ -15,7 +15,7 @@ import { Layer } from 'effect'
 import { type AiServer, type Disk, diskFromFiles, makeAiServer, memoryDisk } from '../../native/src/host/aiChat/server.js'
 import { type InProcessLink, layerInProcess, makeInProcessLink } from '../../native/src/host/aiChat/transport.js'
 import { registerNavigation, registerSearchBar } from '../../native/src/host/navigation/views.js'
-import { Menus, NativeHost, NativeQuery, Phone } from '../src/index.js'
+import { Menus, NativeCrash, NativeHost, NativeQuery, Phone } from '../src/index.js'
 import { App } from './app.js'
 import * as Data from './data.js'
 import * as Events from './events.js'
@@ -84,12 +84,18 @@ export const chatServices = (device: Layer.Layer<DeviceServices>, options: ChatS
   ).pipe(Layer.provide(device))
 }
 
+/**
+ * What the phone shows when a part of the app fails. Start again mounts the
+ * app anew over the same server and files, so the chats are all still there.
+ */
+export const chatCrash = NativeCrash.screen({ hint: 'Your chats are saved. Start again to go back to them.' })
+
 /** The whole app as one Layer: the mount, and everything it asks for. */
 export const chatLayer = (options: ChatOptions): Layer.Layer<never> => {
   const { platform, device, server, disk, link, batchMs, menus, now, ...mountOptions } = options
   registerNavigation()
   registerSearchBar()
-  return NativeHost.mount(App, { platform }, mountOptions).pipe(
+  return NativeHost.mount(App, { platform }, { ...mountOptions, crash: chatCrash }).pipe(
     Layer.provide(
       chatServices(device, {
         ...(server === undefined ? {} : { server }),

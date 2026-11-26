@@ -19,11 +19,14 @@ import * as Effect from 'effect/Effect'
 import type * as Scope from 'effect/Scope'
 
 import type * as Native from '../Native.js'
+import type * as NativeCrash from '../NativeCrash.js'
 import * as NativeHost from '../NativeHost.js'
 
 export type TestOptions = NativeHost.SurfaceOptions &
   Readonly<{
     platform?: 'ios' | 'android'
+    /** As in `NativeHost.mount`: what to show when a part of the app fails. */
+    crash?: NativeCrash.Supervisor<any>
   }>
 
 type Point = Readonly<{ x: number; y: number }>

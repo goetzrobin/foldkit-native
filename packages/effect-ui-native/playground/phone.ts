@@ -12,6 +12,7 @@ import { Command, UiSchema } from '@effect/ui'
 import { Schema } from 'effect'
 
 import { Native, Phone } from '../src/index.js'
+import { CrashButtons } from './crash.js'
 import * as Look from './look.js'
 
 export const PhoneMessage = UiSchema.TaggedEnum({
@@ -134,6 +135,8 @@ export const PhoneScreen = Native.component({
         h.text.testId('phone-appstate').style(Look.small).children(
           `App state: ${model.appState} (changed ${Math.max(0, model.appStateChanges - 1)} times)`,
         ),
+        // Out of the way, at the very bottom: break the app on purpose.
+        CrashButtons(h, { key: 'crash' }),
       )
   },
 })

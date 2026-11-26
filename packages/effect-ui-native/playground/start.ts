@@ -10,7 +10,7 @@ import type { FabricUIManager } from '@ng-native/fabric'
 import { Layer } from 'effect'
 
 import { registerNavigation } from '../../native/src/host/navigation/views.js'
-import { NativeHost, NativeQuery, Phone } from '../src/index.js'
+import { NativeCrash, NativeHost, NativeQuery, Phone } from '../src/index.js'
 import { App } from './app.js'
 import * as ServerState from './serverState.js'
 
@@ -45,11 +45,14 @@ export const playgroundServices = (
     NativeQuery.visibility,
   ).pipe(Layer.provide(device))
 
+/** What the phone shows when a part of the playground fails. The Phone screen has buttons that make it. */
+export const playgroundCrash = NativeCrash.screen({ hint: 'Start again to go back to the menu.' })
+
 /** The whole app as one Layer: the mount, the Command services, the phone's services. */
 export const playgroundLayer = (options: PlaygroundOptions): Layer.Layer<never> => {
   const { platform, device, hasReadout = true, serverDelayMs, ...mountOptions } = options
   registerNavigation()
-  return NativeHost.mount(App, { platform, hasReadout }, mountOptions).pipe(
+  return NativeHost.mount(App, { platform, hasReadout }, { ...mountOptions, crash: playgroundCrash }).pipe(
     Layer.provide(playgroundServices(device, serverDelayMs === undefined ? {} : { serverDelayMs })),
     Layer.provide(device),
   )

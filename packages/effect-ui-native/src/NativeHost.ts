@@ -41,10 +41,12 @@ import { type Bag, type NodeData, type NodeHooks, makeNodeHooks } from '../../na
 import { registered } from '../../native/src/host/fabric/registry.js'
 import { type HostSurface, type HostSurfaceOptions, createHostSurface } from '../../native/src/host/fabric/surface.js'
 import { CHANGE_TEXT, type Source, isTouchEvent, nativeOf, sourcesOf } from './internal/events.js'
+import { Roots } from './internal/roots.js'
 import { TOUCH, type TouchSpec, type TouchStats, makeTouchHooks } from './internal/touch.js'
 
 export { NATIVE_GRACE_MS, NATIVE_HOLD, holdReport, resetHoldReport } from './internal/touch.js'
 import * as Native from './Native.js'
+import type * as NativeCrash from './NativeCrash.js'
 
 /** What the renderer holds for an element, a piece of text, or a kept child's shelf. */
 export type NativeNode = EngineNode | Shelf
@@ -691,7 +693,7 @@ export type NativeRoot<V> = [Renderer.HostOf<V>] extends [Native.Host]
   ? unknown
   : { readonly "NativeHost.mount shows native elements. This root's vocabulary needs": Renderer.HostOf<V> }
 
-export interface MountOptions<V extends View.Elements, RF = never> extends SurfaceOptions {
+export interface MountOptions<V extends View.Elements, RF = never, RC = never> extends SurfaceOptions {
   /** `getFabricUIManager()` from `@ng-native/fabric`. */
   readonly fabric: FabricUIManager
   /** The number React Native passes to the app's runnable. */
@@ -700,26 +702,59 @@ export interface MountOptions<V extends View.Elements, RF = never> extends Surfa
     | ((failure: AsyncResult.Failure<never, unknown>, h: View.WithTags<never, {}, V>) => View.Content<never, RF>)
     | undefined
   readonly query?: Renderer.QueryOptions | undefined
+  /**
+   * What to do when a part of the app fails: `NativeCrash.screen()` shows a
+   * screen that says so and can start the app again. Left out, a part that
+   * fails goes blank and the rest carries on.
+   */
+  readonly crash?: NativeCrash.Supervisor<RC> | undefined
   /** Called with the surface once the first screen is drawn, for a readout or a test. */
   readonly onSurface?: ((surface: NativeSurface) => void) | undefined
 }
 
 /** Mounts a component tree on the phone for the life of the current Scope. */
-export const mountEffect = <Name extends string, Props, Model, Msg, Events, R, V extends View.Elements, RF = never, RP = never>(
+export const mountEffect = <
+  Name extends string,
+  Props,
+  Model,
+  Msg,
+  Events,
+  R,
+  V extends View.Elements,
+  RF = never,
+  RP = never,
+  RC = never,
+>(
   component: Component.Members<Name, Props, Model, Msg, Events, R, V, any> & NativeRoot<V>,
   props: Props | Effect.Effect<Props, never, RP>,
-  options: MountOptions<V, RF>,
-): Effect.Effect<Renderer.Root<Model, Msg>, never, Exclude<R | RF | RP, Native.Host> | Scope.Scope> =>
+  options: MountOptions<V, RF, RC>,
+): Effect.Effect<Renderer.Root<Model, Msg>, never, Exclude<R | RF | RP | RC, Native.Host> | Scope.Scope> =>
   Effect.gen(function* () {
-    const { fabric, rootTag, fallback, query, onSurface, ...surfaceOptions } = options
+    const { fabric, rootTag, fallback, query, onSurface, crash, ...surfaceOptions } = options
     const surface = yield* Effect.acquireRelease(
       Effect.sync(() => makeSurface(fabric, rootTag, surfaceOptions)),
       made => Effect.sync(() => made.close()),
     )
-    const root = yield* Effect.provideContext(
-      Renderer.mount(component as any, props as any, surface.container, { fallback, query, head: false } as any),
-      contextOf(surface),
-    )
+    /** One tree on the surface, for the life of the Scope it is run in. Whoever listens for trees is told. */
+    const mountOne = (target: unknown, targetProps: unknown, mountOptions: object) =>
+      Effect.gen(function* () {
+        const root = yield* Effect.provideContext(
+          Renderer.mount(target as any, targetProps as any, surface.container, mountOptions as any),
+          contextOf(surface),
+        )
+        const roots = yield* Roots
+        const forget = roots.register(root)
+        yield* Effect.addFinalizer(() => Effect.sync(forget))
+        return root as Renderer.Root<any, any>
+      })
+    const mountApp = mountOne(component, props, { fallback, query, head: false })
+    const root =
+      crash === undefined
+        ? yield* mountApp
+        : yield* crash.supervise<Model, Msg>({
+            mountApp: mountApp as never,
+            mountOther: (other, otherProps) => mountOne(other, otherProps, { head: false }) as never,
+          })
     onSurface?.(surface)
     return root
   }) as any
@@ -728,11 +763,22 @@ export const mountEffect = <Name extends string, Props, Model, Msg, Events, R, V
  * A Layer that starts the engine and mounts `component` for as long as the
  * Layer is alive. Like `BrowserHost.mount`.
  */
-export const mount = <Name extends string, Props, Model, Msg, Events, R, V extends View.Elements, RF = never, RP = never>(
+export const mount = <
+  Name extends string,
+  Props,
+  Model,
+  Msg,
+  Events,
+  R,
+  V extends View.Elements,
+  RF = never,
+  RP = never,
+  RC = never,
+>(
   component: Component.Members<Name, Props, Model, Msg, Events, R, V, any> & NativeRoot<V>,
   props: Props | Effect.Effect<Props, never, RP>,
-  options: MountOptions<V, RF>,
-): Layer.Layer<never, never, Exclude<R | RF | RP, Native.Host>> =>
+  options: MountOptions<V, RF, RC>,
+): Layer.Layer<never, never, Exclude<R | RF | RP | RC, Native.Host>> =>
   Layer.effectDiscard(mountEffect(component, props, options)) as any
 
 const microtask = (run: () => void): (() => void) => {

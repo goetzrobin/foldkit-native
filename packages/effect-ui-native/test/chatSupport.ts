@@ -77,6 +77,8 @@ export type StartOptions = Readonly<{
   stored?: Readonly<Record<string, string>>
   /** Services laid over the app's own, to make one of them fail. */
   override?: Layer.Layer<any>
+  /** What to show when a part of the app fails. Nothing if left out. */
+  crash?: NativeTest.TestOptions['crash']
 }>
 
 export const start = (options: StartOptions = {}) =>
@@ -94,7 +96,11 @@ export const start = (options: StartOptions = {}) =>
     )
     const layer = options.override === undefined ? services : Layer.merge(services, options.override)
     const platform = options.platform ?? 'ios'
-    const app = yield* NativeTest.mount(App, { platform }, { platform, longPressMs: HOLD_MS }).pipe(
+    const app = yield* NativeTest.mount(
+      App,
+      { platform },
+      { platform, longPressMs: HOLD_MS, ...(options.crash === undefined ? {} : { crash: options.crash }) },
+    ).pipe(
       provideForTest(layer as typeof services),
     )
     yield* app.wait(REQUEST)
