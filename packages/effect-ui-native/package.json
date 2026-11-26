@@ -15,7 +15,9 @@
     "effect": "^4.1.4"
   },
   "devDependencies": {
+    "@effect/platform-node": "^4.1.6",
     "@effect/ui": "file:vendor/effect-ui-0.0.0.tgz",
+    "@effect/ui-devtools": "file:vendor/effect-ui-devtools-0.0.0.tgz",
     "effect": "4.1.6",
     "typescript": "~6.0.3",
     "vitest": "^5.1.0"
