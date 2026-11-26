@@ -18,10 +18,18 @@
  *   there) it follows the reply as it grows, until a finger drags it away.
  *
  * What this part adds: it tells the list when a finger rests on a row, so
- * the list waits; it counts holds; it reports a tap that nothing took, so
- * the chat screen can put the keyboard away; and it tells the chat screen
- * whether the end is in view and whether the list follows it, for the round
- * button.
+ * the list waits; it reports a tap that nothing took, so the chat screen can
+ * put the keyboard away; and it tells the chat screen whether the end is in
+ * view and whether the list follows it, for the round button.
+ *
+ * A hold on a row is a Message here, and the chat screen opens the row's
+ * menu (`HeldRow`). The hold is read two ways at once: by the phone's own
+ * long press recogniser on the row's view, and by the host's own timer as
+ * the backup (`NativeHost.NATIVE_HOLD`). The phone's recogniser is what works
+ * on a real iPhone while a reply streams and the list moves by itself.
+ *
+ * What a row's buttons ask for (copy, share, write again, show the
+ * reasoning) is passed up with the row's key.
  *
  * The numbers strip is a thin dark line over the top of the transcript. The
  * list writes its own numbers into it as it moves.
@@ -29,12 +37,12 @@
 import { Command, UiSchema } from '@effect/ui'
 import { Schema } from 'effect'
 
-import { MessageStatus, Part } from '../../../native/src/host/aiChat/wire.js'
-import { AnchoredList, KeyboardBar, Native } from '../../src/index.js'
+import { Attachment, MessageStatus, Part } from '../../../native/src/host/aiChat/wire.js'
+import { AnchoredList, KeyboardBar, Native, NativeHost, NativeViews } from '../../src/index.js'
 import { RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { centred } from '../ui.js'
 import { MessageRow } from './messageRow.js'
-import { ReplyStream } from './replyStream.js'
+import { ReplyAction, ReplyStream } from './replyStream.js'
 
 /** One row, as the chat screen hands it down. */
 export const Row = Schema.Struct({
@@ -46,6 +54,8 @@ export const Row = Schema.Struct({
   failure: Schema.NullOr(Schema.String),
   /** For a reply that is being written: its turn. */
   followTurnId: Schema.NullOr(Schema.String),
+  /** Voice notes that went with a message. */
+  attachments: Schema.Array(Attachment),
 })
 export type Row = typeof Row.Type
 
@@ -60,6 +70,8 @@ export const TranscriptProps = Schema.Struct({
   anchorKey: Schema.NullOr(Schema.String),
   /** The numbers strip is on. */
   showsNumbers: Schema.Boolean,
+  /** A reply that is asked to copy what is written so far: its row, and a count that goes up by one. */
+  copyRequest: Schema.NullOr(Schema.Struct({ key: Schema.String, count: Schema.Number })),
 })
 
 export const TranscriptMessage = UiSchema.TaggedEnum({
@@ -73,11 +85,21 @@ export const TranscriptMessage = UiSchema.TaggedEnum({
   /** A short touch on a row or on the list that nothing else took. */
   Tapped: {},
   PressedSuggestion: { text: Schema.String },
+  PressedReplyAction: { key: Schema.String, action: ReplyAction },
+  PressedReasoning: { title: Schema.String, text: Schema.String },
+  PressedTryAgain: {},
+  CopiedSoFar: {},
 })
 
 export const TranscriptEvents = UiSchema.TaggedEnum({
   PressedSuggestion: { text: Schema.String },
   Tapped: {},
+  /** A finger rested on a row for half a second: its menu is wanted. */
+  HeldRow: { key: Schema.String },
+  PressedReplyAction: { key: Schema.String, action: ReplyAction },
+  PressedReasoning: { title: Schema.String, text: Schema.String },
+  PressedTryAgain: {},
+  CopiedSoFar: {},
   /** Whether the end of the list is in view, and whether the list follows it. */
   ChangedEnd: { isAtEnd: Schema.Boolean, isFollowing: Schema.Boolean },
 })
@@ -109,6 +131,9 @@ export const SUGGESTIONS = [
   'Will it rain in Lisbon tomorrow?',
 ] as const
 
+/** On a row: read its hold with the phone's own recogniser too. One object, so a draw that changes nothing changes nothing. */
+const NATIVE_HOLD = { [NativeHost.NATIVE_HOLD]: true }
+
 const textOf = (row: Row): string => row.parts.map(part => (part._tag === 'Text' ? part.text : '')).join('')
 
 const STRIP_TEXT = { color: '#FFFFFF', fontSize: 11, lineHeight: 15 } as const
@@ -133,15 +158,21 @@ export const Transcript = Native.component({
       $.evolve({ touches: count => count + 1 }).run(
         AnchoredList.touch(TRANSCRIPT_ID, isDown, $.model.touches + 1).pipe(Command.asNoop),
       ),
-    HeldRow: ($, { key }) => $.evolve({ holds: count => count + 1, lastHeld: key }),
+    HeldRow: ($, { key }) =>
+      $.evolve({ holds: count => count + 1, lastHeld: key }).emit(TranscriptEvents.HeldRow({ key })),
     Tapped: $ => $.emit(TranscriptEvents.Tapped()),
     PressedSuggestion: ($, { text }) => $.emit(TranscriptEvents.PressedSuggestion({ text })),
+    PressedReplyAction: ($, { key, action }) => $.emit(TranscriptEvents.PressedReplyAction({ key, action })),
+    PressedReasoning: ($, { title, text }) => $.emit(TranscriptEvents.PressedReasoning({ title, text })),
+    PressedTryAgain: $ => $.emit(TranscriptEvents.PressedTryAgain()),
+    CopiedSoFar: $ => $.emit(TranscriptEvents.CopiedSoFar()),
   },
   view: (h, model) => {
-    const { rows, scheme, conversationId, isLoading, anchorKey, showsNumbers } = h.props
+    const { rows, scheme, platform, conversationId, isLoading, anchorKey, showsNumbers, copyRequest } = h.props
     const palette = paletteOf(scheme)
     const anchorIndex = anchorKey === null ? -1 : rows.findIndex(row => row.key === anchorKey)
     const last = rows.length - 1
+    const lastReply = rows.reduce((found, row, index) => (row.role === 'assistant' ? index : found), -1)
     return h.view.style({ flex: 1, backgroundColor: palette.bg }).children(
       // Not drawn until the messages are here: the list then opens at its
       // end with all of them, and nothing is seen to move.
@@ -174,6 +205,7 @@ export const Transcript = Native.component({
                   .testId(`row-${key}`)
                   // A real view, so the touch has something to land on.
                   .set({ collapsable: false })
+                  .prop(NativeHost.NODE_DATA, NATIVE_HOLD)
                   .style({ paddingBottom: index === last ? SPACE.l : 0 })
                   .on('pressIn', TranscriptMessage.TouchedRow({ isDown: true }))
                   .on('pressOut', TranscriptMessage.TouchedRow({ isDown: false }))
@@ -181,7 +213,10 @@ export const Transcript = Native.component({
                   .on('press', TranscriptMessage.Tapped())
                   .children(
                     row.role === 'user'
-                      ? MessageRow(h, { key, props: { id: row.key, text: textOf(row), scheme } })
+                      ? MessageRow(h, {
+                          key,
+                          props: { id: row.key, text: textOf(row), attachments: row.attachments.map(each => each.name), scheme },
+                        })
                       : ReplyStream(h, {
                           key,
                           props: {
@@ -192,6 +227,15 @@ export const Transcript = Native.component({
                             failure: row.failure,
                             followTurnId: row.followTurnId,
                             scheme,
+                            platform,
+                            isLast: index === lastReply,
+                            copyRequest: copyRequest !== null && copyRequest.key === row.key ? copyRequest.count : 0,
+                          },
+                          onEmit: {
+                            PressedAction: ({ action }) => TranscriptMessage.PressedReplyAction({ key, action }),
+                            PressedReasoning: ({ title, text }) => TranscriptMessage.PressedReasoning({ title, text }),
+                            PressedTryAgain: () => TranscriptMessage.PressedTryAgain(),
+                            CopiedSoFar: () => TranscriptMessage.CopiedSoFar(),
                           },
                         }),
                   )
@@ -199,7 +243,7 @@ export const Transcript = Native.component({
             },
           }),
       isLoading
-        ? centred(h, 'chat-loading', [h.text.style({ ...TYPE.rowPreview, color: palette.ink3 }).children('Loading')])
+        ? centred(h, 'chat-loading', [NativeViews.spinner(h, platform, palette.ink3)])
         : rows.length === 0
           ? centred(h, 'empty-chat', [
               h.text.style({ ...TYPE.headline, color: palette.ink }).children('Ask anything'),
@@ -243,6 +287,8 @@ export const Transcript = Native.component({
                 .children(
                   `holds ${model.holds}, last held ${model.lastHeld}, keyboard ${KeyboardBar.isInset() ? 'moved by the phone' : 'padded'}`,
                 ),
+              // Which way holds are read, and how the last one went. Drawn again with each hold.
+              h.text.testId('numbers-hold-route').style(STRIP_TEXT).children(NativeHost.holdReport()),
             )
         : null,
     )

@@ -5,16 +5,21 @@
  * It keeps no state and is drawn from its props. A message looks the same
  * before and after the server has saved it, so nothing moves when it is.
  *
- * Holding a message for its menu comes in step 3, and goes in this part.
+ * A voice note that went with the message shows as a small chip above the
+ * words. Holding a message for its menu is the transcript's: it listens on
+ * the row around this part.
  */
 import { Schema } from 'effect'
 
 import { Native } from '../../src/index.js'
 import { RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
+import { attachmentChip } from '../ui.js'
 
 export const MessageRowProps = Schema.Struct({
   id: Schema.String,
   text: Schema.String,
+  /** The names of the voice notes that went with it. */
+  attachments: Schema.Array(Schema.String),
   scheme: Scheme,
 })
 
@@ -39,8 +44,15 @@ export const MessageRow = Native.component({
             paddingVertical: 10,
             borderRadius: RADIUS.bubble,
             backgroundColor: palette.surface,
+            gap: SPACE.s,
           })
-          .children(h.text.style({ ...TYPE.message, color: palette.ink }).set({ selectable: true }).children(h.props.text)),
+          .children(
+            h.props.attachments.map((name, index) =>
+              h.view.key(`note-${index}`).testId(`message-note-${h.props.id}`).children(attachmentChip(h, palette, name)),
+            ),
+            // Not selectable: a hold opens the message's menu, and Select text is in it.
+            h.text.style({ ...TYPE.message, color: palette.ink }).children(h.props.text),
+          ),
       )
   },
 })

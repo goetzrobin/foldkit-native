@@ -483,17 +483,20 @@ describe('6. Send is off while a message is on its way, and is Stop while a repl
         const grey = '#E8E8EA'
         const accent = '#0B6BCB'
         const look = () => ({ fill: app.byTestId('send').props['backgroundColor'], state: app.byTestId('send').props['accessibilityState'] })
-        expect(look()).toEqual({ fill: grey, state: { disabled: true } })
+        // An empty field has nothing to send: the two microphone buttons stand where Send will.
+        expect(app.has('send')).toBe(false)
+        expect(app.has('mic')).toBe(true)
+        expect(app.has('record')).toBe(true)
+        yield* app.typeText('draft', SHORT)
+        expect(look()).toEqual({ fill: accent, state: { disabled: false } })
         // The arrow is drawn, not a letter.
         expect(textOf(app.byTestId('send'))).toBe('')
         expect(flatten([app.byTestId('send')]).filter(node => node.props['position'] === 'absolute')).toHaveLength(3)
-        yield* app.typeText('draft', SHORT)
-        expect(look()).toEqual({ fill: accent, state: { disabled: false } })
         yield* app.press('send')
-        // On its way to the server: the field is empty, and a second press sends nothing.
-        expect(look()).toEqual({ fill: grey, state: { disabled: true } })
+        // On its way to the server: the field is empty, and what is typed next cannot be sent yet.
+        expect(app.has('send')).toBe(false)
         yield* app.typeText('draft', 'Again')
-        expect(look().fill).toBe(grey)
+        expect(look()).toEqual({ fill: grey, state: { disabled: true } })
         yield* app.press('send')
         yield* until(app, () => app.has('stop'), 3000, 'Stop to show')
         expect(app.has('send')).toBe(false)
@@ -814,6 +817,8 @@ describe('9. the round button to the end belongs to the composer bar', () => {
         // The seat is out of the layout, on the bar's top edge.
         expect(app.byTestId('scroll-to-end-seat').props['pointerEvents']).toBe('box-none')
         const place = () => JSON.stringify(flatten([phone.bar()]).filter(node => flatten([node]).includes(app.byTestId('scroll-to-end'))).map(node => node.props))
+        // The button fades in first. That is its own doing, not a new place.
+        yield* app.wait(300)
         const before = place()
         device.keyboard.show(KEYBOARD)
         yield* phone.keyboardMoves(KEYBOARD)
@@ -992,9 +997,12 @@ describe('11. a finger held on a message while a reply streams is a hold', () =>
         expect(app.has('stop')).toBe(true)
         expect(holds(app)).toContain('holds 1')
         expect(holds(app)).toContain(`last held ${reply.replace(/^row-/, '')}`)
+        // With the keyboard up, the hold itself puts the keyboard away, so the menu is not under it.
+        const afterHold = dismissed + (isKeyboardUp ? 1 : 0)
+        expect(device.keyboard.dismissCount()).toBe(afterHold)
         yield* app.touchEnd(reply)
-        // The lift after a hold is not a tap: the keyboard stays.
-        expect(device.keyboard.dismissCount()).toBe(dismissed)
+        // The lift after a hold is not a tap: nothing more is asked of the keyboard.
+        expect(device.keyboard.dismissCount()).toBe(afterHold)
         // Your own question can be held too.
         const question = lastQuestion(app)
         yield* app.touchStart(question)

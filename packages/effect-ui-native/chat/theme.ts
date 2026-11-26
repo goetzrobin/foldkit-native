@@ -21,6 +21,10 @@ export type Palette = Readonly<{
   accent: string
   onAccent: string
   danger: string
+  /** The composer where the phone has no Liquid Glass. */
+  glassFallback: string
+  /** The dimmed band of the Thinking shimmer: `bg` as red, green, blue. */
+  shimmerVeil: readonly [number, number, number]
 }>
 
 export const PALETTES: Readonly<Record<Scheme, Palette>> = {
@@ -35,6 +39,8 @@ export const PALETTES: Readonly<Record<Scheme, Palette>> = {
     accent: '#0B6BCB',
     onAccent: '#FFFFFF',
     danger: '#C4352B',
+    glassFallback: 'rgba(242,242,243,0.92)',
+    shimmerVeil: [255, 255, 255],
   },
   dark: {
     bg: '#0B0B0C',
@@ -47,6 +53,8 @@ export const PALETTES: Readonly<Record<Scheme, Palette>> = {
     accent: '#4DA3FF',
     onAccent: '#0B0B0C',
     danger: '#FF6B5E',
+    glassFallback: 'rgba(28,28,30,0.92)',
+    shimmerVeil: [11, 11, 12],
   },
 }
 
@@ -58,6 +66,7 @@ export const TYPE = {
   message: { fontSize: 16, lineHeight: 22 },
   rowTitle: { fontSize: 16, lineHeight: 21, fontWeight: '500' },
   rowPreview: { fontSize: 14, lineHeight: 19 },
+  section: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   meta: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
   caption: { fontSize: 13, lineHeight: 18 },
   headline: { fontSize: 22, lineHeight: 28, fontWeight: '600' },
@@ -67,3 +76,9 @@ export const TYPE = {
 export const SPACE = { xs: 4, s: 8, m: 12, l: 16, xl: 20, xxl: 24, xxxl: 32, huge: 48 } as const
 
 export const RADIUS = { bubble: 20, field: 22, chip: 12, row: 12 } as const
+
+/** Milliseconds. */
+export const MOTION = { scrollButton: 150, shimmerSweep: 1400 } as const
+
+/** As thin as the screen draws a line. */
+export const HAIRLINE = 0.5

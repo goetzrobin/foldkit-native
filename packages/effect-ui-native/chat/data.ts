@@ -8,9 +8,12 @@
  *
  * - **Reads.** `ListConversations` and `GetConversation` are queries. A
  *   component names one in `queries` and draws what the cache holds.
- * - **Writes.** `CreateConversation` and `SendMessage` are Commands that say
- *   what they do to the cache: which entries are old afterwards, what to
- *   show before the server has answered, what the answer already tells us.
+ * - **Writes.** `CreateConversation`, `SendMessage`, `RegenerateReply`,
+ *   `RenameConversation` and `DeleteConversation` are Commands that say what
+ *   they do to the cache: which entries are old afterwards, what to show
+ *   before the server has answered, what the answer already tells us. A
+ *   deleted chat is gone from the list at once and is back if the server
+ *   refuses. That is the cache's doing, with no code for it in a screen.
  * - **The reply.** A reply is not a query. It is a stream of numbered
  *   events, kept by the host's `TurnKeeper`, and `followTurn` is the
  *   Subscription that reads it in 32 ms bundles. When a reply ends, the
@@ -30,7 +33,8 @@ import {
   toChatError,
   turnKeeperLayerWith,
 } from '../../native/src/host/aiChat/turns.js'
-import { type ChatMessage, Conversation, ConversationSummary, TurnStarted } from '../../native/src/host/aiChat/wire.js'
+import { type AiServer, SPEEDS } from '../../native/src/host/aiChat/server.js'
+import { Attachment, type ChatMessage, Conversation, ConversationSummary, TurnStarted } from '../../native/src/host/aiChat/wire.js'
 
 export { ChatError }
 
@@ -92,7 +96,12 @@ export class CreateConversation extends Command.Service<CreateConversation>()('c
 }
 
 /** The person's message as it is shown before the server has saved it. */
-const unsaved = (conversation: Conversation, clientMessageId: string, text: string): ChatMessage => ({
+const unsaved = (
+  conversation: Conversation,
+  clientMessageId: string,
+  text: string,
+  attachments: ReadonlyArray<Attachment>,
+): ChatMessage => ({
   id: clientMessageId,
   role: 'user',
   parts: [{ _tag: 'Text', text }],
@@ -100,7 +109,7 @@ const unsaved = (conversation: Conversation, clientMessageId: string, text: stri
   createdAt: conversation.updatedAt,
   turnId: null,
   clientMessageId,
-  attachments: [],
+  attachments,
   failure: null,
   usage: null,
 })
@@ -114,15 +123,21 @@ const unsaved = (conversation: Conversation, clientMessageId: string, text: stri
  * `followTurn`.
  */
 export class SendMessage extends Command.Service<SendMessage>()('chat/SendMessage', {
-  args: { conversationId: Schema.String, text: Schema.String, clientMessageId: Schema.String },
+  args: {
+    conversationId: Schema.String,
+    text: Schema.String,
+    clientMessageId: Schema.String,
+    /** A voice note that goes with the message. */
+    attachments: Schema.Array(Attachment),
+  },
   success: TurnStarted,
   error: ChatError,
   invalidates: () => [ChatList],
-  optimistic: ({ conversationId, text, clientMessageId }) => [
+  optimistic: ({ conversationId, text, clientMessageId, attachments }) => [
     GetConversation.patch({ id: conversationId }, conversation =>
       conversation.messages.some(message => message.clientMessageId === clientMessageId)
         ? conversation
-        : { ...conversation, messages: [...conversation.messages, unsaved(conversation, clientMessageId, text)] },
+        : { ...conversation, messages: [...conversation.messages, unsaved(conversation, clientMessageId, text, attachments)] },
     ),
   ],
 }) {
@@ -130,8 +145,78 @@ export class SendMessage extends Command.Service<SendMessage>()('chat/SendMessag
     Effect.gen(function* () {
       const rpc = yield* AiChatRpcClient
       const keeper = yield* TurnKeeper
-      return ({ conversationId, text, clientMessageId }) =>
-        keeper.start(rpc.SendMessage({ conversationId, text, clientMessageId }))
+      return ({ conversationId, text, clientMessageId, attachments }) =>
+        keeper.start(rpc.SendMessage({ conversationId, text, clientMessageId, attachments }))
+    }),
+  )
+}
+
+/**
+ * Writes the newest reply again. The old reply comes off the screen from
+ * the moment the Command is issued, and the chat is loaded again once the
+ * server has said which reply it is writing. If the server refuses, the old
+ * reply is back.
+ */
+export class RegenerateReply extends Command.Service<RegenerateReply>()('chat/RegenerateReply', {
+  args: { conversationId: Schema.String },
+  success: TurnStarted,
+  error: ChatError,
+  invalidates: ({ conversationId }) => [GetConversation.entry({ id: conversationId })],
+  optimistic: ({ conversationId }) => [
+    GetConversation.patch({ id: conversationId }, conversation => {
+      const last = conversation.messages[conversation.messages.length - 1]
+      return last?.role === 'assistant' ? { ...conversation, messages: conversation.messages.slice(0, -1) } : conversation
+    }),
+  ],
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const rpc = yield* AiChatRpcClient
+      const keeper = yield* TurnKeeper
+      return ({ conversationId }) => keeper.start(rpc.RegenerateTurn({ conversationId }))
+    }),
+  )
+}
+
+/**
+ * Gives a chat another title. The list and the chat show the new title from
+ * the moment the Command is issued. If the server refuses, the old one is
+ * back.
+ */
+export class RenameConversation extends Command.Service<RenameConversation>()('chat/RenameConversation', {
+  args: { id: Schema.String, title: Schema.String },
+  success: ConversationSummary,
+  error: ChatError,
+  invalidates: ({ id }) => [ChatList, GetConversation.entry({ id })],
+  optimistic: ({ id, title }) => [
+    ListConversations.patch({}, list => list.map(each => (each.id === id ? { ...each, title } : each))),
+    GetConversation.patch({ id }, conversation => ({ ...conversation, title })),
+  ],
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const rpc = yield* AiChatRpcClient
+      return ({ id, title }) => Effect.mapError(rpc.RenameConversation({ id, title }), toChatError)
+    }),
+  )
+}
+
+/**
+ * Deletes a chat. Its row is gone from the list from the moment the Command
+ * is issued, and stays gone while the list loads again afterwards. If the
+ * server refuses, the row is back.
+ */
+export class DeleteConversation extends Command.Service<DeleteConversation>()('chat/DeleteConversation', {
+  args: { id: Schema.String },
+  success: Schema.Void,
+  error: ChatError,
+  invalidates: () => [ChatList],
+  optimistic: ({ id }) => [ListConversations.patch({}, list => list.filter(each => each.id !== id))],
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const rpc = yield* AiChatRpcClient
+      return ({ id }) => Effect.mapError(rpc.DeleteConversation({ id }), toChatError)
     }),
   )
 }
@@ -178,6 +263,47 @@ export class RefreshChat extends Command.Service<RefreshChat>()('chat/RefreshCha
 }) {
   static readonly layer = this.toLayer(() => Effect.void)
 }
+
+// THE PRETEND SERVER'S SWITCHES AND THE CLOCK
+
+export const Speed = Schema.Literals(['slow', 'normal', 'fast'])
+export type Speed = typeof Speed.Type
+
+/** Ways to make the pretend server fail on purpose. */
+export const Chaos = Schema.Struct({
+  failMidStream: Schema.Boolean,
+  dropConnection: Schema.Boolean,
+  slowFirstToken: Schema.Boolean,
+  refuseSend: Schema.Boolean,
+})
+export type Chaos = typeof Chaos.Type
+
+export const NO_CHAOS: Chaos = { failMidStream: false, dropConnection: false, slowFirstToken: false, refuseSend: false }
+
+/**
+ * Sets how fast the pretend server writes and which of its failures are on.
+ * A real server has no such door: this is for the demo controls in Settings.
+ */
+export class SetServerDials extends Command.Service<SetServerDials>()('chat/SetServerDials', {
+  args: { speed: Speed, chaos: Chaos },
+  success: Schema.Void,
+}) {
+  static readonly layerFor = (server: AiServer) =>
+    this.toLayer(({ speed, chaos }) =>
+      Effect.sync(() => {
+        server.setTiming(SPEEDS[speed])
+        server.setChaos(chaos)
+      }),
+    )
+}
+
+/** The clock the list of chats reads for "Today" and "Yesterday". A test gives its own. */
+export const Now = Context.Reference<() => number>('chat/Now', { defaultValue: () => () => Date.now() })
+
+/** Reads the clock. */
+export const ReadClock = Command.make('chat/ReadClock', { args: {} }, () =>
+  Effect.map(Effect.service(Now), now => ({ at: now() })),
+)
 
 // THE REPLY BEING WRITTEN
 
@@ -260,6 +386,9 @@ export type Services =
   | GetConversation
   | CreateConversation
   | SendMessage
+  | RegenerateReply
+  | RenameConversation
+  | DeleteConversation
   | ResumeTurn
   | StopTurn
   | RefreshChat
@@ -272,6 +401,9 @@ export const layer: Layer.Layer<Services, never, AiChatRpcClient> = Layer.mergeA
   GetConversation.layer,
   CreateConversation.layer,
   SendMessage.layer,
+  RegenerateReply.layer,
+  RenameConversation.layer,
+  DeleteConversation.layer,
   ResumeTurn.layer,
   StopTurn.layer,
   RefreshChat.layer,
