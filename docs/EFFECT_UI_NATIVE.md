@@ -18,11 +18,12 @@ What exists now:
   pictures, screens with the phone's own title bar and swipe back, sheets,
   glass, Markdown, a drawing canvas, rows that swipe, and animations that
   run on the phone's own thread.
-- **A playground app** (`apps/eui-playground`) with seven screens: a counter,
+- **A playground app** (`apps/eui-playground`) with eight screens: a counter,
   notes, a 1,000 row list, touch tests, phone features, a list loaded
-  from a pretend server, and boxes that keep moving while JavaScript is
-  blocked. It is there to answer questions on a real phone.
-- **260 tests** on a simulated phone, all passing. 135 of them came with
+  from a pretend server, boxes that keep moving while JavaScript is
+  blocked, and Effect UI's Snake game. It is there to answer questions on a
+  real phone.
+- **284 tests** on a simulated phone, all passing. 135 of them came with
   Effect Chat, the port of Fold Chat, which is now done in three steps. See
   `docs/EFFECT_UI_CHAT.md`.
 
@@ -530,4 +531,105 @@ without the mount's `fallback`: see "The crash screen" in
 `docs/EFFECT_UI_CHAT.md`. The dev tools run without `@effect/ui-kit` on the
 phone's side: see `docs/DEV_TOOLS.md`.
 
-The test count is 218.
+The test count was 218 then. It is 284 now.
+
+## Snake: one game, three screens
+
+Effect UI ships a Snake game as an example, once for the browser and once
+for a terminal. Both use the same rules files. The playground now has it on
+the phone too, with the same rules files again. Nobody has played it on a
+phone yet: `apps/eui-playground/README.md` has eleven checks.
+
+**Shared with the browser and terminal versions, unchanged.** Five files,
+127 lines, copied from `examples/snake/src` at commit c73e7ce into
+`packages/effect-ui-native/playground/snake`. Each has a comment on top that
+says where it came from and names the MIT licence. Under that comment the
+file is the original, byte for byte. The licence text is beside them in
+`LICENSE-effect-ui`.
+
+| File | Lines | What it holds |
+|---|---|---|
+| `constants.ts` | 10 | Where the snake starts, points per apple, the fastest and slowest tick |
+| `domain/position.ts` | 33 | A cell, the board size (`GRID_SIZE = 20`, set here and nowhere else), one step, coming back in on the other side |
+| `domain/direction.ts` | 17 | The four directions and which is opposite to which |
+| `domain/snake.ts` | 43 | The snake: make, move, grow, has it run into itself |
+| `domain/apple.ts` | 24 | A random free cell for the apple |
+
+Nothing in them needed a change for the phone. They use no browser API.
+They import each other with `.ts` at the end, so the two `tsconfig.json`
+files that check them now allow that.
+
+**One file per screen type.**
+
+| Screen | File | Lines |
+|---|---|---|
+| Browser | `examples/snake/src/SnakeGame.ts` (Effect UI) | 198 |
+| Terminal | `examples/snake-tui/src/SnakeGame.ts` (Effect UI) | 232 |
+| Phone | `playground/snake/SnakeGame.ts` | 498 |
+| Phone, the look | `playground/snake/look.ts` | 295 |
+| Phone, small helpers | `playground/snake/swipe.ts`, `tickMeter.ts` | 69 |
+
+The phone file keeps what the other two have: the seven Model fields,
+`TickedClock`, `PressedKey` and `CompletedGenerateApplePosition`, the
+`GenerateApplePosition` Command, the `gameClock` Subscription with the same
+speed rule (150 ms, less one for each point, never under 80). The
+`TickedClock` part of `update` is the originals' line for line. A turn
+straight back is ignored at the tick, as there. The board has no walls, as
+there.
+
+What the phone file adds:
+
+- **A keypad.** 2, 4, 6 and 8 are the arrow keys, 5 is the space bar, 0 is
+  the R key. Each key press runs `Phone.Impact`, a light tap.
+- **A swipe.** The green screen listens for `pressIn` and `pressOut`. The
+  host sends `pressOut` as soon as a finger has drifted ten points, with
+  where the finger is. The difference between the two points is the
+  direction. Nothing had to be added to the host for it. One touch gives one
+  turn: lift the finger to swipe again.
+- **Sizes from the phone.** The screen reports its room once (`layout`).
+  A cell is a whole number of points, so all squares are the same size. A
+  short phone gets a smaller board, so the keypad always fits.
+- **The numbers line.** JavaScript frame time, and the time of the last
+  tick from `update` to the commit, with a switch that hides it.
+- **The look.** A handset of our own design: graphite shell, dark frame,
+  yellow-green screen, dark olive squares, digits made of three by five
+  squares, a round apple. The same in dark mode. No font file, no picture.
+
+Left out: `head` (the page title). A phone has no document.
+
+**How the board is drawn.** One native view per cell: 400 views that stay.
+The board is 20 rows, and each row is a small component whose only props
+are its 20 cells as a short text and the cell size. A tick moves the head
+and the tail, so two cells change. Then:
+
+- one or two rows run their view again, the other rows do not;
+- the keypad and the digits are components too, and do not run;
+- two native views get a new colour, and no view is made or taken away.
+
+Measured by `test/snakeNumbers.test.ts`, in Node on a laptop:
+
+| | A view per cell (used) | A canvas without Skia, snake of 3 | of 30 | of 100 |
+|---|---|---|---|---|
+| Native views changed per tick | 2 | 3 | 30 | 100 |
+| Ancestor views copied per tick | 8 | 2 | 2 | 2 |
+| Native views made per tick | 0 | 0 | 0 | 0 |
+| Commits per tick | 1 | 1 | 1 | 1 |
+| JavaScript per tick, average | 0.5 ms | 0.2 ms | 0.6 ms | 0.9 ms |
+| 95 in 100 ticks are under | 0.9 ms | | | |
+
+The canvas (`NativeViews.makeCanvas`) was the other choice. The playground
+app has no Skia in it, and adding Skia means building the app again, which
+this screen must not need. Without Skia a canvas is drawn with one plain
+view per shape, and every piece of the snake gets a new place on every
+tick. So its work grows with the snake, and the view per cell stays at two.
+With Skia in the build a canvas would send one picture per tick. That is
+worth a look if the board ever gets much bigger than 20 by 20.
+
+A phone is slower than the laptop: Hermes has no JIT. Expect several times
+0.5 ms. A tick is at most every 80 ms, so there is a lot of room. The
+numbers line on the screen shows the real figures.
+
+The tests: `test/snakeStory.test.ts` (the rules through `update`, ported
+from the browser example's story test, with Effect UI's own `Story` tool),
+`test/snake.test.ts` (the game played on the simulated phone with a test
+clock and a seeded apple) and `test/snakeNumbers.test.ts`.

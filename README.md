@@ -101,6 +101,7 @@ supplies ones that call the ng-native engine.
 | `apps/chat/` | Fold Chat, the flagship: one finished AI chat app. Its program is in `packages/native/flagship`, its look in `docs/flagship/DESIGN.md`, how to build it in `apps/chat/README.md` |
 | `packages/effect-ui-native/` | Effect UI, Foldkit's successor, on the same native views: a host, a vocabulary and tests. See `docs/EFFECT_UI_NATIVE.md` |
 | `apps/eui-playground/` | The app that runs it on a phone: counter, notes, a 1,000 row list, touch tests, phone features, and a Server state screen (a list loaded and saved through Effect UI's Query) |
+| `packages/effect-ui-native/playground/snake/` | Snake in the playground app: Effect UI's example game with its rules unchanged, drawn as an old handset. See "Snake: one game, three screens" in `docs/EFFECT_UI_NATIVE.md` |
 | `apps/eui-chat/` | Effect Chat: Fold Chat built again on Effect UI, all three steps (chats, sending, how the chat moves, menus, sheets, delete, rename, search, voice notes, and a microphone button that writes what you say). Step 3 added a native package, so the app must be built again. Its program is in `packages/effect-ui-native/chat`. See `docs/EFFECT_UI_CHAT.md` |
 | `apps/devloop/` | A small app for trying reload that keeps your state |
 | `apps/notes/`, `apps/counter/` | The first two apps, kept as the smallest examples |

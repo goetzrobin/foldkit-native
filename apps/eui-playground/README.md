@@ -1,7 +1,7 @@
 # EUI Playground
 
 A small app that runs Effect UI on the phone's own views. React draws
-nothing. It has seven screens, picked from a menu, and it exists to answer
+nothing. It has eight screens, picked from a menu, and it exists to answer
 questions on a real phone: does a long list scroll well, do touches behave,
 does data from a server load and save as it should, and do animations keep
 running while the app's own code is busy.
@@ -131,6 +131,7 @@ this app before: the packages it uses were already in it.
 | Phone | `playground/phone.ts` | Haptics, clipboard, keyboard, colour scheme, app state |
 | Server state | `playground/serverState.ts` | A list from a pretend server: load, add, delete at once, a save that fails |
 | Motion | `playground/motion.ts` | Boxes that fade, move and spring on the phone's own thread, and a button that blocks JavaScript for a second |
+| Snake | `playground/snake/SnakeGame.ts` | Effect UI's Snake game with its rules unchanged, on an old handset with a keypad |
 
 The programs are in `packages/effect-ui-native/playground`. The app copies
 them, with the host, into `./native` each time it starts
@@ -156,3 +157,49 @@ be built again.
 - **The crash screen.** Open Phone and scroll to the bottom. Three small
   buttons break the app on purpose: in update, in view, in a Command. Each
   shows the crash screen, with Copy and Start again.
+
+## Snake: eleven checks
+
+Added later. It needs no new build if you built this app before: it uses
+only what was already in it. Run `npm install` once after pulling, or just
+start the app again from the Mac.
+
+Snake is Effect UI's own example game. The rules are the same files the
+browser and terminal versions use. The screen is new: an old handset with a
+small green screen and a number keypad. 2, 4, 6 and 8 steer. 5 starts and
+pauses. 0 starts a new game. The board has no walls: the snake comes back in
+on the other side. The game ends when the snake runs into itself.
+
+Answer yes or no, or write the number down.
+
+19. **It opens.** Tap Snake in the menu. Do you see a grey handset on a dark
+    ground, a green screen with a three-square snake and a round apple, the
+    words "PRESS 5" in a box, and twelve keys?
+20. **The keypad steers.** Tap 5. The snake moves to the right. Tap 2: does
+    it turn up? Then 4 (left), 8 (down), 6 (right). Does each key dim under
+    your finger, and do you feel a light tap for each?
+21. **Turning straight back does nothing.** While the snake goes right, tap
+    4. Does it keep going right?
+22. **A swipe steers.** Swipe up, down, left and right on the green screen.
+    Does the snake turn each time, soon after your finger starts to move?
+    Does a swipe to the right ever pull the whole screen back to the menu?
+23. **It moves evenly.** Play for half a minute and watch the snake. Does it
+    move in even steps, with no stutter? Write down the four numbers in the
+    small line under the handset: the two after "JS frame" and the two after
+    "Last tick".
+24. **Eating.** Run over the apple. Is the snake one square longer, does the
+    score at the top left go up by 10, and does a new apple appear?
+25. **Dying.** Eat two or three apples, then turn in a tight circle into
+    your own tail. Does the snake stop, do the words "GAME OVER" show, and
+    does the number beside the crown at the top right show your score?
+26. **Pause.** In a game, tap 5. Does the snake stop and "PAUSED" show? Tap
+    5 again: does it go on from the same place?
+27. **New game.** Tap 0. Is the snake back in the middle, the score 0000,
+    and the number beside the crown still your best?
+28. **The numbers switch.** Tap "Numbers: on" at the bottom right. Does the
+    line of numbers go away, and come back when you tap again?
+29. **How it looks on your phone.** Is anything cut off at the top, the
+    bottom or the sides? Are the keys big enough to press without looking?
+    Are the squares of the board sharp and all the same size? Is the bottom
+    row of keys clear of the home bar? Turn on dark mode: does the screen
+    look the same?
