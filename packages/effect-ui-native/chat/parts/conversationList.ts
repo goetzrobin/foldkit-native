@@ -29,7 +29,8 @@ export const ConversationListMessage = UiSchema.TaggedEnum({
 })
 
 export const ConversationListEvents = UiSchema.TaggedEnum({
-  OpenedChat: { id: Schema.String },
+  /** `isNew`: the chat was made just now, by this press. */
+  OpenedChat: { id: Schema.String, isNew: Schema.Boolean },
 })
 
 const ConversationListModel = Schema.Struct({
@@ -62,8 +63,8 @@ export const ConversationList = Native.component({
               }),
             ),
           ),
-    PressedChat: ($, { id }) => $.emit(ConversationListEvents.OpenedChat({ id })),
-    CreatedChat: ($, { id }) => $.evolve({ isCreating: false }).emit(ConversationListEvents.OpenedChat({ id })),
+    PressedChat: ($, { id }) => $.emit(ConversationListEvents.OpenedChat({ id, isNew: false })),
+    CreatedChat: ($, { id }) => $.evolve({ isCreating: false }).emit(ConversationListEvents.OpenedChat({ id, isNew: true })),
     FailedCreate: ($, { reason }) => $.evolve({ isCreating: false, notice: `Could not start a chat: ${reason}` }),
   },
   view: (h, model) => {

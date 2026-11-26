@@ -25,11 +25,12 @@ import { Scheme } from './theme.js'
 
 const Screen = Schema.Union([
   Schema.TaggedStruct('Chats', { key: Schema.String }),
-  Schema.TaggedStruct('Chat', { key: Schema.String, conversationId: Schema.String }),
+  Schema.TaggedStruct('Chat', { key: Schema.String, conversationId: Schema.String, isNew: Schema.Boolean }),
 ])
 
 export const AppMessage = UiSchema.TaggedEnum({
-  OpenedChat: { id: Schema.String },
+  OpenedChat: { id: Schema.String, isNew: Schema.Boolean },
+  ToggledNumbers: {},
   DismissedByPhone: { count: Schema.Number },
   ChangedScheme: { scheme: Scheme },
   EndedTurn: { conversationId: Schema.String },
@@ -45,6 +46,8 @@ const AppModel = Schema.Struct({
   screens: Schema.Array(Screen),
   nextKey: Schema.Number,
   scheme: Scheme,
+  /** The numbers strip in a chat is on. Kept here, so it stays on from one chat to the next. */
+  showsNumbers: Schema.Boolean,
 })
 
 export const App = Native.component({
@@ -53,20 +56,21 @@ export const App = Native.component({
   model: AppModel,
   message: AppMessage,
 }).make({
-  init: () => ({ screens: [{ _tag: 'Chats' as const, key: 's0' }], nextKey: 1, scheme: 'light' as const }),
+  init: () => ({ screens: [{ _tag: 'Chats' as const, key: 's0' }], nextKey: 1, scheme: 'light' as const, showsNumbers: false }),
   update: {
-    OpenedChat: ($, { id }) =>
+    OpenedChat: ($, { id, isNew }) =>
       // One chat at a time: a second press while the first is opening does nothing.
       $.model.screens.length > 1
         ? $.model
         : $.evolve({
-            screens: [...$.model.screens, { _tag: 'Chat' as const, key: `s${$.model.nextKey}`, conversationId: id }],
+            screens: [...$.model.screens, { _tag: 'Chat' as const, key: `s${$.model.nextKey}`, conversationId: id, isNew }],
             nextKey: $.model.nextKey + 1,
           }),
     // The phone closed screens by itself. The first screen always stays.
     DismissedByPhone: ($, { count }) =>
       $.evolve({ screens: $.model.screens.slice(0, Math.max(1, $.model.screens.length - Math.max(1, count))) }),
     ChangedScheme: ($, { scheme }) => $.evolve({ scheme }),
+    ToggledNumbers: $ => $.evolve({ showsNumbers: on => !on }),
     EndedTurn: ($, { conversationId }) =>
       $.run(RefreshChat.make({ conversationId }).pipe(Command.as(AppMessage.Refreshed()))),
     Refreshed: $ => $.model,
@@ -77,19 +81,22 @@ export const App = Native.component({
   ],
   view: (h, model) => {
     const { platform } = h.props
-    const { scheme } = model
+    const { scheme, showsNumbers } = model
     return h.stack.testId('stack').children(
       model.screens.map(screen =>
         screen._tag === 'Chats'
           ? ConversationList(h, {
               key: screen.key,
               props: { platform, scheme },
-              onEmit: { OpenedChat: ({ id }) => AppMessage.OpenedChat({ id }) },
+              onEmit: { OpenedChat: ({ id, isNew }) => AppMessage.OpenedChat({ id, isNew }) },
             })
           : ChatScreen(h, {
               key: screen.key,
-              props: { conversationId: screen.conversationId, platform, scheme },
-              onEmit: { Dismissed: ({ count }) => AppMessage.DismissedByPhone({ count }) },
+              props: { conversationId: screen.conversationId, platform, scheme, isNew: screen.isNew, showsNumbers },
+              onEmit: {
+                Dismissed: ({ count }) => AppMessage.DismissedByPhone({ count }),
+                ToggledNumbers: () => AppMessage.ToggledNumbers(),
+              },
             }),
       ),
     )

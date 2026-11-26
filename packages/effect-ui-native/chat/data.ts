@@ -150,6 +150,23 @@ export class ResumeTurn extends Command.Service<ResumeTurn>()('chat/ResumeTurn',
 }
 
 /**
+ * Stops a reply. The server keeps what was written so far and marks it
+ * stopped. The reply's own stream then says that it ended, as for any reply.
+ * A turn that has ended already is not an error here.
+ */
+export class StopTurn extends Command.Service<StopTurn>()('chat/StopTurn', {
+  args: { turnId: Schema.String },
+  success: Schema.Void,
+}) {
+  static readonly layer = this.toLayer(
+    Effect.gen(function* () {
+      const rpc = yield* AiChatRpcClient
+      return ({ turnId }) => Effect.ignore(rpc.StopTurn({ turnId }))
+    }),
+  )
+}
+
+/**
  * Asks the server for nothing. It only says that the list and one chat are
  * old, so the cache loads them again where a screen shows them, and the next
  * time a screen opens where none does. Run when a reply has ended.
@@ -244,6 +261,7 @@ export type Services =
   | CreateConversation
   | SendMessage
   | ResumeTurn
+  | StopTurn
   | RefreshChat
   | TurnNews
   | TurnKeeper
@@ -255,6 +273,7 @@ export const layer: Layer.Layer<Services, never, AiChatRpcClient> = Layer.mergeA
   CreateConversation.layer,
   SendMessage.layer,
   ResumeTurn.layer,
+  StopTurn.layer,
   RefreshChat.layer,
 ).pipe(
   Layer.provideMerge(turnKeeperLayerWith(TurnNews.use(news => Effect.succeed(news.publish)))),

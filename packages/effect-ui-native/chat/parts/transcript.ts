@@ -1,23 +1,36 @@
 /**
- * The transcript: the messages of one chat, oldest first.
+ * The transcript: the messages of one chat, oldest first, and how they move.
  *
- * It is a long list drawn the way `VirtualList` draws one. The Model holds
- * the window (which rows are drawn now), a scroll is a Message, and each row
- * is a child component: `MessageRow` for the person's messages,
- * `ReplyStream` for the assistant's.
+ * The list is an `AnchoredList`: the host layer's list controller places
+ * it, and this part draws the rows. Each row is a child component,
+ * `MessageRow` for the person's messages and `ReplyStream` for the
+ * assistant's. The rows are props: the chat screen works them out from the
+ * chat's query and hands them down.
  *
- * The rows are props. The chat screen works them out from the chat's query
- * and hands them down. This part does not know where they came from.
+ * What the list does by itself, with no Message from here:
  *
- * Step 1 stops there. Keeping the question in place after Send, following
- * the end while a reply grows, making room for the keyboard and the "scroll
- * to end" button come in step 2, and go in this part.
+ * - It opens at its end, unseen until it is there.
+ * - After Send the chat screen names the question (`anchorKey`). The list
+ *   takes it to 16 points from the top and keeps room under it for the
+ *   reply. The room shrinks as the reply grows, and the question stays.
+ * - Its bottom inset is what the composer and the keyboard cover.
+ * - Once the reader has asked for the end (the round button, or scrolling
+ *   there) it follows the reply as it grows, until a finger drags it away.
+ *
+ * What this part adds: it tells the list when a finger rests on a row, so
+ * the list waits; it counts holds; it reports a tap that nothing took, so
+ * the chat screen can put the keyboard away; and it tells the chat screen
+ * whether the end is in view and whether the list follows it, for the round
+ * button.
+ *
+ * The numbers strip is a thin dark line over the top of the transcript. The
+ * list writes its own numbers into it as it moves.
  */
-import { UiSchema } from '@effect/ui'
+import { Command, UiSchema } from '@effect/ui'
 import { Schema } from 'effect'
 
 import { MessageStatus, Part } from '../../../native/src/host/aiChat/wire.js'
-import { Native, VirtualList } from '../../src/index.js'
+import { AnchoredList, KeyboardBar, Native } from '../../src/index.js'
 import { RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { centred } from '../ui.js'
 import { MessageRow } from './messageRow.js'
@@ -42,23 +55,50 @@ export const TranscriptProps = Schema.Struct({
   /** The chat's messages have not loaded yet. */
   isLoading: Schema.Boolean,
   scheme: Scheme,
+  platform: Schema.String,
+  /** The question held near the top of the screen, by its row key. */
+  anchorKey: Schema.NullOr(Schema.String),
+  /** The numbers strip is on. */
+  showsNumbers: Schema.Boolean,
 })
 
 export const TranscriptMessage = UiSchema.TaggedEnum({
-  ScrolledList: { at: VirtualList.ScrollAt },
-  MeasuredRow: { index: Schema.Number, height: Schema.Number },
+  PlannedWindow: { window: AnchoredList.Window },
+  ChangedAtEnd: { isAtEnd: Schema.Boolean },
+  ChangedFollowing: { isFollowing: Schema.Boolean },
+  /** A finger came down on a row, or that touch is over. */
+  TouchedRow: { isDown: Schema.Boolean },
+  /** A finger rested on a row for half a second. */
+  HeldRow: { key: Schema.String },
+  /** A short touch on a row or on the list that nothing else took. */
+  Tapped: {},
   PressedSuggestion: { text: Schema.String },
 })
 
 export const TranscriptEvents = UiSchema.TaggedEnum({
   PressedSuggestion: { text: Schema.String },
+  Tapped: {},
+  /** Whether the end of the list is in view, and whether the list follows it. */
+  ChangedEnd: { isAtEnd: Schema.Boolean, isFollowing: Schema.Boolean },
 })
 
 const TranscriptModel = Schema.Struct({
-  list: VirtualList.Model,
-  /** Where the list was when the window last moved. */
-  offset: Schema.Number,
+  /** The rows drawn now, as the list last chose. */
+  window: AnchoredList.Window,
+  isAtEnd: Schema.Boolean,
+  isFollowing: Schema.Boolean,
+  /** How many holds this chat has seen. Shown in the numbers strip. */
+  holds: Schema.Number,
+  lastHeld: Schema.String,
 })
+
+/** The transcript's list, by the name the Commands and the numbers know it by. */
+export const TRANSCRIPT_ID = 'transcript'
+
+/** A question taller than this shows only its last lines at the top, so the reply has room. */
+const ANCHOR_MAX_SIZE = 3 * TYPE.message.lineHeight + 20
+/** How far below the top of the list the question sits. */
+export const ANCHOR_OFFSET = SPACE.l
 
 /** Questions an empty chat offers. A press sends one. */
 export const SUGGESTIONS = [
@@ -69,6 +109,8 @@ export const SUGGESTIONS = [
 
 const textOf = (row: Row): string => row.parts.map(part => (part._tag === 'Text' ? part.text : '')).join('')
 
+const STRIP_TEXT = { color: '#FFFFFF', fontSize: 11, lineHeight: 15 } as const
+
 export const Transcript = Native.component({
   name: 'Transcript',
   props: TranscriptProps,
@@ -76,52 +118,81 @@ export const Transcript = Native.component({
   message: TranscriptMessage,
   events: TranscriptEvents,
 }).make({
-  init: $ => ({ list: VirtualList.init({ count: $.props.rows.length, estimate: 120 }), offset: 0 }),
+  // A list that opens at its end starts there and follows.
+  init: () => ({ window: AnchoredList.init(), isAtEnd: true, isFollowing: true, holds: 0, lastHeld: 'none' }),
   update: {
-    ScrolledList: ($, { at }) => {
-      const list = VirtualList.scrolled($.model.list, at, $.props.rows.length)
-      return list === $.model.list ? $.model : $.evolve({ list, offset: at.y })
-    },
-    MeasuredRow: ($, { index, height }) => {
-      const list = VirtualList.measured($.model.list, index, height, $.props.rows.length)
-      return list === $.model.list ? $.model : $.evolve({ list })
-    },
+    PlannedWindow: ($, { window }) => $.evolve({ window }),
+    ChangedAtEnd: ($, { isAtEnd }) =>
+      $.evolve({ isAtEnd }).emit(TranscriptEvents.ChangedEnd({ isAtEnd, isFollowing: $.model.isFollowing })),
+    ChangedFollowing: ($, { isFollowing }) =>
+      $.evolve({ isFollowing }).emit(TranscriptEvents.ChangedEnd({ isAtEnd: $.model.isAtEnd, isFollowing })),
+    // The list waits under a resting finger, and catches up when it lifts.
+    TouchedRow: ($, { isDown }) => $.run(AnchoredList.touch(TRANSCRIPT_ID, isDown).pipe(Command.asNoop)),
+    HeldRow: ($, { key }) => $.evolve({ holds: count => count + 1, lastHeld: key }),
+    Tapped: $ => $.emit(TranscriptEvents.Tapped()),
     PressedSuggestion: ($, { text }) => $.emit(TranscriptEvents.PressedSuggestion({ text })),
   },
   view: (h, model) => {
-    const { rows, scheme, conversationId, isLoading } = h.props
+    const { rows, scheme, conversationId, isLoading, anchorKey, showsNumbers } = h.props
     const palette = paletteOf(scheme)
-    // The rows may have changed since the window was chosen: a message was
-    // added, or the chat has just loaded. The window is fitted to them here.
-    const list = VirtualList.resized(model.list, model.offset, rows.length)
+    const anchorIndex = anchorKey === null ? -1 : rows.findIndex(row => row.key === anchorKey)
+    const last = rows.length - 1
     return h.view.style({ flex: 1, backgroundColor: palette.bg }).children(
-      VirtualList.view(h, {
-        model: list,
-        count: rows.length,
-        testId: 'transcript',
-        style: { backgroundColor: palette.bg },
-        idOf: index => rows[index]?.key ?? String(index),
-        onScroll: at => TranscriptMessage.ScrolledList({ at }),
-        onRowLayout: (index, height) => TranscriptMessage.MeasuredRow({ index, height }),
-        row: (index, key) => {
-          const row = rows[index] as Row
-          return row.role === 'user'
-            ? MessageRow(h, { key, props: { id: row.key, text: textOf(row), scheme } })
-            : ReplyStream(h, {
-                key,
-                props: {
-                  id: row.key,
-                  conversationId,
-                  parts: row.parts,
-                  status: row.status,
-                  failure: row.failure,
-                  followTurnId: row.followTurnId,
-                  scheme,
-                },
-              })
-        },
-        footer: h.view.key('end').style({ height: SPACE.xxl }),
-      }),
+      // Not drawn until the messages are here: the list then opens at its
+      // end with all of them, and nothing is seen to move.
+      isLoading
+        ? null
+        : AnchoredList.view(h, {
+            id: TRANSCRIPT_ID,
+            window: model.window,
+            keys: rows.map(row => row.key),
+            estimate: 120,
+            testId: 'transcript',
+            style: { backgroundColor: palette.bg },
+            props: {
+              indicatorStyle: scheme === 'dark' ? 'white' : 'black',
+              keyboardDismissMode: KeyboardBar.dismissOnDrag(),
+            },
+            inset: 'whenAtEnd',
+            anchor: anchorIndex < 0 ? undefined : { index: anchorIndex, maxSize: ANCHOR_MAX_SIZE, offset: ANCHOR_OFFSET },
+            onWindow: window => TranscriptMessage.PlannedWindow({ window }),
+            onAtEnd: isAtEnd => TranscriptMessage.ChangedAtEnd({ isAtEnd }),
+            onFollow: isFollowing => TranscriptMessage.ChangedFollowing({ isFollowing }),
+            // A tap where no row is puts the keyboard away, as in Messages.
+            onTap: TranscriptMessage.Tapped(),
+            // Android's scroll view cannot put the keyboard away by itself.
+            onDragStart: h.props.platform === 'android' ? TranscriptMessage.Tapped() : undefined,
+            row: (index, key) => {
+              const row = rows[index] as Row
+              return (
+                h.view
+                  .testId(`row-${key}`)
+                  // A real view, so the touch has something to land on.
+                  .set({ collapsable: false })
+                  .style({ paddingBottom: index === last ? SPACE.l : 0 })
+                  .on('pressIn', TranscriptMessage.TouchedRow({ isDown: true }))
+                  .on('pressOut', TranscriptMessage.TouchedRow({ isDown: false }))
+                  .on('longPress', TranscriptMessage.HeldRow({ key }))
+                  .on('press', TranscriptMessage.Tapped())
+                  .children(
+                    row.role === 'user'
+                      ? MessageRow(h, { key, props: { id: row.key, text: textOf(row), scheme } })
+                      : ReplyStream(h, {
+                          key,
+                          props: {
+                            id: row.key,
+                            conversationId,
+                            parts: row.parts,
+                            status: row.status,
+                            failure: row.failure,
+                            followTurnId: row.followTurnId,
+                            scheme,
+                          },
+                        }),
+                  )
+              )
+            },
+          }),
       isLoading
         ? centred(h, 'chat-loading', [h.text.style({ ...TYPE.rowPreview, color: palette.ink3 }).children('Loading')])
         : rows.length === 0
@@ -145,6 +216,30 @@ export const Transcript = Native.component({
               ),
             ])
           : null,
+      showsNumbers && !isLoading
+        ? h.view
+            .key('numbers')
+            .testId('numbers')
+            .set({ pointerEvents: 'none' })
+            .style({
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              backgroundColor: 'rgba(13,13,14,0.86)',
+            })
+            .children(
+              AnchoredList.numbersLabel(h, TRANSCRIPT_ID, STRIP_TEXT, 'numbers-list'),
+              h.text
+                .testId('numbers-holds')
+                .style(STRIP_TEXT)
+                .children(
+                  `holds ${model.holds}, last held ${model.lastHeld}, keyboard ${KeyboardBar.isInset() ? 'moved by the phone' : 'padded'}`,
+                ),
+            )
+        : null,
     )
   },
 })

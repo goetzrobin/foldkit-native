@@ -26,7 +26,14 @@ export const navBar = <Msg>(
   h: Native.H<Msg>,
   platform: string,
   palette: Palette,
-  options: Readonly<{ title: string; testId: string; isLargeTitle?: boolean; right?: BarButton<Msg> }>,
+  options: Readonly<{
+    title: string
+    testId: string
+    isLargeTitle?: boolean
+    right?: BarButton<Msg>
+    /** Sent when the title is held for half a second. The title is then a view of its own in the bar. */
+    onHoldTitle?: Msg
+  }>,
 ) => {
   const isAndroid = platform === 'android'
   const right = options.right
@@ -47,7 +54,19 @@ export const navBar = <Msg>(
       // Not one of the vocabulary's events: the host passes the name through to the phone.
       .on('pressHeaderBarButtonItem' as never, right.message as never)
   }
+  const onHoldTitle = options.onHoldTitle
   return bar.children(
+    onHoldTitle === undefined
+      ? null
+      : h.headerItem.key('title').set({ type: 'center' }).children(
+          h.pressable
+            .testId(`${options.testId}-title`)
+            .style({ maxWidth: 220, paddingVertical: 6, paddingHorizontal: SPACE.s })
+            .on('longPress', onHoldTitle)
+            .children(
+              h.text.set({ numberOfLines: 1 }).style({ fontSize: 17, lineHeight: 22, fontWeight: '600', color: palette.ink }).children(options.title),
+            ),
+        ),
     isAndroid && right !== undefined
       ? h.headerItem.set({ type: 'right' }).children(
           h.pressable
