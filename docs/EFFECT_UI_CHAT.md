@@ -6,7 +6,9 @@ Fold Chat is our finished chat app. It is written in Foldkit. Effect Chat is
 the same app written again in Effect UI, the framework that replaces
 Foldkit. It draws with the phone's own views, and React draws nothing.
 
-The work is cut into three steps. Steps 1 and 2 are done.
+The work was cut into three steps. All three are done. One thing in Fold
+Chat was left out on purpose: swiping a chat sideways in the list. The full
+list of what is and is not built is under "Step 3" below.
 
 **Step 1, done.** You can see your chats in a list, start a new one,
 open one and read it, and send a message. The reply is written a few words
@@ -20,8 +22,11 @@ right in Fold Chat. Step 2 did not write it again. It runs the same code
 that was fixed then, and has a test for each of those bugs. See "Step 2"
 below.
 
-**Step 3, next.** Everything you reach by holding or swiping: menus,
-sheets, delete, rename, settings, voice notes.
+**Step 3, done.** Everything you reach by holding or from a menu: a
+message's menu (copy, select text, share, write again), Settings and the
+reasoning as sheets, delete, rename, search, light and dark, voice notes.
+One thing is new and not in Fold Chat: the microphone button, which writes
+what you say into the text field.
 
 What is new, and cannot be seen, is how the app gets its data. In Fold Chat
 we wrote that part ourselves: a screen that saves something announces a
@@ -29,13 +34,17 @@ topic, and every screen that named the topic loads its data again. Effect UI
 has this built in, and it is called Query. Effect Chat uses Query and has
 none of our own code for it.
 
-What we know: 127 tests pass on a simulated phone, on two builds of the
+What we know: 188 tests pass on a simulated phone, on two builds of the
 engine. The app bundles for iPhone and Android.
 
 What we do not know: anything only a real phone can show. Nobody has run the
 app on one. `apps/eui-chat/README.md` has the build steps, twelve yes or no
-checks for step 1 and twelve for step 2. The app can show its own numbers
-on screen, so a check can be answered by reading a number out.
+checks for step 1, twelve for step 2 and twenty for step 3. The app can show
+its own numbers on screen, so a check can be answered by reading a number
+out.
+
+Step 3 adds a native package (speech recognition). An app built before step
+3 has to be built again. Reloading it is not enough.
 
 ## What step 1 built
 
@@ -192,7 +201,9 @@ Two findings about our own host, not about Effect UI:
   now `never`.
 - An event that is not in the vocabulary needs a cast on `.on(...)`. The
   iPhone's own bar button reports its press as `pressHeaderBarButtonItem`.
-  `chat/ui.ts` casts once. Bar buttons should become part of the vocabulary.
+  `chat/ui.ts` cast once. Step 3 moved the cast into
+  `NativeViews.barButtons`. Bar buttons should become part of the
+  vocabulary.
 
 ## Workarounds and stopgaps of step 1
 
@@ -340,6 +351,8 @@ keyboard).
 
 ### Not in step 2
 
+Step 3 built all of these but the cross fade between Send and Stop.
+
 - Glass behind the composer. It has the plain surface colour.
 - The round button's fade, and the cross fade between Send and Stop.
   There is no motion binding for Effect UI yet.
@@ -348,42 +361,259 @@ keyboard).
   message comes off, and the text is lost.
 - The offline line.
 
-## What step 3 needs that is missing
+## Step 3: menus, sheets, delete, voice
 
-Step 3 is the context menu, the settings and reasoning sheets, delete,
-rename, and voice notes with speech recognition.
+### What it built
 
-1. **Menus.** `host/menus` has the items and the native sheet. There is no
-   Effect UI element for a context menu and no Command for the action
-   sheet. The hold is ready: `HeldRow` in `transcript.ts` is where the menu
-   opens. With the keyboard up, Fold Chat puts the keyboard away first and
-   opens the menu 60 ms later, so the sheet is not under the keyboard.
-2. **The phone's own long press.** `host/worklets/hold.ts`, through
-   `NativeMount.TrackHold`. Fold Chat uses it first and the JavaScript hold
-   as the backup.
-3. **Sheets.** `NativeViews.sheet` exists. A sheet is a screen in the stack,
-   and the app owns the stack. A part that wants a sheet has to ask the app
-   for it. The numbers switch already goes that way (`ToggledNumbers`).
-4. **Swipe rows**, for delete and rename in the list. `host/swipe` has the
-   row behaviour as node hooks. It can be switched on with `nodeData`, as
-   the list and the bar are.
-5. **More phone services as Commands.** `Phone.ts` has six. Step 3 needs the
-   recorder, the player, saved voice notes, share, alert and storage. The
-   host services exist. Speech recognition does not exist anywhere yet:
-   Fold Chat sends a voice note with a line of text in place of a
-   transcript.
-6. **A way to put text into the composer.** A refused message and a voice
-   note's transcript both need it. Either the draft moves up to the chat
-   screen, or the number-in-props trick is used again.
-7. **Rename and delete as Commands** with `invalidates`, like
-   `CreateConversation`.
-8. **Telling the phone the theme.** Fold Chat's `Appearance` service is in
-   `packages/native/flagship`. It has to move to the host.
-9. **Bar buttons and their menus as vocabulary.** The cast in `chat/ui.ts`
-   is still there.
-10. **Motion.** `host/motion` has enter and exit animations as node hooks.
-11. **Markdown.** The fade as words arrive and text selection are still not
-    checked.
+| What | Where |
+|---|---|
+| Speech recognition as a phone service: the service, a live Layer, a test fake | `packages/native/src/host/device/speech.ts` |
+| The app's own light or dark, told to the phone | `packages/native/src/host/device/appearance.ts` |
+| `Menus`: the phone's list of choices as a Command, and what a bar button's menu holds | `packages/effect-ui-native/src/Menus.ts` |
+| The phone's own long press on a view, with the host's timer as its backup | `src/internal/touch.ts` (`NATIVE_HOLD`) |
+| What goes inside a sheet, with the footer last | `NativeViews.sheetParts` |
+| The title bar's buttons and their menus, the search field, the spinner | `NativeViews.barButtons`, `searchBar`, `spinner` |
+| A view that fades in and out | `NativeMount.Fade` |
+| A canvas that paints on every frame | `NativeViews.makeCanvas(..., { everyFrame: true })` |
+| The rest of the phone as Commands and Subscriptions: saved settings, share, links, light or dark, the recorder, the player, speech, the network | `src/Phone.ts` (`Phone.layerAll`) |
+| A small events service for one-off events between screens | `chat/events.ts` |
+| Delete, rename and write again as Commands with optimistic patches | `chat/data.ts` |
+| Three sheets: Settings, a text to read (reasoning, Select text), Rename | `chat/parts/settingsSheet.ts`, `reasoningSheet.ts`, `renameSheet.ts` |
+| The list's day headings and search | `chat/list.ts`, `chat/parts/conversationList.ts` |
+| The composer with listening and voice notes | `chat/parts/composer.ts` |
+| The "Thinking" shimmer | `chat/shimmer.ts` |
+| Tests: 19 for the list and sheets, 14 for holds and menus, 17 for the composer, 10 for the new binding pieces, 1 for the fade in the chat | `test/chatList.test.ts`, `chatHold.test.ts`, `chatComposer.test.ts`, `phoneAndMenus.test.ts`, `chatMechanics.test.ts` |
+
+### Every Fold Chat feature, and where Effect Chat stands
+
+The list was made by going through Fold Chat's parts
+(`packages/native/flagship`) and its tests (`packages/native/test/flagship`).
+Features that steps 1 and 2 already built are left out.
+
+**The list of chats**
+
+| Feature in Fold Chat | Effect Chat |
+|---|---|
+| Chats under a heading for their day: Today, Yesterday, Previous 7 days, Previous 30 days, then the month | Built |
+| Search: the iPhone's own field under the title, a plain field on Android. "No chats match" | Built |
+| The Settings button at the top left | Built |
+| Hold a chat: Rename and Delete | Built, as the phone's list of choices. Fold Chat uses the phone's context menu, which lifts the row and shows the menu beside it |
+| Swipe a chat left: Delete and Rename, and a full swipe deletes | **Not built.** See "Not built, and why" |
+| A spinner while the list loads | Built |
+| Delete takes the row away at once, and it never comes back for a moment | Built, by the cache. Fold Chat keeps a list of deleted ids in its Model for this. Effect Chat has no such code |
+| A failed delete puts the row back and says why | Built |
+| Rename in a sheet as tall as its content | Built |
+
+**A chat**
+
+| Feature in Fold Chat | Effect Chat |
+|---|---|
+| The menu at the top right: Rename, Settings, Delete | Built. The iPhone's own menu on the bar button. A list of choices on Android |
+| Hold a message: Copy, Select text, Share, Regenerate | Built. The last one is called "Write again" here |
+| Hold a reply that is still being written: Copy so far, Stop | Built |
+| With the keyboard up, the keyboard goes first and the menu opens 60 ms later | Built |
+| The hold read by the phone's own recogniser, with JavaScript as the backup | Built, the same arrangement |
+| Three small buttons under a finished reply: Copy, Share, Regenerate under the newest | Built |
+| "Try again" under a reply that failed | Built |
+| "Thought for 4 s", which opens the reasoning in a sheet | Built |
+| A tool call as a quiet row: a spinner, then a tick | Built |
+| "Thinking" with a slow band of light over it | Built, with Skia. Plain grey text in a build without Skia |
+| Select text: the message in a sheet where it can be selected | Built |
+| A line above the composer ("Copied", a refused message) that goes after 2.2 seconds | Built |
+| A message the server refuses comes off the screen and goes back into the field | Built |
+| The offline line, and Send off while offline | Built |
+| A reply picked up again when the network comes back | Not built as its own rule. A lost connection is tried again four times by itself, then a Reconnect button shows, as before |
+| Links in a reply open in the browser. A code block's copy button says "Code copied" | **Not built.** The Markdown binding has no events yet |
+| The composer on Liquid Glass | Built. A pale plain pill where the phone has none |
+| The round button fades and grows in, and out | Built |
+| Send turns into Stop with a cross fade. A new message rises into place. "Thinking" fades in | **Not built.** `Fade` is the only motion binding so far |
+| Haptics: Send, the first words, Stop, write again, copy, delete, a hold, the theme, a recording starting and ending, a reply or a write that fails | Built. The one for a full swipe is missing with the swipe |
+| A voice note: record with a clock, throw away, finish, a chip above the field, send | Built |
+| The numbers strip says which way holds are read and how the last one went | Built |
+| The numbers strip says where the composer and the round button are | Not built |
+| The arrows are the phone's own symbols where the build can draw them | Not built. They are always drawn from three bars |
+
+**Settings and the app**
+
+| Feature in Fold Chat | Effect Chat |
+|---|---|
+| Settings as the phone's own sheet | Built, with Done in a footer at the sheet's bottom edge |
+| Theme: System, Light, Dark. Told to the phone, remembered for the next launch | Built |
+| Reply speed and four failure switches for the pretend server | Built |
+| "Show numbers" switch | Built |
+| What this build draws with (Markdown, glass, Skia, keyboard) | Built, with menus and holds added |
+| The switches and the segmented choices are the phone's own controls | Not built. They are drawn from plain views and look the same on both phones |
+| A crash screen with Reload and Copy | **Not built** |
+| A test that replays a session from its Messages alone | Not ported |
+
+**New in Effect Chat**
+
+| Feature | Status |
+|---|---|
+| The microphone button: what you say is written into the field as you say it | Built |
+| A voice note can be played back before it is sent | Built |
+| The phone reads a voice note's words from its file and puts them in the field | Built. Fold Chat puts a line there that says a transcript would go here |
+
+### Not built, and why
+
+- **Swiping a chat sideways.** The row's behaviour is in the host
+  (`host/swipe`, about 1,800 lines). Fold Chat reaches it through 560 lines
+  of Foldkit view code that build the row's layers and wire its drivers.
+  That code has to be written again for Effect UI, and it is its own piece
+  of work with its own phone test. Delete and Rename are both reachable two
+  other ways: hold the chat, or use the chat's own menu.
+- **Links and the code block's copy button.** `NativeViews.markdown` hands
+  text to the native view and hears nothing back. It needs two events.
+  `Phone.OpenUrl` is ready for the link.
+- **The three other animations.** The host's motion code animates a view as
+  it enters and leaves the tree. Effect UI has no hook for "this view is
+  about to leave", so only a view that stays in the tree can be faded, which
+  is what `Fade` does.
+- **The crash screen.** `NativeHost.mount` takes a `fallback`. It was not
+  written.
+- **The phone's own switches and segmented control.** They are Expo UI's
+  SwiftUI and Compose views, bound for Foldkit in 1,300 lines.
+
+### How the hold works
+
+A row in the transcript asks for two readers of the same finger:
+
+1. **The phone's own.** gesture-handler's long press, attached to the row's
+   native view by its number (`host/worklets/hold.ts`, unchanged). It sees
+   only the finger. Nothing JavaScript draws can end it.
+2. **The host's timer.** The press recogniser of steps 1 and 2, which
+   already keeps a hold through scrolls the program made.
+
+Where the phone's recogniser is on, the timer waits 150 ms longer, so the
+phone goes first. If the phone says nothing, the timer opens the menu. If
+the phone cancels the JavaScript touch (gesture-handler does that the moment
+its own hold starts) and its word then never comes, the menu still opens.
+One finger opens one menu, whichever reader heard it first, or both.
+
+This is the arrangement Fold Chat came to after the plain JavaScript way
+passed every simulated test and failed on a real iPhone. The numbers strip
+has a line for it: `hold: native recogniser on, JS as backup | last:
+recognised by native after 512 ms`. Off on Android, and in a build without
+gesture-handler, and the line says which.
+
+### How delete works
+
+`DeleteConversation` is a Command that says two things about the cache: the
+list is shown without this chat from now on (`optimistic`), and the list is
+old afterwards (`invalidates`). The row goes in the same draw as the press.
+While the list loads again, the cache goes on showing it without the row. If
+the server refuses, the cache drops the change and the row is back.
+
+The app component runs the Command, not the screen that asked. A chat
+deleted from its own screen closes that screen at once, and a Command ends
+with the component that issued it.
+
+If the server refuses, the screen that asked may be gone. So the app says it
+through the events service (`chat/events.ts`): a Layer with `publish` and a
+stream. The list and the chat screen each listen and show the line. Nothing
+is kept: it is an event, not data, so it does not go through Query.
+
+### Speech recognition
+
+The package is `expo-speech-recognition` 58.0.1, the community package by
+jamsch. Since Expo SDK 56 its version numbers follow Expo's, and this app is
+on SDK 58. Its config plugin adds the two permission texts on iOS and the
+microphone permission on Android. `npx expo config --type introspect` shows
+them, and `expo export` bundles with it.
+
+Nothing imports the package. Its native module is found by name
+(`globalThis.expo.modules.ExpoSpeechRecognition`), so none of its React code
+is in the bundle. The host service listens for four of its events: `start`,
+`result`, `end`, `error`. A build made before step 3 has no such module. The
+app then says so when the microphone is pressed, and everything else works.
+
+In the composer: a press asks for leave, then starts. Each result holds
+everything heard so far, and it is written after whatever was in the field
+before. A second press stops. A refusal or a failure shows a short line, and
+the field goes back to what it was before the press. Typing while the phone
+listens stops it.
+
+A voice note's words: when a recording is finished, the same service is
+started on the recording's file (`audioSource`) in place of the microphone.
+If words come back, they take the place of the line "(Voice note, 0:07)" in
+the field. If not, the line stays. iOS reads the files its own recorder
+writes. On Android this needs version 13 or later, and the recorder's file
+format may not be one it reads. Not tried on a phone.
+
+### Reused from the host layer, unchanged
+
+- `menus/sheet.ts` and `menus/items.ts`: the action sheet, the list dialog,
+  and a menu as data for a bar button.
+- `worklets/hold.ts` and the rest of `worklets/`: the phone's long press.
+- `device/recorder.ts`, `player.ts`, `audioNative.ts`, `share.ts`,
+  `linking.ts`, `storage.ts`, `network.ts`, `haptics.ts`, `clipboard.ts`.
+- `glass/detect.ts`, `skia/*`, `motion/clock.ts`.
+- `navigation/views.ts` and `tags.ts`: sheets, the footer view, the search
+  field.
+- From Fold Chat's tests: `test/support/worklets.ts`, the pretend
+  gesture-handler and Reanimated. Its one import now names the host's own
+  types file.
+
+### Changed in the host layer
+
+Three changes, all in `host/device`. Fold Chat's own tests for this code
+still pass (330 in the 16 files that cover the device services, voice
+notes, worklets, swipes and Fold Chat itself). `apps/chat` still typechecks.
+
+1. **`speech.ts` is new.** See above.
+2. **`appearance.ts` is new.** It is Fold Chat's `Appearance` service, which
+   was in `packages/native/flagship`, where this program may not import
+   from. Fold Chat still uses its own copy.
+3. **`index.ts`** adds both to the one device Layer, live and fake, and to
+   `Services`. `LiveModules` gains an optional `speech`.
+
+### Workarounds in step 3
+
+1. **A parent still cannot tell a child to act.** Three more numbers in
+   props, each with a Subscription keyed by it: the text of a refused
+   message handed back to the composer, "copy what you have so far" to a
+   reply's row (only the row has the live text), and the caret from step 2.
+2. **Sheets are the app's.** A sheet is a screen of the stack, and a child
+   gives its parent one node. So the chat screen cannot draw the reasoning
+   sheet. It tells the app what to show, with the text, and the app draws
+   it. The reasoning shown is the reasoning at the moment of the press.
+3. **The round button stays in the tree.** There is no hook for a view that
+   is about to leave, so the button is always drawn and `Fade` makes it
+   see-through and out of reach. Its `testID` is `scroll-to-end` only while
+   it is wanted.
+4. **A step of two kinds loses its services.** `cond ? $.run(a) : $.run(b)`
+   and then `.run(c)` on the result turned the component's requirements
+   into `any`, with no error until the mount. One `.run(...list)` avoids it.
+   The same happened with `onMount(x as never)`.
+5. **`KeyboardBar.view` takes three sets of requirements** (the bar, what is
+   above it, what rides on it). With one, TypeScript could not find a
+   common type once the three needed different services.
+6. **The bar's and the search field's events are cast**, once each, inside
+   `NativeViews.barButtons` and `NativeViews.searchBar`. The cast that was
+   in `chat/ui.ts` is gone.
+7. **The transcript's composer bar has no colour** where the list runs under
+   it, so the messages show through the glass.
+8. **`expo-speech-recognition` is asked for both permissions at once**
+   (`requestPermissionsAsync`), also for a voice note's file, where the
+   microphone is not needed.
+
+### What still differs from Fold Chat
+
+Besides what is marked not built above:
+
+- The composer has three buttons where Fold Chat has one: the sound wave
+  (record a voice note), the microphone (listen), and Send. Fold Chat's
+  microphone records a voice note.
+- "Regenerate" is called "Write again".
+- A chat's row is held for a list of choices, not for the phone's context
+  menu.
+- Done is in a footer in Settings and in the two text sheets. Fold Chat has
+  it beside the title.
+- Settings' switches and choices are drawn, not the phone's own.
+- An empty chat offers three questions, not four with short labels.
+- A new chat is made on the server when it opens. Fold Chat waits for the
+  first message.
+- The reasoning sheet shows the reasoning as it was when it was opened.
 
 ## What could not be checked
 
@@ -407,6 +637,27 @@ None of this runs on a real phone here. In particular:
 - Chats being kept in the app's documents after the app closes.
 - Anything on Android.
 
+From step 3:
+
+- That gesture-handler's long press is found in the build and opens the
+  menu. The numbers strip says which way read the last hold.
+- The phone's action sheet, and that it is not under the keyboard.
+- The bar button's own menu, and its choices reaching the program.
+- The search field under the large title, and its text reaching the
+  program.
+- The sheets: their heights, the grabber, the footer at the bottom edge and
+  clear of the home indicator, the swipe down.
+- Liquid Glass behind the composer, and messages showing through it.
+- The round button's fade, which is written from JavaScript frame by frame.
+- The shimmer over "Thinking".
+- Light and dark reaching the title bar, the sheets and the keyboard.
+- All of speech recognition: the permission questions, words arriving while
+  spoken, stopping, and reading a voice note's file.
+- Recording and playing a voice note. The recorder and the player are the
+  ones Fold Chat uses, but this app has not recorded a sound.
+- The share sheet.
+- Every haptic.
+
 ## How to check
 
 ```
@@ -421,6 +672,8 @@ cd apps/eui-chat
 npm install
 npx tsc --noEmit
 CI=1 EXPO_NO_TELEMETRY=1 npx expo export --platform ios --platform android --output-dir /tmp/eui-chat-export
+# the permission texts the speech package's plugin adds:
+npx expo config --type introspect | grep -i "UsageDescription\|RECORD_AUDIO"
 ```
 
 Each test of step 1 was seen to fail once, with the code broken on purpose.
@@ -465,7 +718,23 @@ announced to the host's hooks, the window told on every draw (the test does
 not end), the text field not named for the keyboard's drag, and the arrow's
 head drawn beside the stem.
 
-One defect tried did not turn a test red: taking out the line that stops
+Each test of step 3 was seen to fail once too. The defects tried: delete
+with no optimistic patch, rename with none, write again with none, a failed
+delete not announced, a sheet's content with no style of its own, the footer
+before the body, both readers opening a menu for one hold, the timer not
+waiting for the phone's recogniser, a touch the phone cancels treated as
+simply off, rows not asking for the phone's recogniser, the menu opening at
+once with the keyboard up, Copy so far reading the saved copy, a speech
+failure leaving the half sentence in the field, a refused permission still
+starting, a refused message not put back, no tap on Send, a voice note read
+from the microphone, the fade jumping to its end, and typing not ending the
+listening.
+
+One did not turn a test red: letting the composer send while offline. The
+chat screen refuses an offline send as well, and the button has no press
+while it is grey, so the one line alone changes nothing.
+
+One defect of step 2 did not turn a test red: taking out the line that stops
 following the moment a finger leaves the end. The list stops following
 anyway when the finger lets go, a moment later, so nothing on screen
 differs.
@@ -476,6 +745,8 @@ that code as well:
 ```
 cd packages/native
 FOLDKIT_DIR=/path/to/foldkit NG_NATIVE_DIR=/path/to/ng-native node_modules/vitest/vitest.mjs run test/flagship test/chatDock.test.ts test/chatList.test.ts test/chatInset.test.ts test/lists.test.ts test/keyboard.test.ts test/androidKeyboard.test.ts
+# and for step 3's changes to host/device:
+FOLDKIT_DIR=/path/to/foldkit NG_NATIVE_DIR=/path/to/ng-native node_modules/vitest/vitest.mjs run test/flagship test/device.test.ts test/voice.test.ts test/worklets.test.ts test/swipe.test.ts test/boundary.test.ts
 ```
 
 The pin scenarios take a seed. `PIN_SCENARIOS=40` runs more of them and

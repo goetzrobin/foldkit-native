@@ -1,7 +1,7 @@
 # Effect Chat
 
 Fold Chat, built again on Effect UI. It draws with the phone's own views and
-React draws nothing. Two steps of three are done.
+React draws nothing. All three steps are done.
 
 - Step 1: the list of chats, opening a chat, reading it, and sending a
   message that gets a streamed reply.
@@ -9,6 +9,10 @@ React draws nothing. Two steps of three are done.
   round button) moves with the keyboard. Your question goes to the top after
   Send. The list can follow a reply as it is written. A round button takes
   you to the end.
+- Step 3: what you reach by holding or from a menu. Hold a message to copy
+  or share it. Settings, light and dark. Delete and rename a chat. Search.
+  Voice notes. And one thing Fold Chat does not have: a microphone button
+  that writes what you say into the text field.
 
 The replies come from a pretend AI inside the app. It knows a few topics and
 writes its answers a few letters at a time, as a real one does. No network
@@ -19,6 +23,17 @@ where a simulated phone can check what the app asks for but cannot show how
 it looks or feels.
 
 ## Build it on your iPhone
+
+**Step 3 needs a new build.** It adds a native package (speech recognition),
+and native code only gets onto the phone with a build. If you built this app
+before step 3, reloading it is not enough: run all four commands below
+again, `npx expo prebuild --clean` included. The phone will ask two new
+questions the first time you use the microphone button: one for the
+microphone and one for speech recognition.
+
+If you skip the rebuild, the app still opens and everything else works. The
+microphone button then shows a line that says the build has no speech
+recognition.
 
 You need the Mac setup from `docs/DEV_BUILD.md` (Xcode, your Apple ID in
 Xcode, the iPhone trusted and in Developer Mode). If Fold Chat built for
@@ -98,6 +113,7 @@ offset 1216 of 1216, at end, following
 inset 102, blank 0, bar covers 102, gap 34, keyboard 0
 question y 16.0, drift +0.0
 holds 0, last held none, keyboard moved by the phone
+hold: native recogniser on, JS as backup | last: none yet
 ```
 
 | Words | What they mean |
@@ -114,6 +130,8 @@ holds 0, last held none, keyboard moved by the phone
 | `drift +0.0` | How far that question has moved since it was put there. It should stay at 0 |
 | `holds 0` | How many times a finger was held on a message in this chat |
 | `keyboard moved by the phone` | The phone moves the composer. `keyboard padded` means the app does, which is the Android way |
+| `hold: native recogniser on, JS as backup` | The phone itself reads a finger held on a message, and the app's own timer stands by. `JS route (native off: ...)` means only the timer does, and says why |
+| `last: recognised by native after 512 ms` | How the last hold went, and which of the two read it |
 
 All numbers are in points. Your numbers will differ from the example. Only
 the ones named in the checks below matter.
@@ -173,9 +191,106 @@ some history, ask it twice.
 If a check fails, a photo of the screen with the strip on is the most useful
 thing to send.
 
-Not built yet, so do not look for them: menus when you hold a message,
-sheets, delete, rename, search, settings and voice notes. The composer has
-no glass behind it, and the round button to the end appears without a fade.
+## Twenty checks for step 3
+
+Do these on an iPhone, after a new build. Answer yes or no. Each takes a few
+seconds.
+
+To get ready: make two chats. In each, ask "How do I start running?" and
+wait for the reply to end. In a third chat, ask "Should I take the train or
+drive to the coast? Think it through." That one thinks before it answers.
+
+**Holding a message**
+
+1. **A menu opens.** Hold a finger still on a finished reply for one second.
+   Do you feel a tap, and does a list slide up with Copy, Select text, Share
+   and Write again?
+2. **Copy.** Tap Copy. Does a line saying "Copied" show above the text
+   field for two seconds? Open Notes and paste: is it the reply?
+3. **With the keyboard up.** Tap the text field so the keyboard is up. Hold
+   a message. Does the keyboard go down and the list come up, with the whole
+   list in view and nothing hidden under the keyboard?
+4. **While a reply is being written.** Ask "How do I start running?" again.
+   While the reply is still growing, hold a finger on it. Does a list come
+   up with Copy so far and Stop? Tap Stop: does the reply stop?
+5. **Which way read the hold.** Turn the numbers strip on (hold the chat's
+   title). Hold a message, then close the list. Read the last line of the
+   strip. Does it say `native recogniser on` and `recognised by native`?
+   (If it says `JS route` or `recognised by JS`, send a photo of the strip.)
+
+**Sheets**
+
+6. **Settings.** Go back to the list of chats. Tap the gear at the top
+   left. Does a sheet slide up, titled Settings?
+7. **The footer.** Is the Done button at the very bottom of the sheet,
+   above the home indicator line, with the settings above it? (No is: Done
+   is at the top, or in the middle.) Scroll the settings: does Done stay
+   where it is?
+8. **Dark.** Tap Dark. Does the whole app turn dark at once, the sheet and
+   the title bar included? Tap System to put it back.
+9. **Closing.** Swipe the sheet down. Does it close? Open it again and tap
+   Done. Does it close?
+10. **Reasoning.** Open the chat that thought first. Tap "Thought for ... s"
+    above the reply. Does a sheet come up to half the screen's height, with
+    the reasoning in it and Done at its bottom edge? Drag it up: does it go
+    to full height?
+
+**Delete, rename, search**
+
+11. **Rename.** In the list, hold a chat for one second. Does a list come
+    up with Rename and Delete? Tap Rename. Does a small sheet come up with
+    the title in a text field and the keyboard up? Change it and tap Save.
+    Does the row show the new title at once?
+12. **Delete.** Hold a chat and tap Delete (it is red). Does the row go at
+    once, and stay gone? (No is: it goes, comes back for a moment, and goes
+    again.)
+13. **From inside a chat.** Open a chat. Tap the button with three dots at
+    the top right. Does a menu open with Rename, Settings and Delete? Tap
+    Delete. Does the chat close, and is its row gone from the list?
+14. **Search and headings.** Is there a heading "Today" above your chats?
+    Pull the list down a little: does a search field show under the title?
+    Type "running". Do only the chats about running stay?
+
+**The microphone**
+
+15. **Listening.** Open a chat. Tap the microphone button at the right of
+    the text field. The first time, the phone asks twice: allow both. Say
+    "what is the weather in Paris". Do the words appear in the field while
+    you speak?
+16. **Stopping.** Tap the microphone button again. Does it stop listening,
+    with your words still in the field and a blue Send button beside it?
+    Tap Send: does your message go?
+17. **Refusing.** (Only if you want to test this: in the phone's Settings,
+    find Effect Chat and turn Speech Recognition off.) Tap the microphone.
+    Does a short line say that speech recognition is off, with the field
+    left as it was?
+
+**A voice note**
+
+18. **Recording.** With the field empty, tap the button with the five small
+    bars, left of the microphone. Does a red dot show with "Recording 0:00",
+    and does the clock count up? Say a sentence, then tap the round button
+    with the tick.
+19. **Playing and sending.** Is there a small grey shape above the field
+    that says "Voice note" and its length? Tap the small triangle in it: do
+    you hear your recording? After a moment, are the words you said in the
+    field? (If the field says "(Voice note, 0:05)" and stays that way, the
+    phone could not read the words: say so.) Tap Send. Does your message
+    show with the voice note's shape above its words?
+
+**Small things**
+
+20. **Glass, fade, taps.** Three in one. Scroll a long chat up: can you see
+    the messages faintly through the shape around the text field? Does the
+    round button with the down arrow fade in, and not pop in? When you tap
+    Send, do you feel a light tap?
+
+If a check fails, a photo of the screen with the numbers strip on is the
+most useful thing to send.
+
+Not built, so do not look for them: swiping a chat sideways in the list,
+links in a reply opening in the browser, a new message rising into place,
+and a crash screen. `docs/EFFECT_UI_CHAT.md` says why for each.
 
 On Android the phone cannot move the composer itself. The app pads it up by
 the keyboard's height, and the list gets shorter. Checks 1, 4 and 5 are for
@@ -191,8 +306,12 @@ iPhone only.
 | Transcript | `chat/parts/transcript.ts` | The messages as a long list, and the numbers strip |
 | Message row | `chat/parts/messageRow.ts` | One of your messages |
 | Reply stream | `chat/parts/replyStream.ts` | One reply, saved or still being written |
-| Composer | `chat/parts/composer.ts` | The text field, Send and Stop |
+| Composer | `chat/parts/composer.ts` | The text field, Send and Stop, the microphone, voice notes |
+| Settings sheet | `chat/parts/settingsSheet.ts` | Light or dark, the pretend AI's switches, the numbers strip |
+| Text sheet | `chat/parts/reasoningSheet.ts` | A reply's reasoning, or a message to select text in |
+| Rename sheet | `chat/parts/renameSheet.ts` | One text field, Cancel and Save |
 | Server data | `chat/data.ts` | What the app reads and writes, and the reply's stream |
+| Events | `chat/events.ts` | Short lines one screen says for another to show |
 
 The programs are in `packages/effect-ui-native/chat`. The app copies them,
 with the host, into `./native` each time it starts
@@ -205,3 +324,7 @@ npm install
 npx tsc --noEmit
 CI=1 EXPO_NO_TELEMETRY=1 npx expo export --platform ios --platform android --output-dir /tmp/eui-chat-export
 ```
+
+Speech recognition is the package `expo-speech-recognition`, version 58.0.1,
+which is the one made for Expo SDK 58. Its permission texts are in
+`app.json`.

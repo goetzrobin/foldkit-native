@@ -20,8 +20,8 @@ What exists now:
 - **A playground app** (`apps/eui-playground`) with six screens: a counter,
   notes, a 1,000 row list, touch tests, phone features, and a list loaded
   from a pretend server. It is there to answer questions on a real phone.
-- **127 tests** on a simulated phone, all passing. 74 of them came with
-  Effect Chat, the first two steps of the Fold Chat port. See
+- **188 tests** on a simulated phone, all passing. 135 of them came with
+  Effect Chat, the port of Fold Chat, which is now done in three steps. See
   `docs/EFFECT_UI_CHAT.md`.
 
 Effect UI itself needed no change. It runs on the phone's JavaScript engine
@@ -148,10 +148,11 @@ the code is checked and when it runs.
 |---|---|
 | `NativeHost` | `mount(Component, props, { fabric, rootTag })` returns a Layer. `run(layer)` starts it. `makeSurface`, `layerFromSurface` for tests and embedding. |
 | `NativeCommand` | `focus(ref)`, `blur()`, `scrollTo(ref, { y })`, `scrollToEnd(ref)`, `measure(ref)` |
-| `NativeMount` | `Measure`, `TrackLayout`, `TrackHold` (the phone's own long press, attached to the native view). Write your own with `Mount.make` and `Native.Host`. |
+| `NativeMount` | `Measure`, `TrackLayout`, `TrackHold` (the phone's own long press, attached to the native view), `Fade` (a view that fades in and out and stays in the tree). Write your own with `Mount.make` and `Native.Host`. |
 | `NativeQuery` | `layer`, `visibility`, `connectivity`: tells Effect UI's query cache when the app is in front and when the phone is online. See `docs/EFFECT_UI_CHAT.md`. |
-| `NativeViews` | `sheet(options)`, `glass(h, options)`, `markdown(h, options)`, `makeCanvas(name, args, paint)`, and the register and status functions |
-| `Phone` | Commands `Impact`, `Selection`, `Notify`, `Copy`, `Paste`, `DismissKeyboard`. Subscriptions `keyboard`, `appState`, `colorScheme`. `Phone.live(modules)`, `Phone.layer`. |
+| `NativeViews` | `sheet(options)` and `sheetParts(h, { body, footer })` for what goes inside one, `barButtons(header, options)`, `searchBar(h, options)`, `spinner(h, ...)`, `glass(h, options)`, `markdown(h, options)`, `makeCanvas(name, args, paint)`, and the register and status functions |
+| `Menus` | The phone's own list of choices as a Command: `Menus.Show`. `Menus.live`, `Menus.makeTest()`. `MenuItem` is what a bar button's menu holds |
+| `Phone` | Commands `Impact`, `Selection`, `Notify`, `Copy`, `Paste`, `DismissKeyboard`, with `Phone.live(modules)` and `Phone.layer`. Over the whole of `Phone.Device.live(modules)`, `Phone.layerAll` adds `StorageGet`, `StorageSet`, `Share`, `OpenUrl`, `SetAppearance`, the recorder (`RequestMicrophone`, `StartRecording`, `StopRecording`, `CancelRecording`), the player (`PlaySound`, `StopSound`) and speech recognition (`RequestSpeech`, `StartListening`, `StopListening`, `AbortListening`). Subscriptions `keyboard`, `appState`, `colorScheme`, `network`, `recorder`, `player`, `speech` |
 | `VirtualList` | `Model`, `init`, `scrolled`, `measured`, `view` |
 | `AnchoredList` | A chat's list: the host's list controller places it, Effect UI draws the rows. `Window`, `init`, `view`, `scrollToEnd`, `touch`, `numbers`, `numbersLabel`. See `docs/EFFECT_UI_CHAT.md`, step 2 |
 | `KeyboardBar` | A bar the phone moves with the keyboard, over a list that makes room with a bottom inset. `view`, `configure`, `mode`, `isInset` |
@@ -162,8 +163,14 @@ one `h.screen` per entry, the last one on top, and listens for `dismissed`
 to drop the screens the phone closed by itself. `playground/app.ts` shows
 it.
 
-Not wrapped yet: menus, Expo UI controls, swipe rows, tabs and the search
-bar. Their native halves are in the host layer. A host feature that finds
+A view that listens for `longPress` can also ask for the phone's own long
+press recogniser, with the host's timer as its backup:
+`.prop(NativeHost.NODE_DATA, { [NativeHost.NATIVE_HOLD]: true })`.
+`NativeHost.holdReport()` says which way read the last hold. See "How the
+hold works" in `docs/EFFECT_UI_CHAT.md`.
+
+Not wrapped yet: the phone's context menu, Expo UI controls, swipe rows and
+tabs. Their native halves are in the host layer. A host feature that finds
 its elements by a key in the node's data can be switched on for an element
 with the `nodeData` prop (`NativeHost.NODE_DATA`): the list and the keyboard
 bar work that way.
