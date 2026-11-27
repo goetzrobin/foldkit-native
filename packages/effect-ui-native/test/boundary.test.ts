@@ -18,6 +18,11 @@ const importsOf = (file: string): Array<string> =>
   [...readFileSync(file, 'utf8').matchAll(IMPORT)].map(match => (match[1] ?? match[2]) as string)
 
 const ALLOWED = [/^effect(\/|$)/, /^@effect\/ui(\/|$)/, /^@ng-native\/fabric$/, /^\.{1,2}\//]
+/** The state machine library, and the one folder that may import it. */
+const MACHINES = 'chat/machines/'
+const isMachineLibrary = (name: string): boolean => /^effect-machine(\/|$)/.test(name)
+/** The machines' rules: no screen, no phone, nothing of Effect UI. */
+const PURE_MACHINES = ['chat/machines/step.ts', 'chat/machines/reply.ts', 'chat/machines/player.ts']
 
 describe('boundary', () => {
   const files = [...filesIn('src'), ...filesIn('playground'), ...filesIn('chat')].filter(file => !file.includes('/testing/'))
@@ -27,9 +32,21 @@ describe('boundary', () => {
     const strays = files.flatMap(file =>
       importsOf(file)
         .filter(name => !ALLOWED.some(allowed => allowed.test(name)))
+        .filter(name => !(file.startsWith(MACHINES) && isMachineLibrary(name)))
         .map(name => `${file}: ${name}`),
     )
     expect(strays).toEqual([])
+  })
+
+  it('a machine definition imports effect, effect-machine and other definitions, and nothing else', () => {
+    for (const file of PURE_MACHINES) {
+      const names = importsOf(file)
+      expect(names.length, file).toBeGreaterThan(0)
+      const strays = names.filter(
+        name => !/^effect$/.test(name) && !isMachineLibrary(name) && !PURE_MACHINES.includes(`chat/machines/${name.replace(/^\.\//, '').replace(/\.js$/, '.ts')}`),
+      )
+      expect(strays, file).toEqual([])
+    }
   })
 
   it('reaches into packages/native only through its host layer', () => {

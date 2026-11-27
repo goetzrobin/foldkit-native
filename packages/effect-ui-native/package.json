@@ -12,13 +12,15 @@
   "peerDependencies": {
     "@effect/ui": "*",
     "@ng-native/fabric": "^0.25.0",
-    "effect": "^4.1.4"
+    "effect": "^4.1.4",
+    "effect-machine": "0.32.1"
   },
   "devDependencies": {
     "@effect/platform-node": "^4.1.6",
     "@effect/ui": "file:vendor/effect-ui-0.0.0.tgz",
     "@effect/ui-devtools": "file:vendor/effect-ui-devtools-0.0.0.tgz",
     "effect": "4.1.6",
+    "effect-machine": "0.32.1",
     "typescript": "~6.0.3",
     "vitest": "^5.1.0"
   }
