@@ -111,6 +111,20 @@ if (__DEV__) {
   }
 }
 
+/**
+ * Development builds only: a timeline of what the screens and the audio
+ * player did, in order. Settings has a row that copies it. A release build
+ * leaves this block out, and the row with it. See docs/STATE_MACHINES.md.
+ */
+let timeline: Parameters<typeof startChat>[0]['timeline']
+if (__DEV__) {
+  try {
+    timeline = (require('./native/effect-ui-native/chat/timelineFile') as typeof import('./native/effect-ui-native/chat/timelineFile')).kit
+  } catch {
+    // No timeline in this build. The app runs as it always does.
+  }
+}
+
 AppRegistry.registerRunnable('main', ({ rootTag }) => {
   let blurFocused = (): void => {}
   startChat({
@@ -128,6 +142,7 @@ AppRegistry.registerRunnable('main', ({ rootTag }) => {
     // The chats are kept in the app's documents, so they are still there after the app closes.
     disk: phoneDisk(),
     ...(devTools === undefined ? {} : { devTools }),
+    ...(timeline === undefined ? {} : { timeline }),
     device: Phone.Device.live({
       reactNative: ReactNative,
       haptics: ExpoHaptics,
