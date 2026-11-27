@@ -29,21 +29,25 @@
  * after 0.25, 0.5, 1 and 2 seconds, from the last event it has. After four
  * tries in a row it shows a Reconnect button. Coming back to the app while
  * a reply is being written asks again at once.
+ *
+ * Which mode the reply is in (waiting, thinking, streaming, reconnecting,
+ * done and so on) is a state machine, and its rules are in
+ * `machines/reply.ts`. The state is kept in this row's Model (`reply`).
+ * Each Message is turned into one event of the machine, and the machine
+ * says what the next state is. An event the current state has no rule for
+ * changes nothing here and starts nothing: words after Stop, Reconnect
+ * while the connection is fine, Try again while the reply is still being
+ * written. The view asks the state what it may draw (`allowed`).
  */
 import { Command, Subscription, UiSchema } from '@effect/ui'
-import { Option, Schema, Stream } from 'effect'
+import { Schema, Stream } from 'effect'
 
-import {
-  LiveTurn,
-  LiveTurnOps,
-  MAX_RECONNECTS,
-  TurnUpdate,
-  reconnectDelayMs,
-} from '../../../native/src/host/aiChat/turns.js'
-import { MessageStatus, Part } from '../../../native/src/host/aiChat/wire.js'
+import { TurnUpdate } from '../../../native/src/host/aiChat/turns.js'
+import { MessageStatus, Part, applyToParts } from '../../../native/src/host/aiChat/wire.js'
 import { Motion, Native, NativeViews, Phone } from '../../src/index.js'
 import { RefreshChat, ResumeTurn, followTurn } from '../data.js'
 import { copyIcon, regenerateIcon, shareIcon, tick } from '../icons.js'
+import { Reply, ReplyEvent, ReplyState, allowed, fromSaved, hasWords, reconnectDelayMs } from '../machines/reply.js'
 import { thinkingLabel } from '../shimmer.js'
 import { ReplyText } from './replyText.js'
 import { MOTION, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
@@ -92,13 +96,65 @@ export const ReplyStreamMessage = UiSchema.TaggedEnum({
   Refreshed: {},
 })
 
+/** What has arrived of the reply being written. */
+const Turn = Schema.Struct({
+  turnId: Schema.String,
+  /** The newest event applied. Older ones, sent again, are skipped. */
+  lastSeq: Schema.Number,
+  parts: Schema.Array(Part),
+})
+type Turn = typeof Turn.Type
+
 const ReplyStreamModel = Schema.Struct({
-  live: Schema.Option(LiveTurn),
+  /** The reply's mode: the state of the machine in `machines/reply.ts`. */
+  reply: ReplyState,
+  /** The words and the rest that have arrived. Null until the server has started. */
+  turn: Schema.NullOr(Turn),
   /** The app went out of sight while this reply was being written. */
   wasAway: Schema.Boolean,
-  /** The first words of this reply have had their tick. */
-  hasTicked: Schema.Boolean,
 })
+
+/** The machine event a turn update stands for. */
+const eventOf = (update: TurnUpdate): ReplyEvent => {
+  switch (update._tag) {
+    case 'TurnStarted':
+      return ReplyEvent.Started
+    case 'TextBatch':
+      return ReplyEvent.Words
+    case 'TurnFinished':
+      return ReplyEvent.Finished({ wasStopped: update.reason === 'stopped' })
+    case 'TurnFailed':
+      return ReplyEvent.Failed({ reason: update.reason })
+    case 'ConnectionLost':
+      return ReplyEvent.LostConnection
+    case 'TurnGone':
+      return ReplyEvent.Forgotten
+    default:
+      return ReplyEvent.Worked
+  }
+}
+
+/** What an update adds to what has arrived. Pieces that were here already are skipped. */
+const withUpdate = (turn: Turn | null, update: TurnUpdate): Turn | null => {
+  if (update._tag === 'TurnStarted') return turn ?? { turnId: update.turnId, lastSeq: update.seq, parts: [] }
+  if (turn === null || update._tag === 'ConnectionLost' || update._tag === 'TurnGone') return turn
+  if (update._tag === 'TextBatch' || update._tag === 'ReasoningBatch') {
+    const tag = update._tag === 'TextBatch' ? ('TextDelta' as const) : ('ReasoningDelta' as const)
+    let { parts, lastSeq } = turn
+    update.pieces.forEach((text, index) => {
+      const seq = update.fromSeq + index
+      if (seq <= lastSeq) return
+      parts = applyToParts(parts, { _tag: tag, seq, text })
+      lastSeq = seq
+    })
+    return { ...turn, parts, lastSeq }
+  }
+  return { ...turn, lastSeq: update.seq, parts: applyToParts(turn.parts, update) }
+}
+
+/** An update the row has had already: the server sends some again after a new connection. */
+const isOld = (turn: Turn | null, update: TurnUpdate): boolean =>
+  turn !== null && 'seq' in update && update._tag !== 'TurnStarted' && update.seq <= turn.lastSeq
 
 /** One Message each time the chat screen raises `copyRequest`. */
 const copyRequests = (request: number) =>
@@ -112,8 +168,12 @@ const textOf = (parts: ReadonlyArray<typeof Part.Type>): string =>
 
 const resumed = Command.as(ReplyStreamMessage.Resumed())
 
-/** Asked for too many times in a row: the person decides when to try again. */
-const hasGivenUp = (live: LiveTurn): boolean => live.connection === 'lost' && live.lostCount > MAX_RECONNECTS
+/**
+ * The state the row acts on and draws. Once the saved copy says the reply
+ * has ended, that is the state, whatever the live copy last heard.
+ */
+const shown = (props: { readonly status: typeof MessageStatus.Type; readonly failure: string | null }, live: ReplyState): ReplyState =>
+  props.status === 'streaming' ? live : fromSaved(props.status, props.failure)
 
 const TOOL_WORDS: Readonly<Record<string, readonly [string, string]>> = {
   get_weather: ['Checking the weather', 'Checked the weather'],
@@ -136,39 +196,35 @@ export const ReplyStream = Native.component({
   message: ReplyStreamMessage,
   events: ReplyStreamEvents,
 }).make({
-  init: () => ({ live: Option.none(), wasAway: false, hasTicked: false }),
+  init: () => ({ reply: ReplyState.Waiting, turn: null, wasAway: false }),
   update: {
     ReceivedTurnUpdate: ($, { update }) => {
-      const live =
-        update._tag === 'TurnStarted' && Option.isNone($.model.live)
-          ? Option.some(LiveTurnOps.start(update))
-          : LiveTurnOps.apply($.model.live, update)
-      const isFirstWords = update._tag === 'TextBatch' && !$.model.hasTicked
-      const settled = $.evolve({ live, hasTicked: $.model.hasTicked || isFirstWords })
-      const hasFailed = Option.isSome(live) && live.value.status === 'failed' && !(Option.isSome($.model.live) && $.model.live.value.status === 'failed')
+      const before = shown($.props, $.model.reply)
+      const event = eventOf(update)
+      // No rule for this event in this state, or an event the row has had: nothing changes and nothing starts.
+      if (!Reply.handles(before, event) || isOld($.model.turn, update)) return $.model
+      const reply = Reply.step(before, event)
+      const settled = $.evolve({ reply, turn: withUpdate($.model.turn, update) })
+      const isFirstWords = ReplyState.$is('Streaming')(reply) && !hasWords(before)
       // One step, whichever of the two is felt: a step of two kinds would lose what it needs from the phone.
       const next = settled.run(
         ...(isFirstWords
           ? [Phone.Selection.make({}).pipe(resumed)]
-          : hasFailed
+          : ReplyState.$is('Failed')(reply)
             ? [Phone.Notify.make({ type: 'error' }).pipe(resumed)]
             : []),
       )
-      if (update._tag === 'TurnGone') {
-        // The server has forgotten the turn. Its saved copy has the end of it.
+      // The server has forgotten the turn. Its saved copy has the end of it.
+      if (ReplyState.$is('Gone')(reply)) {
         return next.run(
           RefreshChat.make({ conversationId: $.props.conversationId }).pipe(Command.as(ReplyStreamMessage.Refreshed())),
         )
       }
-      if (update._tag === 'ConnectionLost' && Option.isSome(live) && live.value.connection === 'lost') {
-        return hasGivenUp(live.value)
-          ? next
-          : next.run(
-              ResumeTurn.make({
-                turnId: live.value.turnId,
-                delayMs: reconnectDelayMs(live.value.lostCount),
-              }).pipe(resumed),
-            )
+      // The connection dropped, and not too often yet: ask for the rest after a wait.
+      if (ReplyEvent.$is('LostConnection')(event) && ReplyState.$is('Reconnecting')(reply) && $.model.turn !== null) {
+        return next.run(
+          ResumeTurn.make({ turnId: $.model.turn.turnId, delayMs: reconnectDelayMs(reply.attempt) }).pipe(resumed),
+        )
       }
       return next
     },
@@ -176,23 +232,30 @@ export const ReplyStream = Native.component({
       if (status !== 'active') return $.evolve({ wasAway: true })
       if (!$.model.wasAway) return $.model
       const next = $.evolve({ wasAway: false })
+      const before = shown($.props, $.model.reply)
       // The phone may have closed the connection without saying so.
-      return Option.isSome($.model.live) && $.model.live.value.status === 'streaming'
-        ? next.run(ResumeTurn.make({ turnId: $.model.live.value.turnId, delayMs: 0 }).pipe(resumed))
+      return Reply.handles(before, ReplyEvent.CameBack) && $.model.turn !== null
+        ? next.run(ResumeTurn.make({ turnId: $.model.turn.turnId, delayMs: 0 }).pipe(resumed))
         : next
     },
-    PressedReconnect: $ =>
-      Option.isSome($.model.live)
-        ? $.evolve({ live: Option.map($.model.live, live => ({ ...live, lostCount: 0 })) }).run(
-            ResumeTurn.make({ turnId: $.model.live.value.turnId, delayMs: 0 }).pipe(resumed),
+    PressedReconnect: $ => {
+      const before = shown($.props, $.model.reply)
+      return Reply.handles(before, ReplyEvent.Reconnect) && $.model.turn !== null
+        ? $.evolve({ reply: Reply.step(before, ReplyEvent.Reconnect) }).run(
+            ResumeTurn.make({ turnId: $.model.turn.turnId, delayMs: 0 }).pipe(resumed),
           )
-        : $.model,
+        : $.model
+    },
     PressedAction: ($, { action }) => $.emit(ReplyStreamEvents.PressedAction({ action })),
     PressedReasoning: ($, { title, text }) => $.emit(ReplyStreamEvents.PressedReasoning({ title, text })),
-    PressedTryAgain: $ => $.emit(ReplyStreamEvents.PressedTryAgain()),
+    // Only a reply that failed can be tried again.
+    PressedTryAgain: $ =>
+      Reply.handles(shown($.props, $.model.reply), ReplyEvent.TryAgain)
+        ? $.emit(ReplyStreamEvents.PressedTryAgain())
+        : $.model,
     RequestedCopy: $ => {
-      const live = $.props.status === 'streaming' ? Option.getOrUndefined($.model.live) : undefined
-      const text = textOf(live === undefined ? $.props.parts : live.parts)
+      const live = $.props.status === 'streaming' ? $.model.turn : null
+      const text = textOf(live === null ? $.props.parts : live.parts)
       return text === '' ? $.model : $.run(Phone.Copy.make({ text }).pipe(Command.as(ReplyStreamMessage.Copied())))
     },
     Copied: $ => $.emit(ReplyStreamEvents.CopiedSoFar()),
@@ -204,20 +267,20 @@ export const ReplyStream = Native.component({
     props.followTurnId !== null &&
       followTurn(props.followTurnId, update => ReplyStreamMessage.ReceivedTurnUpdate({ update })),
     props.followTurnId !== null &&
-      LiveTurnOps.isStreaming(model.live) &&
+      Reply.handles(model.reply, ReplyEvent.CameBack) &&
       Phone.appState(status => ReplyStreamMessage.ChangedAppState({ status })),
   ],
   view: (h, model) => {
     const props = h.props
     const palette = paletteOf(props.scheme)
     // The live copy leads for as long as the saved one is still being written.
-    const live = props.status === 'streaming' ? Option.getOrUndefined(model.live) : undefined
+    const live = props.status === 'streaming' ? model.turn : null
     // A chat opened in the middle of a reply has a saved part of it. The live
     // copy takes over once it holds at least as much.
-    const parts = live !== undefined && sizeOf(live.parts) >= sizeOf(props.parts) ? live.parts : props.parts
-    const status = live?.status ?? props.status
-    const failure = live?.failure ?? props.failure
-    const isStreaming = status === 'streaming'
+    const parts = live !== null && sizeOf(live.parts) >= sizeOf(props.parts) ? live.parts : props.parts
+    // Everything below is drawn only if the reply's state allows it.
+    const may = allowed(shown(props, model.reply))
+    const isStreaming = may.isWriting
     const hasText = parts.some(part => part._tag === 'Text' && part.text !== '')
     // "Thinking" until the first word, except while a running tool or the
     // reasoning row already says what is going on.
@@ -285,28 +348,28 @@ export const ReplyStream = Native.component({
                     h.text.style({ ...TYPE.meta, color: palette.ink2 }).children(toolLine(part.name, part.output !== null)),
                   ),
         ),
-        status === 'stopped'
+        may.stopped
           ? h.text.key('stopped').style({ ...TYPE.caption, color: palette.ink3 }).children('Stopped')
           : null,
-        status === 'failed'
+        may.failure !== null
           ? h.text
               .key('failed')
               .testId(`reply-failed-${props.id}`)
               .style({ ...TYPE.caption, color: palette.danger })
-              .children(failure ?? 'The reply stopped early.')
+              .children(may.failure)
           : null,
-        status === 'failed' && props.isLast
+        may.failure !== null && props.isLast
           ? h.view.key('try-again').style({ alignSelf: 'flex-start' }).children(
               textButton(h, `reply-try-again-${props.id}`, 'Try again', palette.ink, ReplyStreamMessage.PressedTryAgain()),
             )
           : null,
-        live !== undefined && isStreaming && hasGivenUp(live)
+        may.reconnect
           ? h.view.key('lost').style({ flexDirection: 'row', gap: SPACE.m, alignItems: 'center' }).children(
               h.text.style({ ...TYPE.caption, color: palette.ink3 }).children('The connection was lost.'),
               textButton(h, `reply-reconnect-${props.id}`, 'Reconnect', palette.accent, ReplyStreamMessage.PressedReconnect()),
             )
           : null,
-        hasText && (status === 'complete' || status === 'stopped')
+        hasText && may.actions
           ? h.view
               .key('actions')
               .testId(`reply-actions-${props.id}`)
