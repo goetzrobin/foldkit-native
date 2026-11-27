@@ -8,7 +8,9 @@
  *
  * The three tests the brief asks for are named (a), (b) and (c).
  */
-import { Effect } from 'effect'
+import { UiSchema } from '@effect/ui'
+import * as MessageLog from '@effect/ui/MessageLog'
+import { Effect, Layer, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { App } from '../chat/app.js'
@@ -24,9 +26,12 @@ import { Transcript } from '../chat/parts/transcript.js'
 import { replay } from '../chat/replay.js'
 import * as Timeline from '../chat/timeline.js'
 import * as TimelineFile from '../chat/timelineFile.js'
+import { makeClock } from '../chat/clock.js'
+import { Native } from '../src/index.js'
+import { NativeTest } from '../src/testing/index.js'
 import { REQUEST, start } from './chatSupport.js'
 import { goBack, sendVoiceNote } from './playerSupport.js'
-import { run } from './support.js'
+import { provideForTest, run } from './support.js'
 
 /** Every component the session draws. */
 const COMPONENTS = [App, ConversationList, ChatScreen, Transcript, MessageRow, ReplyStream, ReplyText, Composer, MiniPlayer]
@@ -182,6 +187,33 @@ describe('The timeline leaves the app', () => {
         yield* app.wait(REQUEST)
         expect(app.has('sheet-settings')).toBe(true)
         expect(app.has('copy-timeline')).toBe(false)
+      }),
+    ))
+
+  it('the recorder reads the log beside the dev tools, and each still gets every entry', () =>
+    run(
+      Effect.gen(function* () {
+        const Message = UiSchema.TaggedEnum({ Pressed: {} })
+        const Counter = Native.component({ name: 'Counter', model: Schema.Number, message: Message }).make({
+          init: () => 0,
+          update: { Pressed: $ => $.model + 1 },
+          view: h => h.pressable.testId('add').on('press', Message.Pressed()).children(h.text('add')),
+        })
+        // What the dev tools Layer provides, as far as the log goes: a log of its own.
+        const devTools = MessageLog.makeMemory()
+        const clock = makeClock(100)
+        const kit = TimelineFile.kit(clock)
+        const app = yield* NativeTest.mount(Counter, {}).pipe(
+          provideForTest(kit.logs(Layer.succeed(MessageLog.MessageLog, devTools))),
+        )
+        yield* app.press('add')
+        yield* app.press('add')
+        const recorded = kit.recorder.entries()
+        expect(recorded.map(item => item.entry)).toEqual(devTools.entries())
+        expect(recorded.filter(item => (item.entry as { _tag: string })._tag === 'Update').length).toBe(2)
+        // Numbered from the shared clock, which started at 100 here.
+        expect(recorded[0]?.n).toBe(101)
+        expect(recorded.map(item => item.n)).toEqual(recorded.map((_, index) => 101 + index))
       }),
     ))
 })

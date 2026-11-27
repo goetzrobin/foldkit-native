@@ -32,7 +32,7 @@ on a desk.
 Both machines are written with a library called effect-machine, version
 0.32.1.
 
-What we know: 385 tests pass on a simulated phone, on two builds of the
+What we know: 386 tests pass on a simulated phone, on two builds of the
 engine. The app bundles for iPhone and Android with the library in it.
 
 What we do not know: anything only a real phone can show. Nobody has run
@@ -412,9 +412,10 @@ The library's source was read for things Hermes or React Native lack:
 | `chat/timelineFile.ts`, the timeline as JSON, for development builds | 79 |
 | `chat/replay.ts`, replay | 127 |
 
-Tests added: 101. The rules of the two machines have 66, the reply's row
+Tests added: 102. The rules of the two machines have 66, the reply's row
 10, the actor 10, the player on the simulated phone 7, the player around
-one screen 1, replay and the export 6, and one more boundary check.
+one screen 1, replay and the timeline's way out of the app 7, and one more boundary
+check.
 
 ## What does not work, and what was not checked
 
@@ -479,3 +480,4 @@ For the others, the code was broken on purpose:
 | The row sends Stop where it should send Pause | Two tests on the simulated phone |
 | The Layer around a screen is shared, not one per screen | "each screen has its own player" |
 | Replay gives the events new numbers | Tests (a) and (b) |
+| The recorder takes the log away from the dev tools | "the recorder reads the log beside the dev tools" |
