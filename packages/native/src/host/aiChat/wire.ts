@@ -39,11 +39,16 @@ export type TurnId = typeof TurnId.Type
 
 // MESSAGES AND THEIR PARTS
 
-/** A file sent with a message. The pretend server keeps only these facts. */
+/**
+ * A file sent with a message. The pretend server keeps only these facts.
+ * `uri` is where the file is on this phone, so the message's row can play
+ * it back. An attachment sent without one cannot be played.
+ */
 export const Attachment = Schema.Struct({
   name: Schema.String,
   mediaType: Schema.String,
   sizeBytes: Schema.Number,
+  uri: Schema.optional(Schema.String),
 })
 export type Attachment = typeof Attachment.Type
 

@@ -4,18 +4,21 @@
  * all running for real. The phone's services are fakes a test reads and
  * drives, and so is the phone's list of choices.
  */
+import * as MessageLog from '@effect/ui/MessageLog'
 import type { FakeFabricNode } from '@ng-native/testing/fake'
-import { Effect, Layer } from 'effect'
+import { Context, Effect, Layer } from 'effect'
 
 import { type Timing, makeAiServer, memoryDisk } from '../../native/src/host/aiChat/server.js'
 import { makeInProcessLink } from '../../native/src/host/aiChat/transport.js'
 import type { ChatMessage } from '../../native/src/host/aiChat/wire.js'
 import { registerNavigation, registerSearchBar } from '../../native/src/host/navigation/views.js'
 import { App } from '../chat/app.js'
+import { makeClock } from '../chat/clock.js'
+import { Player } from '../chat/playback.js'
 import { chatServices } from '../chat/start.js'
+import * as Timeline from '../chat/timeline.js'
 import { Menus, Phone } from '../src/index.js'
 import { NativeTest } from '../src/testing/index.js'
-import { provideForTest } from './support.js'
 
 /** The server answers quickly, and a reply still takes long enough to be seen growing. */
 export const FAST: Timing = {
@@ -79,6 +82,8 @@ export type StartOptions = Readonly<{
   override?: Layer.Layer<any>
   /** What to show when a part of the app fails. Nothing if left out. */
   crash?: NativeTest.TestOptions['crash']
+  /** Keep the screens' log, numbered from the shared clock, as a development build does. */
+  records?: boolean
 }>
 
 export const start = (options: StartOptions = {}) =>
@@ -90,21 +95,36 @@ export const start = (options: StartOptions = {}) =>
     const disk = options.disk ?? memoryDisk()
     const server = makeAiServer({ disk: disk.disk, timing: options.timing ?? FAST })
     const link = makeInProcessLink()
+    // The shared clock, and with `records` a recorder of the screens' log that reads it.
+    const clock = makeClock()
+    const recorder = options.records === true ? Timeline.makeRecorder(clock) : undefined
     const services = Layer.provideMerge(
-      chatServices(device.layer, { server, link, menus: menus.layer, now: () => NOW }),
+      chatServices(device.layer, {
+        server,
+        link,
+        menus: menus.layer,
+        now: () => NOW,
+        clock,
+        ...(recorder === undefined ? {} : { recorder }),
+      }),
       device.layer,
     )
-    const layer = options.override === undefined ? services : Layer.merge(services, options.override)
+    const logged = recorder === undefined ? services : Layer.merge(services, Layer.succeed(MessageLog.MessageLog, recorder.log))
+    const layer = options.override === undefined ? logged : Layer.merge(logged, options.override)
     const platform = options.platform ?? 'ios'
+    // Built once and kept until the test ends: see `provideForTest`.
+    const context = yield* Layer.build(layer as typeof services)
     const app = yield* NativeTest.mount(
       App,
-      { platform },
+      { platform, hasTimeline: recorder !== undefined },
       { platform, longPressMs: HOLD_MS, ...(options.crash === undefined ? {} : { crash: options.crash }) },
-    ).pipe(
-      provideForTest(layer as typeof services),
-    )
+    ).pipe(Effect.provideContext(context))
     yield* app.wait(REQUEST)
-    return { app, device, menus, server, link, disk }
+    /** The app's one audio player, as the app's Layer made it. */
+    const player = Context.get(context, Player)
+    /** The merged timeline so far. Empty of screens without `records`. */
+    const timeline = () => Timeline.merge(recorder?.entries() ?? [], player.log())
+    return { app, device, menus, server, link, disk, player, clock, recorder, timeline }
   })
 
 export type Started = Effect.Success<ReturnType<typeof start>>

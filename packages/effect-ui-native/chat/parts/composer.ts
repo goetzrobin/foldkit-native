@@ -27,7 +27,8 @@
  * A voice note. The sound wave asks for the microphone, then records, with
  * a clock, a way to throw the recording away and a way to finish. A finished
  * note waits above the field as a chip, with a button to hear it and one to
- * remove it. The phone is then asked to read the note's words from the file.
+ * remove it. Hearing it goes through the app's one player (`playback.ts`),
+ * so the mini player shows it too, and starting it stops any other note. The phone is then asked to read the note's words from the file.
  * If it can, they go into the field. If it cannot, the field keeps a line
  * that says a voice note is attached.
  *
@@ -44,6 +45,7 @@ import { Attachment } from '../../../native/src/host/aiChat/wire.js'
 import { Motion, Native, NativeCommand, NativeViews, Phone } from '../../src/index.js'
 import { arrowUp, cross, microphone, playIcon, soundWave, stopSquare, tick } from '../icons.js'
 import { clockOf } from '../list.js'
+import { NOTHING_PLAYING, PlayerEvent, PlayerState, PlayerStep, SendToPlayer, heardPlayer, isPlaying, noteOf, sender } from '../playback.js'
 import { HAIRLINE, MOTION, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { attachmentChip, roundButton } from '../ui.js'
 
@@ -82,7 +84,8 @@ export const ComposerMessage = UiSchema.TaggedEnum({
   PressedCancelRecording: {},
   PressedRemoveNote: {},
   PressedPlayNote: {},
-  GotPlayerEvent: { event: Phone.PlayerEvent },
+  /** The app's player took a step. */
+  HeardPlayer: { step: PlayerStep },
   Done: {},
 })
 
@@ -106,7 +109,10 @@ const ComposerModel = Schema.Struct({
   draft: Schema.String,
   /** A finished voice note, waiting to go with the next message. */
   note: Schema.NullOr(Note),
-  isPlayingNote: Schema.Boolean,
+  /** The app's player, as last heard. It says whether the waiting note is the one playing. */
+  player: PlayerState,
+  /** How many events this part has sent the player. The next one's id is made from it. */
+  sent: Schema.Number,
   /** The recorder's clock, while it records. */
   recording: Schema.NullOr(Schema.Struct({ seconds: Schema.Number, isNearLimit: Schema.Boolean })),
   /**
@@ -146,6 +152,13 @@ const restoreRequests = (id: number) =>
   Subscription.make('chat/composer/restore', id, () => Stream.succeed(ComposerMessage.RequestedRestore()))
 
 const done = Command.as(ComposerMessage.Done())
+/** The app's player is loading or playing this note. */
+const isSounding = (player: PlayerState, uri: string): boolean =>
+  isPlaying(player, uri) || (PlayerState.$is('Loading')(player) && player.note.uri === uri)
+
+/** Tells the app's player to stop. `count` makes the id of this part's event. */
+const stopPlayer = (count: number) =>
+  SendToPlayer.make({ event: PlayerEvent.Stop({ by: sender('composer', `note#${count}`) }) }).pipe(done)
 const impact = (style: 'light' | 'medium') => Phone.Impact.make({ style }).pipe(done)
 
 /** What was there before, then what was heard. */
@@ -185,7 +198,8 @@ export const Composer = Native.component({
   init: () => ({
     draft: '',
     note: null,
-    isPlayingNote: false,
+    player: NOTHING_PLAYING,
+    sent: 0,
     recording: null,
     listening: 'off' as const,
     listensTo: 'microphone' as const,
@@ -207,11 +221,17 @@ export const Composer = Native.component({
       const text = $.model.draft.trim()
       const note = $.model.note
       if ((text === '' && note === null) || $.props.isSending || $.props.isReplying || !$.props.isOnline) return $.model
-      const attachments = note === null ? [] : [{ name: note.name, mediaType: 'audio/mp4', sizeBytes: note.sizeBytes }]
-      const next = $.evolve({ draft: '', note: null, noteText: '', isPlayingNote: false, listening: 'off' as const }).emit(
-        ComposerEvents.Submitted({ text: text === '' && note !== null ? voiceNoteText(note.seconds) : text, attachments }),
-      )
-      const quiet = $.model.isPlayingNote ? next.run(Phone.StopSound.make({}).pipe(done)) : next
+      const attachments = note === null ? [] : [{ name: note.name, mediaType: 'audio/mp4', sizeBytes: note.sizeBytes, uri: note.uri }]
+      const holdsNote = note !== null && noteOf($.model.player)?.uri === note.uri
+      const next = $.evolve({
+        draft: '',
+        note: null,
+        noteText: '',
+        listening: 'off' as const,
+        sent: holdsNote ? $.model.sent + 1 : $.model.sent,
+      }).emit(ComposerEvents.Submitted({ text: text === '' && note !== null ? voiceNoteText(note.seconds) : text, attachments }))
+      // The note has gone with the message: the player lets it go.
+      const quiet = holdsNote ? next.run(stopPlayer($.model.sent + 1)) : next
       return $.model.listening === 'off' ? quiet : quiet.run(Phone.AbortListening.make({}).pipe(done))
     },
     PressedStop: $ => ($.props.isReplying ? $.emit(ComposerEvents.PressedStop()) : $.model),
@@ -348,24 +368,29 @@ export const Composer = Native.component({
       const model = $.model
       if (model.note === null) return model
       const wasReading = model.listening !== 'off' && model.listensTo === 'note'
+      const holdsNote = noteOf(model.player)?.uri === model.note.uri
       const next = $.evolve({
         note: null,
-        isPlayingNote: false,
         draft: model.draft === model.noteText ? '' : model.draft,
         noteText: '',
         listening: wasReading ? ('off' as const) : model.listening,
+        sent: holdsNote ? model.sent + 1 : model.sent,
       })
-      const quiet = model.isPlayingNote ? next.run(Phone.StopSound.make({}).pipe(done)) : next
+      const quiet = holdsNote ? next.run(stopPlayer(model.sent + 1)) : next
       return wasReading ? quiet.run(Phone.AbortListening.make({}).pipe(done)) : quiet
     },
     PressedPlayNote: $ => {
       const note = $.model.note
       if (note === null) return $.model
-      return $.model.isPlayingNote
-        ? $.evolve({ isPlayingNote: false }).run(Phone.StopSound.make({}).pipe(done))
-        : $.evolve({ isPlayingNote: true }).run(Phone.PlaySound.make({ uri: note.uri }).pipe(done))
+      const by = sender('composer', `note#${$.model.sent + 1}`)
+      // The player's state decides: this note is loading or playing, so stop it. Otherwise play it from the start.
+      const event =
+        isSounding($.model.player, note.uri)
+          ? PlayerEvent.Stop({ by })
+          : PlayerEvent.Play({ note: { uri: note.uri, label: note.name }, by })
+      return $.evolve({ sent: count => count + 1 }).run(SendToPlayer.make({ event }).pipe(done))
     },
-    GotPlayerEvent: ($, { event }) => (event._tag === 'Finished' ? $.evolve({ isPlayingNote: false }) : $.model),
+    HeardPlayer: ($, { step }) => $.evolve({ player: step.after }),
     Done: $ => $.model,
   },
   subscriptions: ({ props, model }) => [
@@ -374,7 +399,7 @@ export const Composer = Native.component({
     // From before the phone is asked to start, so its first word is not missed.
     model.listening !== 'off' && Phone.speech(event => ComposerMessage.HeardSpeech({ event })),
     model.recording !== null && Phone.recorder(event => ComposerMessage.GotRecorderEvent({ event })),
-    model.isPlayingNote && Phone.player(event => ComposerMessage.GotPlayerEvent({ event })),
+    model.note !== null && heardPlayer(step => ComposerMessage.HeardPlayer({ step }), { positions: false }),
   ],
   view: (h, model) => {
     const { scheme, platform, isSending, isReplying, isOnline } = h.props
@@ -444,6 +469,7 @@ export const Composer = Native.component({
 
     const recording = model.recording
     const note = model.note
+    const isPlayingNote = note !== null && isSounding(model.player, note.uri)
     return h.view.style({ paddingTop: SPACE.s }).children(
       NativeViews.glass(h, {
         isInteractive: false,
@@ -464,12 +490,12 @@ export const Composer = Native.component({
                       h,
                       {
                         id: 'play-note',
-                        label: model.isPlayingNote ? 'Stop playing the voice note' : 'Play the voice note',
+                        label: isPlayingNote ? 'Stop playing the voice note' : 'Play the voice note',
                         fill: 'transparent',
                         size: 20,
                         message: ComposerMessage.PressedPlayNote(),
                       },
-                      model.isPlayingNote ? stopSquare(h, palette.ink2) : playIcon(h, palette.ink2),
+                      isPlayingNote ? stopSquare(h, palette.ink2) : playIcon(h, palette.ink2),
                     ),
                     roundButton(
                       h,

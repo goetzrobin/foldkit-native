@@ -185,6 +185,22 @@ describe('The player actor', () => {
         expect(player.log().slice(3).every(step => !step.changed)).toBe(true)
       }),
     ))
+
+  it('an answer about the note before is in the record as ignored, and listeners are not told', () =>
+    run(
+      Effect.gen(function* () {
+        const { player, heard } = yield* setup()
+        // The second note is asked for before the phone has answered about the first.
+        player.sendNow(E.Play({ note: a, by: row('r1') }))
+        player.sendNow(E.Play({ note: b, by: row('r2') }))
+        yield* tick
+        yield* tick
+        const ready = player.log().filter(step => step.event._tag === 'AudioReady')
+        expect(ready.map(step => `${(step.event as { uri: string }).uri} ${step.changed}`)).toEqual([`${a.uri} false`, `${b.uri} true`])
+        expect(heard.filter(step => step.event._tag === 'AudioReady').length).toBe(1)
+        expect(player.state()).toMatchObject({ _tag: 'Playing', note: b })
+      }),
+    ))
 })
 
 describe('The player: where it is provided decides how long it lives', () => {

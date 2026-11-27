@@ -138,6 +138,13 @@ export const regenerateIcon = <Msg>(h: Native.H<Msg>, color: string) =>
     { left: 11.11, top: 3.29, width: 4.6, height: 1.6, borderRadius: 0.8, backgroundColor: color, transform: [{ rotate: '-20deg' }] },
   ])
 
+/** Two upright bars: Pause. */
+export const pauseIcon = <Msg>(h: Native.H<Msg>, color: string) =>
+  drawn(h, 10, 12, [
+    { left: 1, top: 0, width: 3, height: 12, borderRadius: 1, backgroundColor: color },
+    { left: 6, top: 0, width: 3, height: 12, borderRadius: 1, backgroundColor: color },
+  ])
+
 /** A triangle pointing right: Play. Drawn from the borders of an empty box. */
 export const playIcon = <Msg>(h: Native.H<Msg>, color: string) =>
   drawn(h, 10, 12, [

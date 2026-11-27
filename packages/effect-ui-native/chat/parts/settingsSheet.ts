@@ -16,7 +16,7 @@ import { Schema } from 'effect'
 import { KeyboardBar, Menus, Native, NativeHost, NativeViews, Phone } from '../../src/index.js'
 import { Chaos, Speed } from '../data.js'
 import { HAIRLINE, type Palette, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
-import { segments, sheetTitle, solidButton, switchRow } from '../ui.js'
+import { segments, sheetTitle, solidButton, switchRow, textButton } from '../ui.js'
 
 export const ChaosName = Schema.Literals(['failMidStream', 'dropConnection', 'slowFirstToken', 'refuseSend'])
 export type ChaosName = typeof ChaosName.Type
@@ -28,6 +28,8 @@ export const SettingsSheetProps = Schema.Struct({
   speed: Speed,
   chaos: Chaos,
   showsNumbers: Schema.Boolean,
+  /** A development build that records its timeline: a row here copies it. */
+  hasTimeline: Schema.Boolean,
 })
 
 const Presses = {
@@ -35,6 +37,7 @@ const Presses = {
   PressedSpeed: { speed: Speed },
   PressedChaos: { name: ChaosName },
   PressedNumbers: {},
+  PressedCopyTimeline: {},
   Closed: {},
 }
 
@@ -77,10 +80,11 @@ export const SettingsSheet = Native.component({
     PressedSpeed: ($, { speed }) => $.emit(SettingsSheetEvents.PressedSpeed({ speed })),
     PressedChaos: ($, { name }) => $.emit(SettingsSheetEvents.PressedChaos({ name })),
     PressedNumbers: $ => $.emit(SettingsSheetEvents.PressedNumbers()),
+    PressedCopyTimeline: $ => $.emit(SettingsSheetEvents.PressedCopyTimeline()),
     Closed: $ => $.emit(SettingsSheetEvents.Closed()),
   },
   view: h => {
-    const { platform, scheme, theme, speed, chaos, showsNumbers } = h.props
+    const { platform, scheme, theme, speed, chaos, showsNumbers, hasTimeline } = h.props
     const palette = paletteOf(scheme)
     const body = h.scrollView
       .key('settings-scroll')
@@ -134,6 +138,15 @@ export const SettingsSheet = Native.component({
             isOn: showsNumbers,
             message: SettingsSheetMessage.PressedNumbers(),
           }),
+          // Development builds only. What the screens and the audio player did, in order, as JSON.
+          hasTimeline
+            ? h.view
+                .key('copy-timeline-row')
+                .style({ alignSelf: 'flex-start' })
+                .children(
+                  textButton(h, 'copy-timeline', 'Copy timeline', palette.ink, SettingsSheetMessage.PressedCopyTimeline()),
+                )
+            : null,
         ]),
         group(h, palette, 'About', undefined, [
           h.text

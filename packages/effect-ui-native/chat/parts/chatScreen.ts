@@ -56,6 +56,7 @@ import { arrowDown } from '../icons.js'
 import { MOTION, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { navBar } from '../ui.js'
 import { Composer, DRAFT_FIELD_ID } from './composer.js'
+import { MiniPlayer } from './miniPlayer.js'
 import { ReplyAction } from './replyStream.js'
 import { type Row, TRANSCRIPT_ID, Transcript } from './transcript.js'
 
@@ -649,6 +650,8 @@ export const ChatScreen = Native.component({
                         })
                         .children(model.notice.text),
                     ),
+                // The voice note the app's player holds, whichever chat it is from.
+                MiniPlayer(h, { key: 'mini-player', props: { scheme, place: 'chat' } }),
                 Composer(h, {
                   key: 'composer',
                   props: {

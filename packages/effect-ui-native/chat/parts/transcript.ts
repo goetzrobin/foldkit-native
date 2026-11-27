@@ -220,7 +220,7 @@ export const Transcript = Native.component({
                           props: {
                             id: row.key,
                             text: textOf(row),
-                            attachments: row.attachments.map(each => each.name),
+                            attachments: row.attachments.map(each => ({ name: each.name, uri: each.uri ?? null })),
                             scheme,
                             rises: row.key === risingKey,
                           },

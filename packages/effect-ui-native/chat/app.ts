@@ -46,6 +46,7 @@ import { ReasoningSheet } from './parts/reasoningSheet.js'
 import { RenameSheet } from './parts/renameSheet.js'
 import { ChaosName, SettingsSheet } from './parts/settingsSheet.js'
 import { Scheme } from './theme.js'
+import { CopyTimeline } from './timeline.js'
 
 const Screen = Schema.Union([
   Schema.TaggedStruct('Chats', { key: Schema.String }),
@@ -86,12 +87,16 @@ export const AppMessage = UiSchema.TaggedEnum({
   PressedTheme: { theme: Phone.Theme },
   PressedSpeed: { speed: Speed },
   PressedChaos: { name: ChaosName },
+  PressedCopyTimeline: {},
+  CopiedTimeline: { count: Schema.Number, failure: Schema.NullOr(Schema.String) },
   Done: {},
 })
 
 export const AppProps = Schema.Struct({
   /** `ios` or `android`. */
   platform: Schema.String,
+  /** A development build that records its timeline: Settings offers to copy it. */
+  hasTimeline: Schema.optional(Schema.Boolean),
 })
 
 const AppModel = Schema.Struct({
@@ -242,6 +247,17 @@ export const App = Native.component({
       const chaos = { ...$.model.chaos, [name]: !$.model.chaos[name] }
       return $.evolve({ chaos }).run(SetServerDials.make({ speed: $.model.speed, chaos }).pipe(done))
     },
+    PressedCopyTimeline: $ =>
+      $.run(CopyTimeline.make({}).pipe(Command.map(({ count, failure }) => AppMessage.CopiedTimeline({ count, failure })))),
+    // Said as a line on whichever screen is on top, once the sheet is closed.
+    CopiedTimeline: ($, { count, failure }) =>
+      $.evolve({ sheet: null }).run(
+        Announce.make(
+          failure === null
+            ? { text: `Timeline copied: ${count} entries.`, tone: 'info' as const }
+            : { text: `Could not copy the timeline. ${failure}`, tone: 'error' as const },
+        ).pipe(done),
+      ),
     Done: $ => $.model,
   },
   subscriptions: () => [
@@ -288,12 +304,21 @@ export const App = Native.component({
         : sheet._tag === 'Settings'
           ? SettingsSheet(h, {
               key: sheetKey,
-              props: { platform, scheme, theme: model.theme, speed: model.speed, chaos: model.chaos, showsNumbers },
+              props: {
+                platform,
+                scheme,
+                theme: model.theme,
+                speed: model.speed,
+                chaos: model.chaos,
+                showsNumbers,
+                hasTimeline: h.props.hasTimeline === true,
+              },
               onEmit: {
                 PressedTheme: ({ theme }) => AppMessage.PressedTheme({ theme }),
                 PressedSpeed: ({ speed }) => AppMessage.PressedSpeed({ speed }),
                 PressedChaos: ({ name }) => AppMessage.PressedChaos({ name }),
                 PressedNumbers: () => AppMessage.ToggledNumbers(),
+                PressedCopyTimeline: () => AppMessage.PressedCopyTimeline(),
                 Closed: () => AppMessage.ClosedSheet(),
               },
             })

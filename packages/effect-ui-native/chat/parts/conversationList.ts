@@ -36,6 +36,7 @@ import { After, NOTICE_MS, Toast, toasts } from '../events.js'
 import { listItems } from '../list.js'
 import { MOTION, RADIUS, SPACE, Scheme, TYPE, paletteOf } from '../theme.js'
 import { centred, navBar, solidButton } from '../ui.js'
+import { MiniPlayer } from './miniPlayer.js'
 
 export const ConversationListProps = Schema.Struct({
   platform: Schema.String,
@@ -299,30 +300,38 @@ export const ConversationList = Native.component({
             ),
       rows,
       overlay,
-      // Over the list, at the bottom, so the rows do not jump when it comes and goes.
-      // It fades in, and out again before it is taken away.
-      notice === null
-        ? null
-        : Motion.animate(
-            h.view
-              .key('notice')
-              .set({ pointerEvents: 'none' })
-              .style({ position: 'absolute', left: SPACE.l, right: SPACE.l, bottom: SPACE.xxxl, alignItems: 'center' }),
-            { from: { opacity: 0 }, to: { opacity: 1 }, exit: { opacity: 0 }, ms: MOTION.notice },
-          ).children(
-            h.text
-              .testId('list-notice')
-              .style({
-                ...TYPE.caption,
-                color: notice.tone === 'error' ? palette.danger : palette.ink,
-                backgroundColor: palette.surface,
-                paddingHorizontal: SPACE.m,
-                paddingVertical: SPACE.s,
-                borderRadius: RADIUS.chip,
-                overflow: 'hidden',
-              })
-              .children(notice.text),
-          ),
+      // Over the list, at the bottom, so the rows do not jump when they come and go:
+      // a line for the person, and under it the mini player while a voice note is loaded.
+      h.view
+        .key('over-list')
+        .set({ pointerEvents: 'box-none' })
+        .style({ position: 'absolute', left: 0, right: 0, bottom: SPACE.xxxl, gap: SPACE.s })
+        .children(
+          // It fades in, and out again before it is taken away.
+          notice === null
+            ? null
+            : Motion.animate(
+                h.view
+                  .key('notice')
+                  .set({ pointerEvents: 'none' })
+                  .style({ alignItems: 'center', paddingHorizontal: SPACE.l }),
+                { from: { opacity: 0 }, to: { opacity: 1 }, exit: { opacity: 0 }, ms: MOTION.notice },
+              ).children(
+                h.text
+                  .testId('list-notice')
+                  .style({
+                    ...TYPE.caption,
+                    color: notice.tone === 'error' ? palette.danger : palette.ink,
+                    backgroundColor: palette.surface,
+                    paddingHorizontal: SPACE.m,
+                    paddingVertical: SPACE.s,
+                    borderRadius: RADIUS.chip,
+                    overflow: 'hidden',
+                  })
+                  .children(notice.text),
+              ),
+          MiniPlayer(h, { key: 'mini-player', props: { scheme, place: 'list' } }),
+        ),
     )
 
     return h.screen

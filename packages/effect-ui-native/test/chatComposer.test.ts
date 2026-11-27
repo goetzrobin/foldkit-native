@@ -211,7 +211,10 @@ describe('a voice note', () => {
         yield* until(app, () => !app.has('stop'), REPLY * 2, 'the reply to end')
         yield* app.wait(REQUEST * 3)
         const saved = [...started.disk.entries.entries()].find(([key]) => key.startsWith('conversation-'))?.[1] ?? ''
-        expect(JSON.parse(saved).messages[0].attachments).toEqual([{ name: 'Voice note 0:03', mediaType: 'audio/mp4', sizeBytes: expect.any(Number) }])
+        expect(JSON.parse(saved).messages[0].attachments).toEqual([
+          // The note's place on the phone is kept too, so its row can play it back.
+          { name: 'Voice note 0:03', mediaType: 'audio/mp4', sizeBytes: expect.any(Number), uri: expect.stringContaining('recording-') },
+        ])
         expect(server.log().some(name => name.startsWith('SendMessage'))).toBe(true)
       }),
     ))
