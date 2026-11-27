@@ -17,6 +17,7 @@ import { makeClock } from '../chat/clock.js'
 import { Player } from '../chat/playback.js'
 import { chatServices } from '../chat/start.js'
 import * as Timeline from '../chat/timeline.js'
+import * as TimelineFile from '../chat/timelineFile.js'
 import { Menus, Phone } from '../src/index.js'
 import { NativeTest } from '../src/testing/index.js'
 
@@ -97,7 +98,8 @@ export const start = (options: StartOptions = {}) =>
     const link = makeInProcessLink()
     // The shared clock, and with `records` a recorder of the screens' log that reads it.
     const clock = makeClock()
-    const recorder = options.records === true ? Timeline.makeRecorder(clock) : undefined
+    const kit = options.records === true ? TimelineFile.kit(clock) : undefined
+    const recorder = kit?.recorder
     const services = Layer.provideMerge(
       chatServices(device.layer, {
         server,
@@ -105,7 +107,7 @@ export const start = (options: StartOptions = {}) =>
         menus: menus.layer,
         now: () => NOW,
         clock,
-        ...(recorder === undefined ? {} : { recorder }),
+        ...(kit === undefined ? {} : { timelineKit: kit }),
       }),
       device.layer,
     )

@@ -132,7 +132,7 @@ describe('A voice note in a chat', () => {
       }),
     ))
 
-  it('Close on the mini player stops the sound, and the bar and the row both go quiet', () =>
+  it('Close on the mini player stops the sound, and the bar and the row go back to how they were', () =>
     run(
       Effect.gen(function* () {
         const started = yield* newChat()

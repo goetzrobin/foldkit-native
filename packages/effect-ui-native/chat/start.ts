@@ -44,8 +44,8 @@ export type ChatServicesOptions = Readonly<{
    * is given, the screens' log entries. A new one if left out.
    */
   clock?: SharedClockService
-  /** Development only: keeps the screens' log, so the merged timeline can be copied from Settings. */
-  recorder?: Timeline.Recorder
+  /** Development only: what keeps the screens' log, so the merged timeline can be copied from Settings. */
+  timelineKit?: Timeline.Kit
 }>
 
 export type ChatOptions = NativeHost.SurfaceOptions &
@@ -62,11 +62,11 @@ export type ChatOptions = NativeHost.SurfaceOptions &
      */
     devTools?: Layer.Layer<never>
     /**
-     * Development only: `true` keeps the screens' log beside the player's
-     * own record, and Settings gets a row that copies the two as one
-     * timeline. See docs/STATE_MACHINES.md.
+     * Development only: `kit` from `chat/timelineFile.ts`. It keeps the
+     * screens' log beside the player's own record, and Settings gets a row
+     * that copies the two as one timeline. See docs/STATE_MACHINES.md.
      */
-    timeline?: boolean
+    timeline?: (clock: SharedClockService) => Timeline.Kit
   }>
 
 /**
@@ -95,7 +95,7 @@ export const chatServices = (device: Layer.Layer<DeviceServices>, options: ChatS
   // app's Layer closes. No screen makes it, so it outlives every screen.
   const player = Playback.Player.Live.pipe(Layer.provide(Layer.succeed(SharedClock, options.clock ?? makeClock())))
   return Layer.mergeAll(
-    Layer.merge(Playback.layer, Timeline.CopyTimeline.layerFor(options.recorder ?? null)).pipe(Layer.provideMerge(player)),
+    Layer.merge(Playback.layer, Timeline.CopyTimeline.layerFor(options.timelineKit ?? null)).pipe(Layer.provideMerge(player)),
     Data.layer.pipe(Layer.provide(transport)),
     // The pretend server's switches, for the demo controls in Settings.
     Data.SetServerDials.layerFor(server),
@@ -117,14 +117,14 @@ export const chatCrash = NativeCrash.screen({ hint: 'Your chats are saved. Start
 
 /** The whole app as one Layer: the mount, and everything it asks for. */
 export const chatLayer = (options: ChatOptions): Layer.Layer<never> => {
-  const { platform, device, server, disk, link, batchMs, menus, now, devTools, timeline, clock: givenClock, recorder: givenRecorder, ...mountOptions } = options
+  const { platform, device, server, disk, link, batchMs, menus, now, devTools, timeline, clock: givenClock, timelineKit, ...mountOptions } = options
   registerNavigation()
   registerSearchBar()
   // One clock for the player and for the recorder of the screens' log, so their numbers line up.
   const clock = givenClock ?? makeClock()
-  const recorder = givenRecorder ?? (timeline === true ? Timeline.makeRecorder(clock) : undefined)
-  const logs = recorder === undefined ? (devTools ?? Layer.empty) : Timeline.recording(recorder, devTools ?? Layer.empty)
-  return NativeHost.mount(App, { platform, hasTimeline: recorder !== undefined }, { ...mountOptions, crash: chatCrash }).pipe(
+  const kit = timelineKit ?? timeline?.(clock)
+  const logs = kit === undefined ? (devTools ?? Layer.empty) : kit.logs(devTools ?? Layer.empty)
+  return NativeHost.mount(App, { platform, hasTimeline: kit !== undefined }, { ...mountOptions, crash: chatCrash }).pipe(
     Layer.provide(
       chatServices(device, {
         ...(server === undefined ? {} : { server }),
@@ -134,7 +134,7 @@ export const chatLayer = (options: ChatOptions): Layer.Layer<never> => {
         ...(menus === undefined ? {} : { menus }),
         ...(now === undefined ? {} : { now }),
         clock,
-        ...(recorder === undefined ? {} : { recorder }),
+        ...(kit === undefined ? {} : { timelineKit: kit }),
       }),
     ),
     Layer.provide(device),

@@ -21,16 +21,18 @@
  *   42  player       Playing to Paused, on Pause by voice-row
  *   43  MiniPlayer   HeardPlayer, step 42
  *
- * `toJson` writes it out for a file. In a development build, Settings has
- * a row that copies that JSON (`CopyTimeline`).
+ * In a development build, Settings has a row that copies the timeline as
+ * JSON (`CopyTimeline`). Recording the screens and writing that JSON are in
+ * a file of their own that only a development build loads:
+ * `timelineFile.ts`. It gives this file what it needs as a `Kit`.
  */
-import * as MessageLog from '@effect/ui/MessageLog'
+import type * as MessageLog from '@effect/ui/MessageLog'
 import { Command } from '@effect/ui'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Effect, type Layer, Schema } from 'effect'
 
 import * as Device from '../../native/src/host/device/index.js'
 import type { SharedClockService } from './clock.js'
-import { PlayerStep } from './machines/player.js'
+import type { PlayerStep } from './machines/player.js'
 import { Player } from './machines/playerActor.js'
 
 /** An entry of Effect UI's log, live or as written to a file. */
@@ -67,15 +69,15 @@ export const makeRecorder = (clock: SharedClockService, size = RECORDER_SIZE): R
 }
 
 /**
- * Effect UI's log goes to the recorder, and also to whatever log `inner`
- * provides (the dev tools). Everything else `inner` provides is kept.
+ * What a development build adds, made by `timelineFile.ts`: the recorder,
+ * the Layer that sends Effect UI's log to it, and the writer of the JSON.
  */
-export const recording = (recorder: Recorder, inner: Layer.Layer<never> = Layer.empty): Layer.Layer<never> =>
-  Layer.effectContext(
-    Effect.map(Layer.build(inner), built =>
-      Context.add(built, MessageLog.MessageLog, MessageLog.fanoutAll([Context.get(built, MessageLog.MessageLog), recorder.log])),
-    ),
-  ) as Layer.Layer<never>
+export type Kit = Readonly<{
+  recorder: Recorder
+  /** Effect UI's log goes to the recorder, and also to whatever log `inner` provides (the dev tools). */
+  logs: (inner: Layer.Layer<never>) => Layer.Layer<never>
+  toJson: (items: ReadonlyArray<Item>) => string
+}>
 
 /** The two records as one list, lowest number first. */
 export const merge = (screens: ReadonlyArray<ScreenItem>, player: ReadonlyArray<PlayerStep>): ReadonlyArray<Item> =>
@@ -113,46 +115,6 @@ export const lineOf = (item: Item): string | null => {
 export const lines = (items: ReadonlyArray<Item>): ReadonlyArray<string> =>
   items.map(lineOf).filter((line): line is string => line !== null)
 
-// AS A FILE
-
-/**
- * A live entry holds its component itself, and has to be put through the
- * component's Schemas. A written one names its component. The two kinds of
- * entry with no component are plain data either way.
- */
-const isLive = (entry: LogEntry): entry is MessageLog.Entry =>
-  typeof (entry as { readonly component?: unknown }).component === 'object'
-
-export const TIMELINE_VERSION = 1
-
-const StepJson = Schema.toCodecJson(PlayerStep)
-const encodeStep = Schema.encodeSync(StepJson)
-const decodeStep = Schema.decodeUnknownSync(StepJson)
-
-/** The timeline as JSON. Entries of the screens' log are written the way Effect UI sends them to its dev tools. */
-export const toJson = (items: ReadonlyArray<Item>): string => {
-  const encoder = MessageLog.makeEncoder()
-  return JSON.stringify({
-    version: TIMELINE_VERSION,
-    items: items.map(item =>
-      item.from === 'player'
-        ? { n: item.n, from: item.from, step: encodeStep(item.step) }
-        : { n: item.n, from: item.from, entry: isLive(item.entry) ? encoder.encode(item.entry) : item.entry },
-    ),
-  })
-}
-
-/** Reads what `toJson` wrote. */
-export const fromJson = (text: string): ReadonlyArray<Item> => {
-  const file = JSON.parse(text) as { readonly version?: number; readonly items?: ReadonlyArray<Record<string, unknown>> }
-  if (file.version !== TIMELINE_VERSION || !Array.isArray(file.items)) throw new Error('This is not a timeline file.')
-  return file.items.map(item =>
-    item['from'] === 'player'
-      ? { n: item['n'] as number, from: 'player' as const, step: decodeStep(item['step']) }
-      : { n: item['n'] as number, from: 'screens' as const, entry: item['entry'] as MessageLog.WireEntry },
-  )
-}
-
 /** What copying the timeline answers: how many things it held, or why it could not be copied. */
 export const Copied = Schema.Struct({ count: Schema.Number, failure: Schema.NullOr(Schema.String) })
 
@@ -164,16 +126,17 @@ export class CopyTimeline extends Command.Service<CopyTimeline>()('chat/CopyTime
   args: {},
   success: Copied,
 }) {
-  /** `recorder` is null in a build that does not record the screens. The player's own record is still copied. */
-  static readonly layerFor = (recorder: Recorder | null) =>
+  /** `kit` is null in a build that keeps no timeline. Settings has no row for it there. */
+  static readonly layerFor = (kit: Kit | null) =>
     this.toLayer(
       Effect.gen(function* () {
         const player = yield* Player
         const clipboard = yield* Device.Clipboard.Clipboard
         return () =>
           Effect.suspend(() => {
-            const items = merge(recorder?.entries() ?? [], player.log())
-            return Effect.match(clipboard.copy(toJson(items)), {
+            if (kit === null) return Effect.succeed({ count: 0, failure: 'This build keeps no timeline.' as string | null })
+            const items = merge(kit.recorder.entries(), player.log())
+            return Effect.match(clipboard.copy(kit.toJson(items)), {
               onSuccess: () => ({ count: items.length, failure: null as string | null }),
               onFailure: error => ({ count: items.length, failure: error.reason as string | null }),
             })

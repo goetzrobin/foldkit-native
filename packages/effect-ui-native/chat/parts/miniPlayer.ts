@@ -1,5 +1,5 @@
 /**
- * The mini player: one quiet row that shows which voice note the app's
+ * The mini player: one plain row that shows which voice note the app's
  * player holds, with a button to pause or go on and one to close.
  *
  * It is drawn on the list of chats and in every chat. It shows while a note
