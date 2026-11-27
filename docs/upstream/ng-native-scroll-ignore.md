@@ -1,61 +1,47 @@
-# ng-native: a scroll the app made cancels a press
+## What changed and why
 
-Patch: `ng-native-scroll-ignore.patch` (against ng-native `main` at 0069c28).
-Apply in an ng-native checkout with `git am ng-native-scroll-ignore.patch`.
+On iOS, a press on something inside a `scroll-view` was canceled whenever the list scrolled, including when the app scrolled it and the finger never moved. This change leaves the press alone for a scroll the app made.
 
-## What goes wrong
+**How it shows up.** A chat screen that follows a reply as it streams in calls `scrollToEnd` several times a second. A finger resting on a message through that never gets `longPress`, so its context menu cannot open while a reply is streaming, and a plain tap on a row is lost too. The same happens under any scroll no finger asked for: `scrollTo`, a content inset that changes with the keyboard, content that grows under `maintainVisibleContentPosition`.
 
-Hold a row in a list while the list scrolls by itself (a chat following a
-streamed reply, a `scrollTo`, a changed `contentInset`). The press or long
-press is cancelled within a frame, though the finger never moved.
+**Why it happens.** `cancelPressForScroll` releases the responder on every `topScroll` inside which it sits. Its comment says programmatic scrolling "has no press to cancel", but a finger can be down while the app scrolls.
 
-## Why
+**What React Native does.** iOS says on the event who scrolled. `RCTScrollViewComponentView.mm` sets `responderIgnoreScroll` from `!_isUserTriggeredScrolling`, which a drag turns on and the end of its momentum turns off. React Native's responder then leaves a marked scroll out of a transfer (`canTriggerTransfer` in `ReactNativeResponder.js`: `topLevelType === 'topScroll' && nativeEvent.responderIgnoreScroll !== true`).
 
-React Native's scroll view marks every scroll no finger caused:
-`RCTScrollViewComponentView.mm` sets
-`metrics.responderIgnoreScroll = !_isUserTriggeredScrolling`.
-React's responder system skips those (`ReactFabric-prod.js`:
-`"topScroll" === topLevelType && !nativeEvent.responderIgnoreScroll`).
+**The change.** A new `isAppScroll` in `engine.ts`, read at the top of `cancelPressForScroll`: on Apple's platforms a `topScroll` with `responderIgnoreScroll: true` does not cancel the press. Everything else is as before:
 
-ng-native's engine does not read the mark. `cancelPressForScroll` in
-`packages/fabric/src/engine.ts` releases the responder on every `topScroll`
-inside the list. Its own comment assumes programmatic scrolling happens with
-no touch in progress, which is not true for a list that follows content.
+- A scroll the finger makes, and its momentum, still cancel (the mark is `false` for both).
+- `topScrollBeginDrag` still cancels, whatever it carries. A drag that begins is the finger's.
+- **Android is unchanged on purpose.** `ScrollEvent.kt` sets `responderIgnoreScroll` on every scroll, the finger's too, from `!ReactNativeFeatureFlags.shouldTriggerResponderTransferOnScrollAndroid()`, and that flag is off. Reading the mark there would stop a real scroll from canceling a press, which is the bug `scroll-press.test.ts` was written for. So Android still cancels a press under an app-made scroll. Fixing that needs another signal (for example, whether a drag is in progress on that scroll view), and I left it out to keep this small. Happy to follow up if you want it.
+- macOS takes the same branch through `isApplePlatform()`, but I found nothing in the desktop host that sets the field, so nothing changes there. Say if you would rather this were `'ios'` only.
+- The web host's `notifyScroll` (`packages/web/src/responder.ts`) is not touched. A DOM scroll event does not say who scrolled.
 
-## The fix
+## How this was tested
 
-Skip `topScroll` events marked `responderIgnoreScroll`. `topScrollBeginDrag`
-always comes from a finger and still cancels. 11 lines in the engine.
+Test first, in `packages/integration-tests/scroll-press.test.ts`. Four new cases:
 
-## Tests
+| Case | Without the change | Guards |
+|---|---|---|
+| fires when the app scrolled the list under a finger that stayed put | fails | the fix |
+| does not fire when the finger scrolls a list the app is scrolling too | passes | a finger's scroll between two app scrolls still cancels |
+| does not fire when a drag begins, whatever the scroll events after it say | passes | fails if the `topScroll` check is removed from `isAppScroll` |
+| on Android: does not fire when the list scrolled under the finger, though the scroll is marked | passes | fails if the `isApplePlatform()` check is removed |
 
-Two cases added to `packages/integration-tests/scroll-press.test.ts`:
+I removed each half of the condition in turn and watched the matching guard go red.
 
-- a press survives two scrolls marked `responderIgnoreScroll: true`
-- a press is still cancelled when a finger scroll follows an app scroll
+- `scroll-press`, `press-tolerance` and `click-press`: 23 of 23 pass.
+- `pnpm nx run-many -t lint typecheck -p @ng-native/fabric @ng-native/integration-tests`: green.
+- `pnpm nx run @ng-native/integration-tests:test`: 10,831 tests, 10,827 pass, 3 skipped, 1 fails. The one failure is `device-testing-linux.test.ts` ("the Linux launcher"), which fails the same way on `main` without this change in my environment (a Linux container with no display).
+- `prettier --check` on the three files: clean.
 
-Not run in ng-native's own suite (it needs the full Angular workspace
-installed). Checked instead in Foldkit Native's suite, which runs ng-native's
-engine from source: a pressable row inside a scroll view, a `topScroll` with
-`responderIgnoreScroll: true` between touch start and end. Without the patch
-the press is lost (count 0); with it the press counts (1). A scroll without
-the mark still cancels the press in both.
+**Not tested:** on a device or simulator. I have no Mac here. Where I met this was an app that drives `@ng-native/fabric` 0.25.0 directly on an iPhone: a hold on a list row never fired while the list followed a streaming reply. The device confirmed the bug; the fix has only run on the fake Fabric. The `responderIgnoreScroll` values above are read from React Native 0.88.1's source, not observed on a device.
 
-Found on an iPhone (iOS 27, React Native 0.88.1) in Fold Chat, where holding a
-streaming reply never opened its menu.
+## Checklist
 
----
+- [x] Tests added or updated
+- [ ] Docs updated: none needed that I could find. `pressable.md` describes `cancelable` and the responder in general terms and does not say which scrolls cancel a press. Glad to add a sentence if you want one.
+- [x] A version plan in `.nx/version-plans/` (`press-through-app-scroll.md`, patch)
+- [ ] `pnpm lint typecheck test` is green locally: lint and typecheck were run for `fabric` and `integration-tests` only, and tests for `integration-tests` only (see above), not the whole workspace
+- [x] Respects the rules in ARCHITECTURE.md: the engine reads a field of the native event and imports nothing new
 
-## Suggested pull request text
-
-**fix(fabric): a scroll the app made does not cancel a press**
-
-A press or long press inside a list is cancelled when the list scrolls by
-itself under a resting finger: a chat following streamed content, a
-`scrollTo`, or a `contentInset` change. RN marks those scrolls
-`responderIgnoreScroll` (`RCTScrollViewComponentView.mm`,
-`!_isUserTriggeredScrolling`) and React's responder system ignores them for
-press cancellation. The engine's `cancelPressForScroll` did not check the
-flag. This skips `topScroll` events with `responderIgnoreScroll: true`;
-`topScrollBeginDrag` still cancels. Two cases added to
-`scroll-press.test.ts`.
+🤖 Generated with [Claude Code](https://claude.com/claude-code)

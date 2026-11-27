@@ -1,65 +1,107 @@
-From b0482280e0f840614bbd0bd661b30cc98c90cf0b Mon Sep 17 00:00:00 2001
+From 096bdf7b529284b75d360b8c12edae249d08a1d0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
-Date: Wed, 25 Nov 2026 23:17:45 +0100
-Subject: [PATCH] fix(fabric): a scroll the app made does not cancel a press
+Date: Fri, 27 Nov 2026 11:18:22 +0100
+Subject: [PATCH] Keep a press through a scroll the app made on iOS
 
-RN's scroll view marks scrolls no finger caused (a scrollTo, a changed
-contentInset, a list following streamed content) with
-responderIgnoreScroll (RCTScrollViewComponentView.mm,
-!_isUserTriggeredScrolling), and React's responder system skips them
-(ReactFabric: topScroll && !responderIgnoreScroll). The engine cancelled
-the press on every topScroll, so any press or long press in a list that
-moved by itself under a resting finger was lost.
+A press inside a scroll view was canceled on every topScroll, so a list
+that scrolled itself under a finger at rest took the touch away: a chat
+following a streaming reply with scrollToEnd never fired longPress on a
+message. cancelPressForScroll assumed a programmatic scroll has no press
+to cancel, but a finger can be down through one.
 
-Skip topScroll events marked responderIgnoreScroll. topScrollBeginDrag
-always comes from a finger and still cancels.
+iOS marks such a scroll. RCTScrollViewComponentView sets
+responderIgnoreScroll from !_isUserTriggeredScrolling, and React Native's
+responder leaves a marked scroll out of a transfer. The engine now passes
+a marked topScroll over on Apple's platforms.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_013uhLm7FKAb5kBU2n1bgL7j
+Android sets the field on every scroll, the finger's included, so it is
+not read there and a scroll under a finger cancels as before. A drag that
+begins cancels on every platform.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
 ---
- packages/fabric/src/engine.ts                 | 13 +++++++++-
- .../integration-tests/scroll-press.test.ts    | 24 ++++++++++++++++++-
- 2 files changed, 35 insertions(+), 2 deletions(-)
+ .nx/version-plans/press-through-app-scroll.md |  7 ++
+ packages/fabric/src/engine.ts                 | 26 ++++++-
+ .../integration-tests/scroll-press.test.ts    | 67 ++++++++++++++++++-
+ 3 files changed, 97 insertions(+), 3 deletions(-)
+ create mode 100644 .nx/version-plans/press-through-app-scroll.md
 
+diff --git a/.nx/version-plans/press-through-app-scroll.md b/.nx/version-plans/press-through-app-scroll.md
+new file mode 100644
+index 00000000..80514bf0
+--- /dev/null
++++ b/.nx/version-plans/press-through-app-scroll.md
+@@ -0,0 +1,7 @@
++---
++__default__: patch
++---
++
++On iOS, a press or a long press on something inside a scroll view is no longer canceled when the app scrolls that view under the finger.
++
++Before, any scroll event canceled the press, so a list that scrolled itself with `scrollTo`, a changing content inset or `maintainVisibleContentPosition` took the touch from a finger resting on a row. A chat that follows a streaming reply never fired `longPress` on a message. A scroll the finger makes, and the momentum after it, cancel the press as before. Android is unchanged: its scroll events do not say who scrolled.
 diff --git a/packages/fabric/src/engine.ts b/packages/fabric/src/engine.ts
-index e6e6fc9..ed5b7b4 100644
+index 12581d26..cb3f66c4 100644
 --- a/packages/fabric/src/engine.ts
 +++ b/packages/fabric/src/engine.ts
-@@ -435,6 +435,10 @@ export interface FabricUIManager {
+@@ -443,6 +443,25 @@ export interface FabricUIManager {
   */
  const SCROLL_CANCELS_PRESS = new Set(['topScroll', 'topScrollBeginDrag']);
  
-+/** A scroll the app made itself, which RN marks so it does not take the touch away. */
-+const isIgnoredScroll = (event: ResponderEvent): boolean =>
-+  (event as { nativeEvent?: { responderIgnoreScroll?: unknown } }).nativeEvent?.responderIgnoreScroll === true;
++/**
++ * Whether a scroll event is one the app made, not a finger: `scrollTo`, a content inset that
++ * changed, content that grew above a kept position.
++ *
++ * Apple's hosts say so on the event. `RCTScrollViewComponentView` sets `responderIgnoreScroll` on
++ * each `topScroll` from `!_isUserTriggeredScrolling`, which a drag turns on and the end of its
++ * momentum turns off, and React Native's own responder leaves a marked scroll out of a transfer.
++ *
++ * Android's field cannot be read this way. `ScrollEvent.kt` sets it on every scroll, the finger's
++ * too, from a feature flag that is off, so there a scroll under a finger cancels the press
++ * whatever the field holds. And a drag that begins is the finger's on every platform.
++ */
++function isAppScroll(type: string, event: ResponderEvent): boolean {
++  if (type !== 'topScroll' || !isApplePlatform()) return false;
++  // A scroll's payload, though it arrives typed as the touch the responder otherwise handles.
++  const payload = event.nativeEvent as { responderIgnoreScroll?: unknown } | undefined;
++  return payload?.responderIgnoreScroll === true;
++}
 +
  /**
   * RN's `directEventTypes`: delivered to the target only, never up the tree. Everything else
   * bubbles, which matches RN's `bubblingEventTypes` for the touch and input events that matter.
-@@ -17445,10 +17449,17 @@ export class Engine implements HostEngine {
+@@ -17942,10 +17961,15 @@ export class Engine implements HostEngine {
     *
     * Only a responder *inside* the thing that scrolled, so a scroll view moving does not cancel a
     * press somewhere else on screen. And only while a touch is in progress: momentum after the
 -   * finger has lifted, and programmatic scrolling, have no press to cancel.
 +   * finger has lifted has no press to cancel.
 +   *
-+   * And only a scroll a finger caused. The app can scroll a list while a finger rests on it: a
-+   * chat following a streamed reply, a `scrollTo`, a changed `contentInset`. RN's scroll view marks
-+   * those `responderIgnoreScroll` (`RCTScrollViewComponentView.mm`, `!_isUserTriggeredScrolling`),
-+   * and React's responder system skips them (`ReactFabric`: `topScroll && !responderIgnoreScroll`).
-+   * Cancelling on them killed every press and long press in a list that moved by itself.
++   * A scroll the app made is not the finger's, though a finger can be down through it: a list
++   * that follows a message as it streams in scrolls itself under a finger resting on a row.
++   * {@link isAppScroll} passes those over, as React Native's responder does.
     */
    private cancelPressForScroll(target: EngineNode, type: string, event: ResponderEvent): void {
      if (!SCROLL_CANCELS_PRESS.has(type)) return;
-+    if (type === 'topScroll' && isIgnoredScroll(event)) return;
++    if (isAppScroll(type, event)) return;
      const responder = this.currentResponder;
      if (!responder || responder === target) return;
      for (let node: EngineNode | null = responder; node; node = node.parent) {
 diff --git a/packages/integration-tests/scroll-press.test.ts b/packages/integration-tests/scroll-press.test.ts
-index 5465724..a71f877 100644
+index 54657242..2c68059e 100644
 --- a/packages/integration-tests/scroll-press.test.ts
 +++ b/packages/integration-tests/scroll-press.test.ts
-@@ -43,11 +43,12 @@ describe('a press in a list that scrolls', () => {
+@@ -9,8 +9,9 @@
+  * knows it is scrolling. Every platform cancels the touch at that moment, and so does this.
+  */
+ import assert from 'node:assert/strict';
+-import { before, beforeEach, afterEach, describe, it } from 'node:test';
++import { after, before, beforeEach, afterEach, describe, it } from 'node:test';
+ import type { Type } from '@angular/core';
++import { registerPlatformComponents } from '@ng-native/fabric';
+ import { cleanup, render, screen, type FakeFabric } from '@ng-native/testing';
+ import { compileFixture } from './compile.ts';
+ 
+@@ -43,12 +44,18 @@ describe('a press in a list that scrolls', () => {
    const at = (y: number) => ({ pageX: 10, pageY: y });
    const touch = (id: string, type: string, y: number) =>
      fabric.emit(node(id), type, { touches: [at(y)], changedTouches: [at(y)], ...at(y) });
@@ -71,32 +113,73 @@ index 5465724..a71f877 100644
        layoutMeasurement: { width: 100, height: 400 },
 +      ...extra,
      });
++  // What iOS sends with a scroll no finger made: `scrollTo`, a content inset that changed, content
++  // that grew under `maintainVisibleContentPosition`. React Native sets it from
++  // `!_isUserTriggeredScrolling` (RCTScrollViewComponentView.mm), and its own responder leaves
++  // such a scroll out of a transfer.
++  const appScroll = () => scroll({ responderIgnoreScroll: true });
  
    it('fires an ordinary tap', async () => {
-@@ -92,4 +93,25 @@ describe('a press in a list that scrolls', () => {
+     touch('row', 'topTouchStart', 100);
+@@ -92,4 +99,60 @@ describe('a press in a list that scrolls', () => {
      await settle();
      assert.equal(host.taps(), 1);
    });
 +
-+  it('keeps the press when the app scrolls the list itself', async () => {
-+    // A chat following a streamed reply moves under a resting finger many times a second. RN marks
-+    // those scrolls `responderIgnoreScroll`, and React does not cancel a press for them.
++  it('fires when the app scrolled the list under a finger that stayed put', async () => {
++    // A chat that follows a reply as it streams in scrolls itself several times a second. A
++    // finger resting on a message through that is a press, or the start of a long one: the list
++    // moved, the finger did not ask it to.
 +    touch('row', 'topTouchStart', 100);
-+    scroll({ responderIgnoreScroll: true });
-+    scroll({ responderIgnoreScroll: true });
++    appScroll();
++    appScroll();
 +    touch('row', 'topTouchEnd', 100);
 +    await settle();
 +    assert.equal(host.taps(), 1);
 +  });
 +
-+  it('still cancels when a finger scrolls the list after the app did', async () => {
++  it('does not fire when the finger scrolls a list the app is scrolling too', async () => {
++    // Only the app's own scrolls are passed over. One the finger makes, between two of them,
++    // still takes the touch.
 +    touch('row', 'topTouchStart', 100);
-+    scroll({ responderIgnoreScroll: true });
++    appScroll();
 +    scroll({ responderIgnoreScroll: false });
-+    touch('row', 'topTouchMove', 70);
++    appScroll();
 +    touch('row', 'topTouchEnd', 70);
 +    await settle();
 +    assert.equal(host.taps(), 0);
++  });
++
++  it('does not fire when a drag begins, whatever the scroll events after it say', async () => {
++    touch('row', 'topTouchStart', 100);
++    fabric.emit(node('list'), 'topScrollBeginDrag', {
++      contentOffset: { x: 0, y: 0 },
++      contentSize: { width: 100, height: 900 },
++      layoutMeasurement: { width: 100, height: 400 },
++      responderIgnoreScroll: true,
++    });
++    touch('row', 'topTouchEnd', 100);
++    await settle();
++    assert.equal(host.taps(), 0);
++  });
++
++  describe('on Android', () => {
++    // Android marks every scroll, the finger's included: `ScrollEvent.kt` sets the field from a
++    // feature flag that is off, not from who scrolled. So there the mark says nothing, and a
++    // scroll under a finger cancels as before.
++    before(() => registerPlatformComponents('android'));
++    after(() => {
++      registerPlatformComponents('ios');
++    });
++
++    it('does not fire when the list scrolled under the finger, though the scroll is marked', async () => {
++      touch('row', 'topTouchStart', 100);
++      scroll({ responderIgnoreScroll: true });
++      touch('row', 'topTouchMove', 70);
++      touch('row', 'topTouchEnd', 70);
++      await settle();
++      assert.equal(host.taps(), 0);
++    });
 +  });
  });
 -- 
