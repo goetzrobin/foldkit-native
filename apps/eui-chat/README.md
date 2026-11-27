@@ -387,7 +387,8 @@ most useful thing to send.
 | List of chats | `chat/parts/conversationList.ts` | The first screen, from a query |
 | Chat screen | `chat/parts/chatScreen.ts` | One chat: title bar, transcript, composer, the round button. Sends and stops |
 | Transcript | `chat/parts/transcript.ts` | The messages as a long list, and the numbers strip |
-| Message row | `chat/parts/messageRow.ts` | One of your messages |
+| Message row | `chat/parts/messageRow.ts` | One of your messages, with a play button on a voice note |
+| Mini player | `chat/parts/miniPlayer.ts` | The voice note that is loaded, with pause and close. On the list and in chats |
 | Reply stream | `chat/parts/replyStream.ts` | One reply, saved or still being written |
 | Composer | `chat/parts/composer.ts` | The text field, Send and Stop, the microphone, voice notes |
 | Settings sheet | `chat/parts/settingsSheet.ts` | Light or dark, the pretend AI's switches, the numbers strip |
@@ -395,6 +396,9 @@ most useful thing to send.
 | Rename sheet | `chat/parts/renameSheet.ts` | One text field, Cancel and Save |
 | Server data | `chat/data.ts` | What the app reads and writes, and the reply's stream |
 | Events | `chat/events.ts` | Short lines one screen says for another to show |
+| State machines | `chat/machines/` | The rules of a reply and of the audio player, and the player itself |
+| Playback | `chat/playback.ts` | How a screen sends the player an event and hears what it did |
+| Timeline | `chat/timeline.ts`, `chat/replay.ts` | What the screens and the player did, as one list, and running it again |
 
 The programs are in `packages/effect-ui-native/chat`. The app copies them,
 with the host, into `./native` each time it starts
@@ -426,3 +430,67 @@ have to be built again.
   says "Copied".
 - **If the app breaks.** It shows a screen that says so, with the error,
   Copy and Start again. Your chats are kept.
+
+## State machines: the reply, and one audio player for the app
+
+Added after the dev tools. Run `npm install` once after pulling. The app
+does not have to be built again: what was added is JavaScript only.
+
+Two things changed that you can see.
+
+- A voice note you have sent has a play button on its row.
+- A small bar, the mini player, shows the note that is loaded. It is at the
+  bottom of the list of chats and just above the text field in every chat.
+  It has a button to pause or go on, and one to close.
+
+The sound is not part of any screen any more. A note you start in a chat
+goes on when you leave the chat. `docs/STATE_MACHINES.md` explains how, and
+what else was built with it.
+
+Seven checks. Each has a yes or no answer.
+
+**1. A reply still streams, stops and can be tried again.**
+Send a message. "Thinking" shows, then the words arrive a few at a time.
+Send another and press Stop while it is being written.
+Yes: the reply stops, the word "Stopped" shows under it, and no more words
+are added. Then turn on "Fail halfway through a reply" in Settings, send a
+message, and press "Try again" under the reply that failed.
+Yes: a new reply is written.
+
+**2. A sent voice note plays from its row.**
+Record a voice note with the sound wave button, finish it, and send it.
+Press the play button on the note in your message.
+Yes: you hear it. The note says "Playing", and the mini player shows above
+the text field with the note's name and a clock that counts up.
+
+**3. The sound goes on when you leave the chat, and the bar on the list
+pauses it.**
+While the note plays, go back to the list of chats.
+Yes: you still hear it, and the mini player is at the bottom of the list.
+Press its round button.
+Yes: the sound stops, and the bar says "Paused at" and a time.
+
+**4. The chat knows the note is paused.**
+Open the same chat again.
+Yes: the note on your message says "Paused". Press its button.
+Yes: the sound goes on from where it was, not from the start.
+
+**5. A second note stops the first.**
+Send a second voice note. Play the first, then press play on the second.
+Yes: only the second is heard. The first note's row shows a plain play
+button again, and the mini player names the second note.
+
+**6. Close stops it.**
+Press the cross on the mini player.
+Yes: the sound stops and the bar is gone, in the chat and on the list.
+
+**7. The timeline can be copied.** Development builds only.
+Play a note and pause it. Open Settings from the list of chats and press
+"Copy timeline".
+Yes: Settings closes and the list says "Timeline copied" with a number of
+entries. Paste into Notes.
+Yes: a long line of text that starts with `{"version":1,"items":[`. That
+text is the most useful thing to send with a bug report about the player.
+In a release build the row is not there.
+
+If a check says no, say which one and what you saw.

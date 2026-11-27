@@ -454,6 +454,7 @@ Features that steps 1 and 2 already built are left out.
 |---|---|
 | The microphone button: what you say is written into the field as you say it | Built |
 | A voice note can be played back before it is sent | Built |
+| A sent voice note plays from its row, goes on when the chat is closed, and shows in a mini player on the list and in chats | Built, after step 3. See `docs/STATE_MACHINES.md` |
 | The phone reads a voice note's words from its file and puts them in the field | Built. Fold Chat puts a line there that says a transcript would go here |
 
 ### Not built, and why

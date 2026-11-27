@@ -134,3 +134,7 @@ React Native 0.88, react-native-screens 4.30.
 on your Mac that shows everything the running app does, as it happens. A
 coding agent can read the same. `docs/DEV_TOOLS.md` explains it for a person
 with no technical background.
+
+## State machines in Effect Chat
+
+A reply's modes and the app's one audio player are state machines now, built in two different ways on purpose, with one timeline and replay across both. `docs/STATE_MACHINES.md` compares the two.
